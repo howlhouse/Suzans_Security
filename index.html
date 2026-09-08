@@ -62,29 +62,15 @@
         .pride-strip { height: 4px; width: 100%; position: fixed; top: 0; left: 0; z-index: 2000; background: linear-gradient(90deg, #ff0055, #ff5500, #ffea00, #00ff87, #00f5d4, #7928ca, #ff0055); background-size: 300% 100%; animation: circuitLaser 8s linear infinite; }
         @keyframes circuitLaser { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
 
+        /* Jockstrap Cactus Dance */
+        @keyframes dance {
+            0% { transform: translateY(0) rotate(-10deg) scale(1); }
+            100% { transform: translateY(-20px) rotate(10deg) scale(1.1); }
+        }
+
         /* HowlHouse Static Watermark */
-        .howlhouse-watermark {
-            position: fixed;
-            bottom: calc(85px + env(safe-area-inset-bottom, 0px));
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-family: 'Outfit', sans-serif;
-            font-size: 0.65rem;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.25);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            pointer-events: none;
-            z-index: 500;
-        }
-        .howlhouse-watermark img {
-            height: 14px;
-            width: auto;
-            filter: invert(1) opacity(0.6);
-        }
+        .howlhouse-watermark { position: fixed; bottom: calc(85px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 700; color: rgba(255, 255, 255, 0.25); text-transform: uppercase; letter-spacing: 1px; pointer-events: none; z-index: 500; }
+        .howlhouse-watermark img { height: 14px; width: auto; filter: invert(1) opacity(0.6); }
 
         /* Apple Frosted Navigation Bar */
         header { position: sticky; top: 4px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-bottom: 1px solid var(--border-glass); }
@@ -168,6 +154,16 @@
 </head>
 <body>
 
+    <!-- CACTUS LOADING OVERLAY -->
+    <div id="loadingOverlay" style="position: fixed; inset: 0; z-index: 9999; background: var(--bg-obsidian); display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+        <div style="position: relative; animation: dance 0.8s infinite alternate ease-in-out; text-align: center;">
+            <div style="font-size: 6rem; line-height: 1;">🌵</div>
+            <div style="font-size: 3rem; line-height: 1; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);">🩲</div>
+        </div>
+        <h2 style="color: var(--neon-teal); font-family: 'Outfit'; margin-top: 30px; font-weight: 800; letter-spacing: 2px; animation: pulseGlow 2s infinite alternate;">SECURING PERIMETER...</h2>
+    </div>
+
+    <!-- CSS Graphic Watermark Layer -->
     <div class="watermark-pattern"></div>
     <div class="pride-strip"></div>
 
@@ -225,7 +221,7 @@
             </div>
             <div class="chat-container" id="chatBox"></div>
             <div style="display: flex; gap: 8px;">
-                <input type="text" id="chatInput" class="input-field" placeholder="Transmit field comms..." style="margin: 0;">
+                <input type="text" id="chatInput" class="input-field" placeholder="Transmit field comms..." style="margin: 0;" data-1p-ignore>
                 <button class="btn btn-outline" style="padding: 12px 15px;" onclick="document.getElementById('fileInput').click()">📎</button>
                 <button class="btn" onclick="sendChat()">Send</button>
                 <input type="file" id="fileInput" style="display: none;" onchange="uploadFile(event)">
@@ -255,7 +251,7 @@
 
             <div id="adminChats" class="admin-pane" style="display: none;">
                 <div style="display:flex; gap:8px; margin-bottom:15px;">
-                    <input type="text" id="newChanInput" class="input-field" placeholder="New Channel name..." style="margin:0;">
+                    <input type="text" id="newChanInput" class="input-field" placeholder="New Channel name..." style="margin:0;" data-1p-ignore>
                     <button class="btn btn-sm" onclick="addChannel()">Add</button>
                 </div>
                 <h4>Active Channels</h4><div id="adminChanList" style="margin-bottom:20px;"></div>
@@ -283,7 +279,7 @@
             <div id="adminSettings" class="admin-pane" style="display: none;">
                 <div class="glass-card" style="padding: 20px; max-width: 360px;">
                     <label style="font-size: 0.8rem; color: var(--text-muted);">Change Admin PIN</label>
-                    <input type="password" id="newPinInput" class="input-field" placeholder="New PIN">
+                    <input type="password" id="newPinInput" class="input-field" placeholder="New PIN" data-1p-ignore>
                     <button class="btn btn-sm" onclick="changePin()">Save PIN</button>
                 </div>
             </div>
@@ -316,8 +312,8 @@
             <input type="password" id="authPass" class="input-field" placeholder="Password">
             
             <div id="regFields" style="display: none;">
-                <input type="text" id="authName" class="input-field" placeholder="Full Name / Callsign">
-                <input type="tel" id="authPhone" class="input-field" placeholder="Mobile Phone">
+                <input type="text" id="authName" class="input-field" placeholder="Full Name / Callsign" data-1p-ignore>
+                <input type="tel" id="authPhone" class="input-field" placeholder="Mobile Phone" data-1p-ignore>
             </div>
 
             <button class="btn" style="width: 100%; margin-top: 8px;" id="authBtn" onclick="handleAuth()">Sign In to Dispatch</button>
@@ -355,12 +351,12 @@
             <p id="pContact" style="font-size:0.86rem; color:var(--text-secondary); margin-bottom:14px;"></p>
             <div id="pTags" class="tags-container" style="margin: 8px 0;"></div>
             <div style="display: flex; gap: 6px; margin-bottom: 18px;">
-                <input type="text" id="pTagIn" class="input-field" placeholder="Add custom tag..." style="margin:0;">
+                <input type="text" id="pTagIn" class="input-field" placeholder="Add custom tag..." style="margin:0;" data-1p-ignore>
                 <button class="btn btn-sm" onclick="addPTag()">Add</button>
             </div>
             <h4 style="font-size: 0.95rem; margin-bottom: 8px;">Debrief Notes</h4>
             <div id="pNotes" style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); padding:12px; border-radius:12px; margin-bottom:12px; max-height:160px; overflow-y:auto;"></div>
-            <textarea id="pNoteIn" class="input-field" rows="2" placeholder="Record incident note..."></textarea>
+            <textarea id="pNoteIn" class="input-field" rows="2" placeholder="Record incident note..." data-1p-ignore></textarea>
             <button class="btn btn-sm" onclick="addPNote()">Add Note</button>
         </div>
     </div>
@@ -401,6 +397,8 @@
                         }
                         checkAuth();
                         refreshGlobalUI();
+                        // Hide loading overlay once Firebase is ready
+                        document.getElementById('loadingOverlay').style.display = 'none';
                     }
                 } else {
                     refreshGlobalUI(); // Real-time sync update
@@ -596,7 +594,7 @@
                             <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">Live Shift Comms</h4>
                             <div id="detailChatBox" style="height:220px; overflow-y:auto; background:rgba(12,12,18,0.6); border:1px solid var(--border-glass); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
                             <div style="display:flex; gap:8px;">
-                                <input type="text" id="detailChatInput" class="input-field" placeholder="Transmit shift update..." style="margin:0;">
+                                <input type="text" id="detailChatInput" class="input-field" placeholder="Transmit shift update..." style="margin:0;" data-1p-ignore>
                                 <button class="btn btn-sm" onclick="sendDetailChat('${e.id}')">Send</button>
                             </div>
                         </div>
@@ -688,10 +686,10 @@
         }
         function genAdminSec(sec, e) {
             const promOpts = `<option value="">-- No Client/Promoter Linked --</option>` + getDB('promoters').map(p => `<option value="${p.id}" ${e.promoterId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
-            if(sec==='img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="updEv('${e.id}','image',this.value)"><input class="input-field" value="${e.title}" onchange="updEv('${e.id}','title',this.value)"></div>`;
-            if(sec==='info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="updEv('${e.id}','date',this.value)"><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink||''}" onchange="updEv('${e.id}','ticketLink',this.value)"><select class="input-field" onchange="updEv('${e.id}','promoterId',this.value)">${promOpts}</select><textarea class="input-field" onchange="updEv('${e.id}','desc',this.value)">${e.desc}</textarea></div>`;
+            if(sec==='img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="updEv('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="updEv('${e.id}','title',this.value)" data-1p-ignore></div>`;
+            if(sec==='info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="updEv('${e.id}','date',this.value)" data-1p-ignore><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink||''}" onchange="updEv('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="updEv('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><textarea class="input-field" onchange="updEv('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
             if(sec==='tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">TAGS</label><div class="tags-container" style="margin-top:8px;">${PRESET_TAGS.map(t=>`<span class="neon-tag ${(e.tags||[]).includes(t)?'tag-active':'tag-inactive'}" style="cursor:pointer;" onclick="togTag('${e.id}','${t}')">${(e.tags||[]).includes(t)?'✓ ':''}${t}</span>`).join('')}</div></div>`;
-            if(sec==='roster') return `<div class="draggable-section" draggable="true" data-id="roster"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ROSTER & SLOTS</label><div style="margin-top:4px; font-size:0.8rem;">Open Slots: <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots}" onchange="updEv('${e.id}','openSlots',parseInt(this.value)||0);"></div><div style="display:flex; gap:5px; margin-top:8px;"><input id="mg_${e.id}" class="input-field" placeholder="Manual Name" style="margin:0;"><button class="btn btn-sm" onclick="manAddG('${e.id}')">Add</button></div><p style="font-size:0.8rem; margin-top:10px;">Guards: ${(e.guards||[]).map((g,i)=>`<span class="guard-chip">${g} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmG('${e.id}',${i})">×</b></span>`).join(' ')}</p></div>`;
+            if(sec==='roster') return `<div class="draggable-section" draggable="true" data-id="roster"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ROSTER & SLOTS</label><div style="margin-top:4px; font-size:0.8rem;">Open Slots: <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots}" onchange="updEv('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore></div><div style="display:flex; gap:5px; margin-top:8px;"><input id="mg_${e.id}" class="input-field" placeholder="Manual Name" style="margin:0;" data-1p-ignore><button class="btn btn-sm" onclick="manAddG('${e.id}')">Add</button></div><p style="font-size:0.8rem; margin-top:10px;">Guards: ${(e.guards||[]).map((g,i)=>`<span class="guard-chip">${g} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmG('${e.id}',${i})">×</b></span>`).join(' ')}</p></div>`;
         }
         function initDragDrop(cid, eid) {
             const cont = document.getElementById(cid);
