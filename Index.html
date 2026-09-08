@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+    <title>Suzan's Security | Phoenix Staff Portal</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Neon Desert Palette */
+            --bg-obsidian: #08080c;
+            --bg-card: rgba(22, 22, 30, 0.72);
+            --glass-sheet: rgba(18, 18, 26, 0.82);
+            --border-glass: rgba(255, 255, 255, 0.12);
+            
+            /* High-voltage Neon Accents */
+            --neon-teal: #00f5d4;
+            --neon-pink: #ff2a85;
+            --neon-saguaro: #00ff87;
+            --danger-glow: #ff3366;
+            
+            /* Text & Surfaces */
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-muted: rgba(255, 255, 255, 0.42);
+            --apple-spring: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-obsidian);
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            padding-bottom: calc(110px + env(safe-area-inset-bottom, 20px));
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* 🌵 QUEER NIGHTLIFE WATERMARK PATTERN 🌵 */
+        .watermark-pattern {
+            position: fixed; inset: 0; z-index: -3; pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='350' height='350' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='20' y='60' font-size='32' transform='rotate(-15 20 60)'%3E🌵%3C/text%3E%3Ctext x='130' y='110' font-size='32' transform='rotate(10 130 110)'%3E🪩%3C/text%3E%3Ctext x='250' y='40' font-size='32' transform='rotate(-20 250 40)'%3E👢%3C/text%3E%3Ctext x='60' y='190' font-size='32' transform='rotate(15 60 190)'%3E🤠%3C/text%3E%3Ctext x='180' y='230' font-size='32' transform='rotate(-10 180 230)'%3E🩲%3C/text%3E%3Ctext x='280' y='170' font-size='32' transform='rotate(20 280 170)'%3E🐾%3C/text%3E%3Ctext x='30' y='300' font-size='32' transform='rotate(-15 30 300)'%3E🐻%3C/text%3E%3Ctext x='140' y='280' font-size='32' transform='rotate(5 140 280)'%3E🪴%3C/text%3E%3Ctext x='260' y='310' font-size='32' transform='rotate(-25 260 310)'%3E🐾%3C/text%3E%3C/svg%3E");
+            background-repeat: repeat; background-size: 350px 350px;
+            filter: grayscale(100%) opacity(0.06) contrast(200%) drop-shadow(0 0 2px #00f5d4);
+        }
+
+        /* Ambient Desert Circuit Mesh Glow */
+        body::before { content: ""; position: fixed; top: -15%; left: 50%; transform: translateX(-50%); width: 650px; height: 450px; background: radial-gradient(circle, rgba(121, 40, 202, 0.28) 0%, rgba(255, 42, 133, 0.15) 45%, transparent 70%); filter: blur(80px); z-index: -2; pointer-events: none; }
+        body::after { content: ""; position: fixed; bottom: 5%; right: -10%; width: 500px; height: 450px; background: radial-gradient(circle, rgba(0, 245, 212, 0.16) 0%, rgba(0, 255, 135, 0.12) 40%, transparent 70%); filter: blur(80px); z-index: -2; pointer-events: none; }
+
+        /* Phoenix Pride Shimmer Laser */
+        .pride-strip { height: 4px; width: 100%; position: fixed; top: 0; left: 0; z-index: 2000; background: linear-gradient(90deg, #ff0055, #ff5500, #ffea00, #00ff87, #00f5d4, #7928ca, #ff0055); background-size: 300% 100%; animation: circuitLaser 8s linear infinite; }
+        @keyframes circuitLaser { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+
+        /* HowlHouse Static Watermark */
+        .howlhouse-watermark {
+            position: fixed;
+            bottom: calc(85px + env(safe-area-inset-bottom, 0px));
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.25);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            pointer-events: none;
+            z-index: 500;
+        }
+        .howlhouse-watermark img {
+            height: 14px;
+            width: auto;
+            filter: invert(1) opacity(0.6);
+        }
+
+        /* Apple Frosted Navigation Bar */
+        header { position: sticky; top: 4px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-bottom: 1px solid var(--border-glass); }
+        .brand-container { display: flex; align-items: center; gap: 10px; }
+        .brand-icon { font-size: 1.5rem; filter: drop-shadow(0 0 10px rgba(0, 245, 212, 0.8)); animation: pulseGlow 3s ease-in-out infinite alternate; }
+        @keyframes pulseGlow { 0% { transform: scale(1); filter: drop-shadow(0 0 6px var(--neon-teal)); } 100% { transform: scale(1.08); filter: drop-shadow(0 0 16px var(--neon-pink)); } }
+        .brand-text { font-family: 'Outfit', sans-serif; font-size: 1.18rem; font-weight: 800; background: linear-gradient(135deg, #ffffff 40%, var(--neon-teal) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .user-pill { display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--border-glass); padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; color: var(--neon-teal); backdrop-filter: blur(10px); }
+
+        .container { max-width: 820px; margin: 0 auto; padding: 24px 18px; }
+
+        /* Apple Frosted Glass Cards */
+        .glass-card { background: var(--bg-card); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); border: 1px solid var(--border-glass); border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); transition: transform 0.3s var(--apple-spring), border-color 0.3s ease; overflow: hidden; margin-bottom: 22px; }
+        .glass-card:hover { border-color: rgba(255, 255, 255, 0.22); }
+
+        /* Event Tile Visuals */
+        .event-tile { cursor: pointer; position: relative; }
+        .event-tile:active { transform: scale(0.985); }
+        .event-img-wrap { position: relative; height: 190px; width: 100%; overflow: hidden; }
+        .event-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--apple-spring); }
+        .event-tile:hover .event-img { transform: scale(1.04); }
+        .event-img-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 12, 0.1) 0%, rgba(8, 8, 12, 0.85) 100%); }
+        .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); backdrop-filter: blur(12px); padding: 5px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; color: var(--neon-teal); }
+        .event-body { padding: 18px 20px; }
+        .event-title { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 700; margin-bottom: 8px; }
+        .event-desc { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin-bottom: 14px; }
+
+        /* Tag Badges - Neon Glow */
+        .tags-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .neon-tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; }
+        .tag-active { background: rgba(0, 245, 212, 0.15); color: var(--neon-teal); border: 1px solid rgba(0, 245, 212, 0.4); }
+        .tag-nsfw { background: rgba(255, 42, 133, 0.15); color: var(--neon-pink); border: 1px solid rgba(255, 42, 133, 0.4); }
+        .tag-inactive { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid var(--border-glass); }
+
+        /* Roster Box */
+        .roster-card { background: rgba(14, 14, 20, 0.6); border: 1px solid var(--border-glass); border-radius: 14px; padding: 12px 16px; margin: 14px 0; }
+        .roster-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 700; color: var(--neon-teal); margin-bottom: 8px; }
+        .guard-chip { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; margin: 3px; }
+
+        /* Buttons */
+        .btn { appearance: none; border: none; background: linear-gradient(135deg, var(--neon-teal) 0%, #00c4a7 100%); color: #08080c; font-family: inherit; font-weight: 700; font-size: 0.95rem; padding: 12px 20px; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.25s var(--apple-spring); box-shadow: 0 4px 16px rgba(0, 245, 212, 0.3); }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { background: rgba(255, 255, 255, 0.08); color: var(--text-muted); box-shadow: none; cursor: not-allowed; }
+        .btn-magenta { background: linear-gradient(135deg, var(--neon-pink) 0%, #d81159 100%); color: #fff; box-shadow: 0 4px 16px rgba(255, 42, 133, 0.35); }
+        .btn-outline { background: rgba(255, 255, 255, 0.04); color: #fff; border: 1px solid var(--border-glass); box-shadow: none; }
+        .btn-sm { padding: 7px 14px; font-size: 0.82rem; border-radius: 10px; }
+
+        /* Inputs */
+        .input-field, select, textarea { width: 100%; background: rgba(12, 12, 18, 0.7); border: 1px solid var(--border-glass); color: #fff; padding: 12px 14px; border-radius: 12px; font-size: 0.92rem; font-family: inherit; margin: 6px 0 14px; outline: none; transition: border-color 0.25s ease; }
+        .input-field:focus, select:focus, textarea:focus { border-color: var(--neon-teal); }
+
+        /* iOS Bottom Navigation Bar */
+        .dock-nav { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; background: rgba(18, 18, 26, 0.85); backdrop-filter: blur(28px) saturate(200%); -webkit-backdrop-filter: blur(28px) saturate(200%); padding: 8px 12px; border-radius: 36px; border: 1px solid var(--border-glass); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.7); z-index: 1500; width: 92%; max-width: 480px; justify-content: space-around; }
+        .dock-item { background: none; border: none; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 600; padding: 6px 12px; border-radius: 20px; cursor: pointer; }
+        .dock-item span:first-child { font-size: 1.25rem; transition: transform 0.25s var(--apple-spring); }
+        .dock-item.active { color: var(--neon-teal); background: rgba(0, 245, 212, 0.12); }
+        .dock-item.active span:first-child { transform: translateY(-2px) scale(1.15); filter: drop-shadow(0 0 8px var(--neon-teal)); }
+
+        /* Chat & Modals & Admin */
+        .chat-container { height: 380px; overflow-y: auto; background: rgba(12, 12, 18, 0.6); border: 1px solid var(--border-glass); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+        .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 0.9rem; background: rgba(32, 32, 44, 0.75); border: 1px solid var(--border-glass); align-self: flex-start; }
+        .chat-bubble.mine { align-self: flex-end; background: linear-gradient(135deg, #7928ca 0%, #4a00e0 100%); }
+        .draggable-section { background: rgba(26, 26, 36, 0.85); border: 1px dashed rgba(255, 255, 255, 0.2); padding: 12px; border-radius: 12px; margin-bottom: 10px; cursor: grab; }
+        .draggable-section.dragging { opacity: 0.35; border-color: var(--neon-teal); transform: scale(0.98); }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+        .cal-head { text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); }
+        .cal-day { background: rgba(22, 22, 32, 0.6); border: 1px solid var(--border-glass); border-radius: 12px; min-height: 85px; padding: 8px 6px; font-size: 0.85rem; cursor: pointer; display: flex; flex-direction: column; }
+        .cal-badge { background: linear-gradient(135deg, var(--neon-teal), var(--neon-saguaro)); color: #08080c; font-size: 0.65rem; padding: 3px 5px; border-radius: 6px; margin-top: 3px; white-space: nowrap; overflow: hidden; font-weight: 800; cursor: pointer; transition: transform 0.2s ease; }
+        .cal-badge:hover { transform: scale(1.05); }
+        
+        .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.82); backdrop-filter: blur(14px); z-index: 2500; display: none; align-items: center; justify-content: center; padding: 18px; }
+        .modal-sheet { background: var(--glass-sheet); border: 1px solid var(--border-glass); border-radius: 24px; width: 100%; max-width: 480px; padding: 28px 24px; }
+        
+        .segmented-control { display: flex; gap: 4px; overflow-x: auto; background: rgba(14, 14, 20, 0.8); border: 1px solid var(--border-glass); padding: 5px; border-radius: 14px; margin-bottom: 20px; }
+        .segment-btn { background: none; border: none; color: var(--text-muted); padding: 8px 14px; border-radius: 10px; cursor: pointer; white-space: nowrap; font-weight: 700; }
+        .segment-btn.active { background: var(--neon-teal); color: #08080c; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; text-align: left; }
+        .data-table th { padding: 10px; color: var(--neon-teal); border-bottom: 1px solid var(--border-glass); }
+        .data-table td { padding: 12px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+    </style>
+</head>
+<body>
+
+    <!-- CSS Graphic Watermark Layer -->
+    <div class="watermark-pattern"></div>
+    <div class="pride-strip"></div>
+
+    <header>
+        <div class="brand-container">
+            <span class="brand-icon">🌵</span>
+            <div>
+                <h1 class="brand-text">SUZAN'S SECURITY</h1>
+                <p style="font-size: 0.63rem; font-weight: 700; letter-spacing: 0.8px; color: var(--neon-pink);">PHOENIX'S PREMIER QUEER SECURITY TEAM</p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="user-pill" id="userPill">
+                <span>🛡️</span><span id="userGreeting">Officer</span>
+            </div>
+            <!-- Info / About Modal Trigger -->
+            <button class="btn btn-outline btn-sm" style="padding: 6px 12px; border-radius: 20px;" onclick="document.getElementById('aboutModal').style.display='flex'">ℹ️</button>
+        </div>
+    </header>
+
+    <div class="container">
+
+        <!-- VIEW 1: UPCOMING EVENTS FEED -->
+        <section id="eventsFeedView">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
+                <div>
+                    <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:800;">Upcoming Shift Postings</h2>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">Phoenix nightlife details, venues &amp; circuit parties</p>
+                </div>
+            </div>
+            <div id="userEventsFeedList"></div>
+        </section>
+
+        <!-- VIEW 2: EVENT DETAIL & BRIEF -->
+        <section id="eventDetailView" style="display: none;">
+            <button class="btn btn-outline btn-sm" style="margin-bottom: 16px;" onclick="switchView('eventsFeed')">← Back to Postings</button>
+            <div id="eventDetailContent"></div>
+        </section>
+
+        <!-- VIEW 3: 30-DAY CALENDAR -->
+        <section id="calendarView" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800;" id="calMonthText">Calendar</h2>
+                <div style="display: flex; gap: 6px;">
+                    <button class="btn btn-outline btn-sm" onclick="changeMonth(-1)">◀</button>
+                    <button class="btn btn-outline btn-sm" onclick="changeMonth(1)">▶</button>
+                </div>
+            </div>
+            <div class="cal-grid" id="calGrid"></div>
+        </section>
+
+        <!-- VIEW 4: TEAM CHANNELS -->
+        <section id="teamChatView" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h2 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800;" id="chatTitle"># general</h2>
+                <select id="chatDropdown" class="input-field" style="width:auto; margin:0; padding:6px 12px;" onchange="switchChat(this.value)"></select>
+            </div>
+            <div class="chat-container" id="chatBox"></div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="chatInput" class="input-field" placeholder="Transmit field comms..." style="margin: 0;">
+                <button class="btn btn-outline" style="padding: 12px 15px;" onclick="document.getElementById('fileInput').click()">📎</button>
+                <button class="btn" onclick="sendChat()">Send</button>
+                <input type="file" id="fileInput" style="display: none;" onchange="uploadFile(event)">
+            </div>
+        </section>
+
+        <!-- VIEW 5: ADMIN COMMAND CENTER -->
+        <section id="adminConsoleView" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal);">🛡️ Command Center</h2>
+                <button class="btn btn-outline btn-sm" onclick="switchView('eventsFeed')">Exit</button>
+            </div>
+
+            <div class="segmented-control">
+                <button class="segment-btn active" onclick="switchAdmin('adminEvents')">Events</button>
+                <button class="segment-btn" onclick="switchAdmin('adminChats')">Chat Mgmt</button>
+                <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
+                <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
+                <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
+                <button class="segment-btn" onclick="switchAdmin('adminSettings')">⚙️ PIN</button>
+            </div>
+
+            <div id="adminEvents" class="admin-pane">
+                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addBlankEvent()">+ New Shift Posting</button>
+                <div id="adminEventsList"></div>
+            </div>
+
+            <div id="adminChats" class="admin-pane" style="display: none;">
+                <div style="display:flex; gap:8px; margin-bottom:15px;">
+                    <input type="text" id="newChanInput" class="input-field" placeholder="New Channel name..." style="margin:0;">
+                    <button class="btn btn-sm" onclick="addChannel()">Add</button>
+                </div>
+                <h4>Active Channels</h4><div id="adminChanList" style="margin-bottom:20px;"></div>
+                <h4>Recent Comms</h4><div id="adminMsgList" style="max-height:200px; overflow-y:auto; margin-bottom:20px;" class="glass-card"></div>
+                <h4>Attachments</h4><div id="adminAttachList" class="glass-card" style="padding:12px;"></div>
+            </div>
+
+            <div id="adminLogs" class="admin-pane" style="display: none;">
+                <div class="glass-card" style="padding:12px; overflow-x:auto;">
+                    <table class="data-table"><thead><tr><th>Time</th><th>User</th><th>Action</th></tr></thead><tbody id="logsBody"></tbody></table>
+                </div>
+            </div>
+
+            <div id="adminUsers" class="admin-pane" style="display: none;">
+                <div class="glass-card" style="padding:12px; overflow-x:auto;">
+                    <table class="data-table"><thead><tr><th>Name</th><th>Contact</th><th>Role/Reset</th></tr></thead><tbody id="usersBody"></tbody></table>
+                </div>
+            </div>
+
+            <div id="adminContacts" class="admin-pane" style="display: none;">
+                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addPromoter()">+ New Promoter</button>
+                <div id="promoterList"></div>
+            </div>
+
+            <div id="adminSettings" class="admin-pane" style="display: none;">
+                <div class="glass-card" style="padding: 20px; max-width: 360px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted);">Change Admin PIN</label>
+                    <input type="password" id="newPinInput" class="input-field" placeholder="New PIN">
+                    <button class="btn btn-sm" onclick="changePin()">Save PIN</button>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- HowlHouse Global Watermark -->
+    <div class="howlhouse-watermark">
+        <img src="House_Black_Logo.png" alt="HowlHouse Logo">
+        <span>Created and Managed by HowlHouse</span>
+    </div>
+
+    <!-- Apple Floating Dock Bar -->
+    <nav class="dock-nav">
+        <button class="dock-item active" onclick="switchView('eventsFeed')">
+            <span>🪩</span><span>Events</span>
+        </button>
+        <button class="dock-item" onclick="switchView('calendarView')">
+            <span>📅</span><span>Calendar</span>
+        </button>
+        <button class="dock-item" onclick="switchView('teamChatView')">
+            <span>💬</span><span>Comms</span>
+        </button>
+        <button class="dock-item" onclick="promptAdminPin()">
+            <span>🔒</span><span>Admin</span>
+        </button>
+    </nav>
+
+    <!-- MODAL: AUTHENTICATION -->
+    <div class="modal" id="authModal">
+        <div class="modal-sheet">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <span style="font-size: 2.4rem;">🤠</span>
+                <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; margin-top:8px;">Suzan's Security</h3>
+            </div>
+            <p id="authErr" style="color:var(--danger-glow); font-size:0.85rem; margin-bottom:12px; display:none;"></p>
+            <input type="email" id="authEmail" class="input-field" placeholder="Email Address">
+            <input type="password" id="authPass" class="input-field" placeholder="Password">
+            
+            <div id="regFields" style="display: none;">
+                <input type="text" id="authName" class="input-field" placeholder="Full Name / Callsign">
+                <input type="tel" id="authPhone" class="input-field" placeholder="Mobile Phone">
+            </div>
+
+            <button class="btn" style="width: 100%; margin-top: 8px;" id="authBtn" onclick="handleAuth()">Sign In to Dispatch</button>
+            <p style="text-align: center; margin-top: 18px; color: var(--neon-teal); font-size: 0.85rem; cursor: pointer; font-weight: 600;" onclick="toggleAuth()" id="authToggleText">New Officer? Register Account</p>
+        </div>
+    </div>
+
+    <!-- MODAL: ABOUT PAGE (REPLACING SIDE MENU) -->
+    <div class="modal" id="aboutModal">
+        <div class="modal-sheet" style="text-align: center; padding-top: 15px;">
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding: 4px 8px;" onclick="closeModal('aboutModal')">✕</button>
+            </div>
+            
+            <img src="House_Black_Logo.png" alt="HowlHouse Logo" style="width: 55px; height: 55px; filter: invert(1); margin-bottom: 12px;">
+            
+            <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal); margin-bottom: 6px;">Suzan's Security App</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 20px;">Created & Managed in partnership with Howlhouse, LLC</p>
+            
+            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.82rem; color: var(--text-muted); text-align: left; line-height: 1.6; margin-bottom: 10px;">
+                <p><strong>Version Date:</strong> September 2026</p>
+                <p><strong>Location:</strong> Phoenix, AZ 85012</p>
+                
+                <hr style="border:0; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0;">
+                
+                <p style="margin-bottom: 8px;">Using this application default accepts all Terms & Conditions.</p>
+                <p>Your personal data will never be sold but may be shared with other LGBTQ+ supporting organizations.</p>
+            </div>
+            
+            <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal')">Close</button>
+        </div>
+    </div>
+
+    <!-- MODAL: PROMOTER -->
+    <div class="modal" id="promoterModal">
+        <div class="modal-sheet">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 id="pName" style="font-family:'Outfit'; font-size:1.35rem; color:var(--neon-teal);"></h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('promoterModal')">✕</button>
+            </div>
+            <p id="pContact" style="font-size:0.86rem; color:var(--text-secondary); margin-bottom:14px;"></p>
+            <div id="pTags" class="tags-container" style="margin: 8px 0;"></div>
+            <div style="display: flex; gap: 6px; margin-bottom: 18px;">
+                <input type="text" id="pTagIn" class="input-field" placeholder="Add custom tag..." style="margin:0;">
+                <button class="btn btn-sm" onclick="addPTag()">Add</button>
+            </div>
+            <h4 style="font-size: 0.95rem; margin-bottom: 8px;">Debrief Notes</h4>
+            <div id="pNotes" style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); padding:12px; border-radius:12px; margin-bottom:12px; max-height:160px; overflow-y:auto;"></div>
+            <textarea id="pNoteIn" class="input-field" rows="2" placeholder="Record incident note..."></textarea>
+            <button class="btn btn-sm" onclick="addPNote()">Add Note</button>
+        </div>
+    </div>
+
+    <script>
+        const PRESET_TAGS = ['SFW', 'NSFW', '18+', 'Bar', 'Club', 'Dungeon', 'Warehouse', 'Residential', 'Commercial', 'Kink', 'Sober', 'WatchDog', 'Themed'];
+        
+        function initDB() {
+            if(!localStorage.getItem('ss_pin')) localStorage.setItem('ss_pin', '0000');
+            if(!localStorage.getItem('ss_users')) localStorage.setItem('ss_users', JSON.stringify([{id:'u1', name:'Admin Suzan', email:'admin@suzan.com', phone:'555-0000', password:'admin', isAdmin:true}]));
+            if(!localStorage.getItem('ss_channels')) localStorage.setItem('ss_channels', JSON.stringify(['general']));
+            if(!localStorage.getItem('ss_chats')) localStorage.setItem('ss_chats', JSON.stringify([]));
+            if(!localStorage.getItem('ss_promoters')) localStorage.setItem('ss_promoters', JSON.stringify([{id:'p1', name:'Dax', phone:'555-1234', email:'dax@club.com', tags:['VIP'], notes:[{date:'2026-09-08', text:'Great payer.'}]}]));
+            if(!localStorage.getItem('ss_logs')) localStorage.setItem('ss_logs', JSON.stringify([]));
+
+            if(!localStorage.getItem('ss_events')) {
+                localStorage.setItem('ss_events', JSON.stringify([{id:'e1', title:'Neon Circuit', date:'2026-09-15', tags:['NSFW', 'Club', 'Kink'], desc:'Main door watch, consent monitoring.', openSlots:2, guards:[], guardPosts:{}, promoterId:'p1', ticketLink:'', image:'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700', layout:['img','info','tags','roster']}]));
+            } else {
+                let evs = JSON.parse(localStorage.getItem('ss_events'));
+                let needsFix = false;
+                evs = evs.map(e => {
+                    if (e.sectionOrder || e.description !== undefined || !e.layout || e.guardPosts === undefined) {
+                        needsFix = true; e.layout = e.layout || ['img','info','tags','roster']; e.desc = e.desc || e.description || '';
+                        e.guardPosts = e.guardPosts || {}; e.promoterId = e.promoterId || ''; e.ticketLink = e.ticketLink || '';
+                        delete e.sectionOrder; delete e.description;
+                    }
+                    return e;
+                });
+                if (needsFix) localStorage.setItem('ss_events', JSON.stringify(evs));
+            }
+        }
+        initDB();
+
+        const getDB = k => JSON.parse(localStorage.getItem('ss_'+k));
+        const setDB = (k,v) => localStorage.setItem('ss_'+k, JSON.stringify(v));
+        const logAction = act => setDB('logs', [{time:new Date().toLocaleTimeString(), user:currUser()?.name||'System', action:act}, ...getDB('logs')]);
+
+        let isReg = false;
+        const currUser = () => JSON.parse(localStorage.getItem('ss_session'));
+        
+        function checkAuth() {
+            if(!currUser()) document.getElementById('authModal').style.display='flex';
+            else { document.getElementById('authModal').style.display='none'; document.getElementById('userGreeting').innerText = currUser().name; renderEvents(); }
+        }
+        function toggleAuth() { isReg = !isReg; document.getElementById('regFields').style.display = isReg ? 'block' : 'none'; document.getElementById('authBtn').innerText = isReg ? 'Register' : 'Sign In'; document.getElementById('authToggleText').innerText = isReg ? 'Have credentials? Sign In' : 'New Officer? Register Account'; }
+        
+        function handleAuth() {
+            const email = document.getElementById('authEmail').value, pass = document.getElementById('authPass').value;
+            let users = getDB('users');
+            if(isReg) {
+                const name = document.getElementById('authName').value, phone = document.getElementById('authPhone').value;
+                const nu = {id:'u'+Date.now(), name, email, phone, password:pass, isAdmin:false};
+                users.push(nu); setDB('users', users); localStorage.setItem('ss_session', JSON.stringify(nu)); logAction('Registered new guard');
+            } else {
+                const u = users.find(x => x.email===email && x.password===pass);
+                if(u) { localStorage.setItem('ss_session', JSON.stringify(u)); logAction('Logged in'); } else { document.getElementById('authErr').innerText='Invalid credentials'; document.getElementById('authErr').style.display='block'; return; }
+            }
+            document.getElementById('authErr').style.display='none';
+            checkAuth();
+        }
+        function logout() { logAction('Logged out'); localStorage.removeItem('ss_session'); location.reload(); }
+
+        function switchView(v) { 
+            ['eventsFeedView','eventDetailView','calendarView','teamChatView','adminConsoleView'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.style.display = (id===v+'View' || id===v) ? 'block':'none';
+            }); 
+            document.querySelectorAll('.dock-item').forEach(item => item.classList.remove('active'));
+            if(v==='eventsFeed') { document.querySelectorAll('.dock-item')[0].classList.add('active'); renderEvents(); }
+            if(v==='calendarView') { document.querySelectorAll('.dock-item')[1].classList.add('active'); renderCal(); }
+            if(v==='teamChatView') { document.querySelectorAll('.dock-item')[2].classList.add('active'); renderChat(); }
+            if(v==='adminConsoleView') { document.querySelectorAll('.dock-item')[3].classList.add('active'); renderAdminEv(); }
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        /* EVENTS FEED */
+        function renderEvents() {
+            const evs = getDB('events').sort((a,b)=>new Date(a.date)-new Date(b.date));
+            const u = currUser();
+            document.getElementById('userEventsFeedList').innerHTML = evs.map(e => `
+                <div class="glass-card event-tile" onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'A' && event.target.tagName !== 'SELECT') openEventDetail('${e.id}')">
+                    <div class="event-img-wrap">
+                        <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                        <div class="event-img-overlay"></div>
+                        <div class="date-badge">🗓️ ${e.date}</div>
+                    </div>
+                    <div class="event-body">
+                        <h3 class="event-title">${e.title}</h3>
+                        <div class="tags-container">
+                            ${e.tags.map(t=>`<span class="neon-tag ${t==='NSFW'||t==='Kink'?'tag-nsfw':'tag-active'}">${t}</span>`).join('')}
+                        </div>
+                        <p class="event-desc">${e.desc}</p>
+                        <div class="roster-card">
+                            <div class="roster-header">
+                                <span>Assigned Team (${e.guards.length})</span>
+                                <span>${e.openSlots} Open Slots</span>
+                            </div>
+                            <div>
+                                ${e.guards.map(g=>`<span class="guard-chip">🛡️ ${g}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No officers assigned.</span>'}
+                            </div>
+                        </div>
+                        <button class="btn ${e.guards.includes(u.name)?'btn-magenta':''}" style="width:100%;" onclick="toggleSignUp('${e.id}', event)" ${e.openSlots===0 && !e.guards.includes(u.name) ? 'disabled':''}>
+                            ${e.guards.includes(u.name) ? 'Cancel My Shift' : (e.openSlots===0 ? 'Full' : 'Claim Shift')}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleSignUp(id, eEvent = null) {
+            if(eEvent) eEvent.stopPropagation();
+            let evs = getDB('events'), e = evs.find(x=>x.id===id), u = currUser();
+            if(e.guards.includes(u.name)) { 
+                e.guards = e.guards.filter(g=>g!==u.name); 
+                if(e.guardPosts) delete e.guardPosts[u.name];
+                e.openSlots++; 
+                logAction('Dropped shift'); 
+            }
+            else { 
+                e.guards.push(u.name); 
+                if(!e.guardPosts) e.guardPosts = {};
+                e.guardPosts[u.name] = 'Unassigned';
+                e.openSlots--; 
+                logAction('Claimed shift'); 
+            }
+            setDB('events', evs); 
+            renderEvents();
+            if(activeDetailId === id && document.getElementById('eventDetailView').style.display !== 'none') renderEventDetail(id);
+        }
+
+        /* EVENT DETAIL & POST ASSIGNMENT */
+        let activeDetailId = null;
+        function openEventDetail(id) {
+            activeDetailId = id;
+            switchView('eventDetail');
+            renderEventDetail(id);
+        }
+
+        function renderEventDetail(id) {
+            const e = getDB('events').find(x=>x.id===id);
+            const u = currUser();
+            const promoters = getDB('promoters') || [];
+            const promoter = promoters.find(p => p.id === e.promoterId);
+            const isSignedUp = u && e.guards.includes(u.name);
+
+            let rosterHtml = e.guards.map(g => {
+                if (g === u.name) {
+                    return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <span>🛡️ <strong>${g}</strong> (You)</span>
+                        <select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:700;" onchange="updateGuardPost('${e.id}', '${g}', this.value)">
+                            ${['Unassigned', 'Person/Bag Check', 'ID Check', 'Ticket', 'Float', 'Play Guard', 'Dancefloor', 'Bar', 'Parking Lot', 'Other'].map(p => `<option value="${p}" ${(e.guardPosts && e.guardPosts[g]||'Unassigned') === p ? 'selected' : ''}>${p}</option>`).join('')}
+                        </select>
+                    </div>`;
+                } else {
+                    return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <span>🛡️ ${g}</span>
+                        <span style="color:var(--neon-teal); font-weight:700; font-size:0.85rem;">${(e.guardPosts && e.guardPosts[g])||'Unassigned'}</span>
+                    </div>`;
+                }
+            }).join('') || '<p style="color:var(--text-muted); font-size:0.85rem;">No officers assigned yet.</p>';
+
+            document.getElementById('eventDetailContent').innerHTML = `
+                <div class="glass-card">
+                    <div class="event-img-wrap" style="height:240px;">
+                        <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                        <div class="event-img-overlay"></div>
+                        <div class="date-badge">🗓️ ${e.date}</div>
+                    </div>
+                    <div class="event-body">
+                        <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:800; margin-bottom:8px;">${e.title}</h2>
+                        <div class="tags-container">
+                            ${e.tags.map(t => `<span class="neon-tag ${t==='NSFW'||t==='Kink'?'tag-nsfw':'tag-active'}">${t}</span>`).join('')}
+                        </div>
+                        ${e.ticketLink ? `<a href="${e.ticketLink}" target="_blank" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
+                        
+                        <div style="margin: 16px 0;">
+                            <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">Operational Brief</h4>
+                            <p style="font-size:0.95rem; line-height:1.5; color:var(--text-secondary);">${e.desc || 'No brief provided.'}</p>
+                        </div>
+
+                        ${promoter ? `
+                        <div style="background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:12px; padding:14px; margin: 16px 0;">
+                            <h4 style="color:var(--neon-teal); font-size:0.8rem; font-weight:800; text-transform:uppercase; margin-bottom:4px;">Client / Producer Detail</h4>
+                            <p style="font-weight:700;">${promoter.name}</p>
+                            <p style="font-size:0.85rem; color:var(--text-muted);">📞 ${promoter.phone} • ✉️ ${promoter.email}</p>
+                        </div>` : ''}
+
+                        <div style="margin: 20px 0;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px;">Assigned Team (${e.openSlots} Slots Open)</h4>
+                                <button class="btn btn-sm ${isSignedUp?'btn-magenta':''}" onclick="toggleSignUp('${e.id}')" ${e.openSlots===0 && !isSignedUp ? 'disabled':''}>
+                                    ${isSignedUp ? 'Cancel Shift' : (e.openSlots===0 ? 'Full' : 'Claim Shift')}
+                                </button>
+                            </div>
+                            <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
+                                ${rosterHtml}
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 24px;">
+                            <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">Live Shift Comms</h4>
+                            <div id="detailChatBox" style="height:220px; overflow-y:auto; background:rgba(12,12,18,0.6); border:1px solid var(--border-glass); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" id="detailChatInput" class="input-field" placeholder="Transmit shift update..." style="margin:0;">
+                                <button class="btn btn-sm" onclick="sendDetailChat('${e.id}')">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            renderDetailChat(e.id);
+        }
+
+        function updateGuardPost(eventId, guardName, postVal) {
+            let evs = getDB('events');
+            let e = evs.find(x => x.id === eventId);
+            if(e) {
+                if(!e.guardPosts) e.guardPosts = {};
+                e.guardPosts[guardName] = postVal;
+                setDB('events', evs);
+                logAction(`Assigned ${guardName} to post [${postVal}] at ${e.title}`);
+            }
+        }
+
+        function renderDetailChat(eventId) {
+            const chanName = 'evt_' + eventId;
+            const msgs = getDB('chats').filter(c => c.channel === chanName);
+            const box = document.getElementById('detailChatBox');
+            if(!box) return;
+            box.innerHTML = msgs.map(c => `
+                <div style="background:rgba(255,255,255,0.06); padding:8px 12px; border-radius:10px; font-size:0.85rem;">
+                    <div style="color:var(--neon-teal); font-size:0.75rem; font-weight:700;">${c.user}</div>
+                    <div>${c.text}</div>
+                </div>
+            `).join('') || '<p style="color:var(--text-muted); font-size:0.8rem; text-align:center; margin:auto;">No shift messages logged yet.</p>';
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function sendDetailChat(eventId) {
+            const input = document.getElementById('detailChatInput');
+            const v = input.value.trim();
+            if(v) {
+                let ch = getDB('chats');
+                ch.push({id:'m'+Date.now(), channel: 'evt_' + eventId, user: currUser().name, text: v, file: null});
+                setDB('chats', ch);
+                input.value = '';
+                renderDetailChat(eventId);
+            }
+        }
+
+        /* CALENDAR WITH DIRECT PROFILE ROUTING */
+        let calD = new Date(2026, 8, 1);
+        function changeMonth(d) { calD.setMonth(calD.getMonth()+d); renderCal(); }
+        function renderCal() {
+            document.getElementById('calMonthText').innerText = calD.toLocaleString('default', {month:'long', year:'numeric'});
+            const grid = document.getElementById('calGrid'); grid.innerHTML = '';
+            const evs = getDB('events'), days = new Date(calD.getFullYear(), calD.getMonth()+1, 0).getDate(), first = new Date(calD.getFullYear(), calD.getMonth(), 1).getDay();
+            ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => grid.innerHTML += `<div class="cal-head">${d}</div>`);
+            for(let i=0; i<first; i++) grid.innerHTML += `<div class="cal-day" style="background:transparent; border-color:transparent; cursor:default;"></div>`;
+            for(let i=1; i<=days; i++) {
+                const dateStr = `${calD.getFullYear()}-${String(calD.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const dayEvs = evs.filter(e => e.date === dateStr);
+                grid.innerHTML += `<div class="cal-day">
+                    <span>${i}</span>
+                    <div>${dayEvs.map(e=>`<div class="cal-badge" onclick="event.stopPropagation(); openEventDetail('${e.id}')">${e.title}</div>`).join('')}</div>
+                </div>`;
+            }
+        }
+
+        /* ADMIN SECURE */
+        function promptAdminPin() {
+            if(prompt('Enter Admin PIN:') === (localStorage.getItem('ss_pin')||'0000')) switchView('adminConsoleView');
+            else alert('Invalid PIN');
+        }
+        function switchAdmin(t) { 
+            document.querySelectorAll('.segment-btn').forEach(el=>el.classList.remove('active')); event.target.classList.add('active'); 
+            document.querySelectorAll('.admin-pane').forEach(el=>el.style.display='none'); document.getElementById(t).style.display='block'; 
+            if(t==='adminEvents')renderAdminEv(); if(t==='adminChats')renderAdminChats(); if(t==='adminLogs')renderLogs(); if(t==='adminUsers')renderUsers(); if(t==='adminContacts')renderContacts(); 
+        }
+
+        /* ADMIN EVENTS (DRAG/DROP) */
+        function renderAdminEv() {
+            const evs = getDB('events').sort((a,b)=>new Date(a.date)-new Date(b.date));
+            document.getElementById('adminEventsList').innerHTML = evs.map(e => `
+                <div class="glass-card" style="padding:15px;" id="tile_${e.id}">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <span style="color:var(--neon-teal); font-weight:700;">Manage: ${e.title}</span>
+                        <button class="btn btn-sm btn-magenta" onclick="delEv('${e.id}')">Delete Tile</button>
+                    </div>
+                    <div id="drag_${e.id}">
+                        ${e.layout.map(sec => genAdminSec(sec, e)).join('')}
+                    </div>
+                </div>
+            `).join('');
+            evs.forEach(e => initDragDrop(`drag_${e.id}`, e.id));
+        }
+        function genAdminSec(sec, e) {
+            if(sec==='img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="updEv('${e.id}','image',this.value)"><input class="input-field" value="${e.title}" onchange="updEv('${e.id}','title',this.value)"></div>`;
+            if(sec==='info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">DATE & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="updEv('${e.id}','date',this.value)"><textarea class="input-field" onchange="updEv('${e.id}','desc',this.value)">${e.desc}</textarea></div>`;
+            if(sec==='tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">TAGS</label><div class="tags-container" style="margin-top:8px;">${PRESET_TAGS.map(t=>`<span class="neon-tag ${e.tags.includes(t)?'tag-active':'tag-inactive'}" style="cursor:pointer;" onclick="togTag('${e.id}','${t}')">${e.tags.includes(t)?'✓ ':''}${t}</span>`).join('')}</div></div>`;
+            if(sec==='roster') return `<div class="draggable-section" draggable="true" data-id="roster"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ROSTER & SLOTS (${e.openSlots})</label><div style="display:flex; gap:5px; margin-top:8px;"><input id="mg_${e.id}" class="input-field" placeholder="Manual Name" style="margin:0;"><button class="btn btn-sm" onclick="manAddG('${e.id}')">Add</button></div><p style="font-size:0.8rem; margin-top:10px;">Guards: ${e.guards.map((g,i)=>`<span class="guard-chip">${g} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmG('${e.id}',${i})">×</b></span>`).join(' ')}</p></div>`;
+        }
+        function initDragDrop(cid, eid) {
+            const cont = document.getElementById(cid);
+            cont.querySelectorAll('.draggable-section').forEach(dr => {
+                dr.addEventListener('dragstart', () => dr.classList.add('dragging'));
+                dr.addEventListener('dragend', () => { dr.classList.remove('dragging'); updEv(eid, 'layout', [...cont.children].map(c=>c.dataset.id)); });
+            });
+            cont.addEventListener('dragover', e => {
+                e.preventDefault(); const drg = cont.querySelector('.dragging');
+                const aft = [...cont.querySelectorAll('.draggable-section:not(.dragging)')].find(c => e.clientY <= c.getBoundingClientRect().top + c.offsetHeight/2);
+                aft ? cont.insertBefore(drg, aft) : cont.appendChild(drg);
+            });
+        }
+        function updEv(id, f, v) { let evs=getDB('events'), e=evs.find(x=>x.id===id); e[f]=v; setDB('events',evs); }
+        function togTag(id, t) { let evs=getDB('events'), e=evs.find(x=>x.id===id); e.tags.includes(t)?e.tags=e.tags.filter(x=>x!==t):e.tags.push(t); setDB('events',evs); renderAdminEv(); }
+        function manAddG(id) { let evs=getDB('events'), e=evs.find(x=>x.id===id), v=document.getElementById('mg_'+id).value; if(!v)return; e.guards.push(v); e.openSlots--; setDB('events',evs); renderAdminEv(); }
+        function rmG(id, i) { let evs=getDB('events'), e=evs.find(x=>x.id===id); e.guards.splice(i,1); e.openSlots++; setDB('events',evs); renderAdminEv(); }
+        function addBlankEvent() { let evs=getDB('events'); evs.unshift({id:'e'+Date.now(), title:'New Shift Detail', date:new Date().toISOString().split('T')[0], tags:[], desc:'', openSlots:2, guards:[], image:'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700', layout:['img','info','tags','roster']}); setDB('events',evs); renderAdminEv(); }
+        function delEv(id) { setDB('events', getDB('events').filter(e=>e.id!==id)); renderAdminEv(); }
+
+        /* ADMIN CHAT */
+        function renderAdminChats() {
+            const ch = getDB('channels'), msgs = getDB('chats');
+            document.getElementById('adminChanList').innerHTML = ch.map(c=>`<div class="glass-card" style="display:flex;justify-content:space-between;padding:10px;margin-bottom:8px;"><span># ${c}</span><div><button class="btn btn-sm btn-magenta" onclick="delChan('${c}')">Del Chan</button> <button class="btn btn-sm btn-outline" onclick="clrChan('${c}')">Clr Hist</button></div></div>`).join('');
+            document.getElementById('adminMsgList').innerHTML = msgs.map(m=>`<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:8px;font-size:0.85rem;"><span style="color:var(--neon-teal);">[#${m.channel}] ${m.user}: ${m.text}</span><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border:none;" onclick="delMsg('${m.id}')">✕</button></div>`).join('');
+            document.getElementById('adminAttachList').innerHTML = msgs.filter(m=>m.file).map(m=>`<div style="margin-bottom:6px;"><a href="${m.file}" style="color:var(--neon-teal); font-size:0.85rem; font-weight:700;">📎 Attachment in #${m.channel}</a></div>`).join('');
+        }
+        function addChannel() { let ch=getDB('channels'), v=document.getElementById('newChanInput').value.toLowerCase().replace(/\s+/g,'-'); if(v&&!ch.includes(v)){ch.push(v); setDB('channels',ch); renderAdminChats();} }
+        function delChan(c) { setDB('channels', getDB('channels').filter(x=>x!==c)); setDB('chats', getDB('chats').filter(x=>x.channel!==c)); renderAdminChats(); }
+        function clrChan(c) { setDB('chats', getDB('chats').filter(x=>x.channel!==c)); renderAdminChats(); }
+        function delMsg(id) { setDB('chats', getDB('chats').filter(x=>x.id!==id)); renderAdminChats(); }
+
+        /* LOGS, USERS, CONTACTS */
+        function renderLogs() { document.getElementById('logsBody').innerHTML = getDB('logs').map(l=>`<tr><td style="color:var(--text-muted);">${l.time}</td><td style="color:var(--neon-teal); font-weight:700;">${l.user}</td><td>${l.action}</td></tr>`).join(''); }
+        function renderUsers() { document.getElementById('usersBody').innerHTML = getDB('users').map(u=>`<tr><td><strong>${u.name}</strong></td><td style="font-size:0.8rem;">${u.email}<br>${u.phone}</td><td><button class="btn btn-sm ${u.isAdmin?'btn-magenta':'btn-outline'}" onclick="togAdmin('${u.id}')">${u.isAdmin?'Commander':'Guard'}</button> <button class="btn btn-sm btn-outline" onclick="rstPass('${u.id}')">Reset</button></td></tr>`).join(''); }
+        function togAdmin(id) { let u=getDB('users'), usr=u.find(x=>x.id===id); usr.isAdmin=!usr.isAdmin; setDB('users',u); renderUsers(); }
+        function rstPass(id) { let np=prompt('New Pass:'); if(np){let u=getDB('users'), usr=u.find(x=>x.id===id); usr.password=np; setDB('users',u); alert('Reset!');} }
+        
+        let selP = null;
+        function renderContacts() { document.getElementById('promoterList').innerHTML = getDB('promoters').map(p=>`<div class="glass-card" style="padding:16px; cursor:pointer;" onclick="openP('${p.id}')"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4><div class="tags-container" style="margin-top:8px;">${p.tags.map(t=>`<span class="neon-tag tag-active">${t}</span>`).join('')}</div></div>`).join(''); }
+        function addPromoter() { let pr=getDB('promoters'); pr.push({id:'p'+Date.now(), name:prompt('Name:'), phone:prompt('Phone:'), email:prompt('Email:'), tags:[], notes:[]}); setDB('promoters',pr); renderContacts(); }
+        function openP(id) { selP=id; let p=getDB('promoters').find(x=>x.id===id); document.getElementById('pName').innerText=p.name; document.getElementById('pContact').innerText=`📞 ${p.phone} | ✉️ ${p.email}`; document.getElementById('pTags').innerHTML=p.tags.map((t,i)=>`<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML=p.notes.map(n=>`<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:700;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display='flex'; }
+        function addPTag() { let p=getDB('promoters'), pr=p.find(x=>x.id===selP), v=document.getElementById('pTagIn').value; if(v){pr.tags.push(v); setDB('promoters',p); openP(selP);} }
+        function rmPTag(i) { let p=getDB('promoters'), pr=p.find(x=>x.id===selP); pr.tags.splice(i,1); setDB('promoters',p); openP(selP); }
+        function addPNote() { let p=getDB('promoters'), pr=p.find(x=>x.id===selP), v=document.getElementById('pNoteIn').value; if(v){pr.notes.unshift({date:new Date().toLocaleDateString(), text:v}); setDB('promoters',p); openP(selP);} }
+        function closeModal(id) { document.getElementById(id).style.display='none'; }
+        function changePin() { let np=document.getElementById('newPinInput').value; if(np){localStorage.setItem('ss_pin',np); alert('PIN Saved');} }
+
+        /* CHAT */
+        let actChan = 'general';
+        function renderChat() { document.getElementById('chatDropdown').innerHTML = getDB('channels').map(c=>`<option value="${c}" ${c===actChan?'selected':''}>#${c}</option>`).join(''); document.getElementById('chatTitle').innerText = '# '+actChan; document.getElementById('chatBox').innerHTML = getDB('chats').filter(c=>c.channel===actChan).map(c=>`<div class="chat-bubble ${c.user===currUser()?.name?'mine':''}"><div style="font-size:0.72rem; font-weight:700; color:${c.user===currUser()?.name?'#ff9ee2':'var(--neon-teal)'}; margin-bottom:3px;">${c.user}</div><div>${c.text}</div>${c.file?`<div style="margin-top:6px;"><a href="${c.file}" style="color:var(--text-primary); font-size:0.75rem; font-weight:700;">📎 View File</a></div>`:''}</div>`).join(''); document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; }
+        function switchChat(c) { actChan=c; renderChat(); }
+        function sendChat(fUrl=null) { let v=document.getElementById('chatInput').value; if(v||fUrl){let ch=getDB('chats'); ch.push({id:'m'+Date.now(), channel:actChan, user:currUser().name, text:v||'Sent file', file:fUrl}); setDB('chats',ch); document.getElementById('chatInput').value=''; renderChat();} }
+        function uploadFile(e) { if(e.target.files[0]) sendChat(URL.createObjectURL(e.target.files[0])); }
+
+        checkAuth();
+    </script>
+</body>
+</html>
