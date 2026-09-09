@@ -107,6 +107,21 @@
 
         .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.82); backdrop-filter: blur(14px); z-index: 2500; display: none; align-items: center; justify-content: center; padding: 18px; }
         .modal-sheet { background: var(--glass-sheet); border: 1px solid var(--border-glass); border-radius: 24px; width: 100%; max-width: 480px; padding: 28px 24px; max-height: 90vh; overflow-y: auto; }
+
+        /* Terms & Conditions modal — reuses .modal/.modal-sheet, scoped extras below */
+        #termsScrollBody h4 { color: var(--neon-teal); font-size: 0.95rem; margin: 18px 0 8px; border-bottom: 1px solid var(--border-glass); padding-bottom: 4px; }
+        #termsScrollBody h4:first-child { margin-top: 0; }
+        #termsScrollBody p { font-size: 0.82rem; line-height: 1.6; color: var(--text-secondary); margin-bottom: 10px; }
+        #termsScrollBody ul { margin: 0 0 10px 18px; }
+        #termsScrollBody li { font-size: 0.82rem; line-height: 1.55; color: var(--text-secondary); margin-bottom: 6px; }
+        #termsScrollBody strong.email { display: block; text-align: center; color: var(--neon-teal); font-weight: 700; margin: 4px 0 14px; }
+        .terms-ack-label { display: flex; align-items: flex-start; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; margin-bottom: 12px; }
+        .terms-ack-label input[type="checkbox"] { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; }
+        .terms-ack-label input[type="checkbox"]:disabled { cursor: not-allowed; }
+        .terms-review-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; font-size: 0.82rem; }
+        .terms-review-link { color: var(--neon-teal); cursor: pointer; font-weight: 600; text-decoration: underline; background: none; border: none; font-family: inherit; font-size: inherit; padding: 0; }
+        #termsStatusPill { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+        #termsStatusPill.accepted { color: var(--neon-saguaro); }
         .segmented-control { display: flex; gap: 4px; overflow-x: auto; background: rgba(14, 14, 20, 0.8); border: 1px solid var(--border-glass); padding: 5px; border-radius: 14px; margin-bottom: 20px; }
         .segment-btn { background: none; border: none; color: var(--text-muted); padding: 8px 14px; border-radius: 10px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; white-space: nowrap; }
         .segment-btn.active { background: var(--neon-teal); color: #08080c; }
@@ -354,6 +369,10 @@
             <div id="regFields" style="display: none;">
                 <input type="text" id="authName" class="input-field" placeholder="Full Name / Callsign" data-1p-ignore>
                 <input type="tel" id="authPhone" class="input-field" placeholder="Mobile Phone" data-1p-ignore>
+                <div class="terms-review-row">
+                    <button type="button" class="terms-review-link" onclick="openTermsModal('gate')">Review Terms &amp; Conditions</button>
+                    <span id="termsStatusPill">Review required</span>
+                </div>
             </div>
             <button class="btn" style="width: 100%; margin-top: 8px;" id="authBtn" onclick="handleAuth()">Sign In to Dispatch</button>
             <p style="text-align: center; margin-top: 18px; color: var(--neon-teal); font-size: 0.85rem; cursor: pointer; font-weight: 600;" onclick="toggleAuth()" id="authToggleText">New Officer? Register Account</p>
@@ -376,10 +395,129 @@
                 <p><strong>Version Date:</strong> September 2026</p>
                 <p><strong>Location:</strong> Phoenix, AZ 85012</p>
                 <hr style="border:0; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0;">
-                <p style="margin-bottom: 8px;">Using this application default accepts all Terms & Conditions.</p>
-                <p>Your personal data will never be sold but may be shared with other LGBTQ+ supporting organizations.</p>
+                <p style="margin-bottom: 8px;">Using this application constitutes default acceptance of the Terms &amp; Conditions of Use.</p>
+                <p>Your personal data will never be sold, but may be shared with business partners as described in the Terms &amp; Conditions.</p>
             </div>
+            <button class="terms-review-link" style="display:block; width:100%; text-align:center; margin-bottom: 10px; font-size:0.85rem;" onclick="openTermsModal('view')">View full Terms &amp; Conditions</button>
             <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal')">Close</button>
+        </div>
+    </div>
+
+    <div class="modal" id="termsModal">
+        <div class="modal-sheet" style="max-width: 640px; padding-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="font-family:'Outfit'; font-size:1.15rem; color:var(--neon-teal);">Terms &amp; Conditions of Use</h3>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding: 4px 8px;" onclick="closeModal('termsModal')">✕</button>
+            </div>
+            <div id="termsScrollBody" onscroll="onTermsScroll()" style="max-height: 50vh; overflow-y: auto; padding: 4px 12px 4px 2px; border: 1px solid var(--border-glass); border-radius: 12px; background: rgba(0,0,0,0.2); margin-bottom: 16px;">
+                <p style="text-align:center; color:var(--text-muted); font-size:0.78rem; margin-bottom:16px;">Suzan's Security &amp; HowlHouse &mdash; Effective Date: [Insert Date]</p>
+                    <p>These Terms and Conditions of Use (“Terms”) constitute a legally binding agreement between you (“User,” “you,” or “your”) and HowlHouse (“HowlHouse,” “we,” “us,” or “our”), the developer, owner, and operator of this application (the “App”), and Suzan’s Security (“Suzan’s Security”), the security organization for which the App is currently provisioned. HowlHouse and Suzan’s Security are referred to individually as a “Company” and collectively as the “Companies.”</p>
+                    <p>The App is currently intended for use by members of the Suzan’s Security security team and any other users to whom access is expressly granted. By accessing, downloading, installing, or otherwise using the App, you agree to be bound by these Terms in their entirety. If you do not agree to these Terms, you must not access or use the App.</p>
+                    <h4>1. Acceptance of Terms</h4>
+                    <p>1.1 Use of the App constitutes automatic and default acceptance of these Terms, regardless of whether you have read them in full.</p>
+                    <p>1.2 In addition to the automatic acceptance described above, all new users are required, as a mandatory step of account creation, to affirmatively check a box confirming that they have read, understood, and agree to these Terms. Account creation cannot be completed and access to the App cannot be granted until this checkbox has been affirmatively selected.</p>
+                    <p>1.3 Continued use of the App following any update to these Terms constitutes your acceptance of the revised Terms. See Section 11 (Changes to These Terms).</p>
+                    <h4>2. Eligibility and Account Registration</h4>
+                    <p>2.1 Access to the App is currently limited to authorized members of the Suzan’s Security security team and other individuals expressly authorized by Suzan’s Security and/or HowlHouse.</p>
+                    <p>2.2 You agree to provide accurate, current, and complete information during account registration and to promptly update such information as necessary. You are responsible for maintaining the confidentiality of your login credentials and for all activity that occurs under your account.</p>
+                    <p>2.3 Accounts are personal to the individual user and may not be shared, transferred, or assigned without prior written consent from HowlHouse.</p>
+                    <h4>3. Collection, Use, and Sharing of Data</h4>
+                    <p>3.1 No Sale of Data. The Companies will never sell your personal data to third parties.</p>
+                    <p>3.2 Data Sharing with Partners. Notwithstanding Section 3.1, you acknowledge and agree that your data may be shared with other businesses, partners, or affiliated organizations as part of business partnerships, reciprocal arrangements, service integrations, analytics, or other business purposes unrelated to your direct use of the App. By using the App, you consent to this sharing.</p>
+                    <p>3.3 No Location Tracking. The App does not use GPS, geolocation services, or any other technology to track, log, or otherwise monitor the physical location of any user. No location data is collected, stored, or shared by the App.</p>
+                    <p>3.4 Data collected through the App may include, without limitation, account and profile information, chat content and metadata, device and usage information, and any content you voluntarily upload. This data is used to operate, maintain, and improve the App, to enforce these Terms, and for the business purposes described in Section 3.2.</p>
+                    <h4>4. Your Privacy Rights (California Users)</h4>
+                    <p>4.1 California Residents. If you are a California resident, the California Consumer Privacy Act, as amended by the California Privacy Rights Act (“CCPA”), may give you the right to: know what personal information has been collected about you; request deletion of your personal information; correct inaccurate personal information; opt out of the sale or sharing of your personal information; limit the use of sensitive personal information; and not be discriminated against for exercising any of these rights.</p>
+                    <p>4.2 Opt-Out and Data Deletion Requests. California users who wish to opt out of the data-sharing practices described in Section 3.2, or who wish to have their historic personal data deleted, may submit a request in writing at any time to:</p>
+                    <strong class="email">howlhousemedia@gmail.com</strong>
+                    <p>4.3 The Companies will make commercially reasonable efforts to acknowledge and process opt-out and deletion requests within the timeframes required by applicable law (generally 45 days for CCPA requests, extendable by an additional 45 days when reasonably necessary). You may be asked to verify your identity before a request is processed.</p>
+                    <p>4.4 Limitations on Deletion. Certain data may be retained notwithstanding a deletion request where retention is necessary to complete a transaction, detect security incidents or fraud, comply with a legal obligation, or exercise or defend legal claims, as permitted under applicable law. Where deletion of certain account data would prevent continued use of the App, the Companies may instead deactivate the associated account.</p>
+                    <p>4.5 Non-Discrimination. The Companies will not deny access to the App, charge different terms, or otherwise discriminate against a user solely for exercising the rights described in this Section 4, except to the extent that certain data is reasonably necessary to provide the App's core functionality.</p>
+                    <h4>5. User Conduct and Legality</h4>
+                    <p>5.1 All users are required to comply with all applicable local, state, federal, and international laws at all times while using the App, including within all chat windows and any other communication features.</p>
+                    <p>5.2 Neither Suzan’s Security nor HowlHouse is liable for any activity, communication, or content occurring within any chat window or elsewhere within the App. Use of the App's communication features is undertaken entirely at the user's own risk and discretion.</p>
+                    <p>5.3 If a user discusses, describes, or otherwise references within the App any activity that violates applicable law or could result in criminal or civil charges, neither Company shall be held liable for that user's actions, statements, or uploaded content. Users are solely and individually responsible for their own conduct.</p>
+                    <h4>6. Content Moderation and Removal</h4>
+                    <p>6.1 Content moderation does not occur on a routine or continuous basis. Reports of inappropriate, unlawful, or policy-violating content or conduct will be reviewed and handled on a case-by-case basis, at the sole discretion of HowlHouse and/or Suzan’s Security.</p>
+                    <p>6.2 The Companies reserve the right, but not the obligation, to review, moderate, and permanently delete any content — whether reported by a user or otherwise identified — in order to preserve the integrity, safety, and reputation of either organization. Deletion of content under this section is final and content may not be recoverable.</p>
+                    <p>6.3 The absence of routine moderation does not constitute an endorsement, approval, or verification of any content or user conduct within the App.</p>
+                    <h4>7. Prohibited Content</h4>
+                    <p>7.1 Users may never upload, share, display, transmit, or otherwise use within the App any illegal photographs, videos, or other media. This prohibition includes, without limitation, media depicting or documenting:</p>
+                    <ul>
+                        <li>Illegal drugs or controlled substances, including possession, use, sale, or manufacture;</li>
+                        <li>Consumption of illegal substances or other unlawful activity;</li>
+                        <li>Any other content that is illegal under applicable local, state, federal, or international law.</li>
+                    </ul>
+                    <p>7.2 Violation of Section 7.1 may result in immediate suspension or termination of the user's account, removal of the offending content, referral to law enforcement, and any other remedy available under these Terms or applicable law.</p>
+                    <p>7.3 As set forth in Section 5 and Section 6, neither Company routinely monitors uploaded content, and neither Company shall be held liable for a user's violation of this Section. Reports of prohibited content will be handled on a case-by-case basis as described in Section 6.1.</p>
+                    <h4>8. Application Security — Prohibited Actions</h4>
+                    <p>8.1 Users agree that they will never attempt to hack, reverse-engineer, decompile, alter, modify, tamper with, or otherwise breach the security, source code, or underlying infrastructure of the App at any time, by any means.</p>
+                    <p>8.2 Any user found to have engaged, or attempted to engage, in conduct described in Section 8.1 may be:</p>
+                    <ul>
+                        <li>Immediately and permanently banned from the App without notice or refund;</li>
+                        <li>Reported to law enforcement and pursued for criminal trespass and any other applicable criminal charges to the fullest extent of the law;</li>
+                        <li>Held liable in a civil action for the Companies' actual damages, together with injunctive relief and reasonable attorneys' fees and costs, and required to indemnify the Companies as set forth in Section 10.</li>
+                    </ul>
+                    <p>8.3 The remedies described in this Section 8 are cumulative and not exclusive of any other remedy available to the Companies at law or in equity.</p>
+                    <h4>9. Limitation of Liability</h4>
+                    <p>9.1 THE APP IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.</p>
+                    <p>9.2 TO THE FULLEST EXTENT PERMITTED BY LAW, NEITHER HOWLHOUSE NOR SUZAN’S SECURITY, NOR THEIR RESPECTIVE OFFICERS, EMPLOYEES, AGENTS, OR AFFILIATES, SHALL BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF DATA, REVENUE, OR REPUTATION, ARISING OUT OF OR RELATED TO YOUR USE OF THE APP, INCLUDING BUT NOT LIMITED TO ANY CONTENT POSTED, ANY CONDUCT OF ANY USER, OR ANY UNAUTHORIZED ACCESS TO OR ALTERATION OF YOUR DATA.</p>
+                    <p>9.3 Neither Company shall be held liable for the actions, statements, or content of any user of the App, including but not limited to content shared in chat windows, uploaded media, or conduct described in Sections 5, 6, and 7.</p>
+                    <h4>10. Indemnification</h4>
+                    <p>10.1 Scope. You agree, at your own expense, to indemnify, defend, and hold harmless HowlHouse and Suzan’s Security, and each of their respective parent entities, subsidiaries, affiliates, officers, directors, employees, contractors, and agents (collectively, the “Indemnified Parties”), from and against any and all claims, demands, suits, actions, proceedings, investigations, damages, judgments, settlements, losses, liabilities, fines, penalties, costs, and expenses of any kind, including but not limited to:</p>
+                    <ul>
+                        <li>Reasonable attorneys' fees, expert witness fees, and court costs, whether or not litigation is filed, and including fees incurred enforcing this indemnification obligation;</li>
+                        <li>Settlement amounts and judgments, provided that any settlement is subject to Section 10.4;</li>
+                        <li>Regulatory fines, penalties, or sanctions imposed by any governmental or regulatory authority;</li>
+                        <li>Costs of investigating and responding to the incident, including forensic, IT, and security-remediation costs;</li>
+                        <li>Costs of notifying affected individuals and any required regulatory notifications, where applicable;</li>
+                        <li>Lost business, reputational harm, or increased insurance costs directly resulting from the incident, to the extent recoverable under applicable law;</li>
+                        <li>Any other direct, out-of-pocket cost or expense reasonably incurred by an Indemnified Party as a result of the underlying conduct.</li>
+                    </ul>
+                    <p>10.2 Triggering Conduct. This indemnification obligation applies to any claim, loss, or expense arising out of or related to: (a) your access to or use or misuse of the App; (b) your violation or alleged violation of these Terms; (c) your violation of any applicable law, regulation, or third-party right; (d) any content you upload, post, share, or transmit within the App, including in chat windows; (e) any conduct described in Sections 5 (User Conduct and Legality), 6 (Content Moderation and Removal), 7 (Prohibited Content), or 8 (Application Security); and (f) any negligent, reckless, or intentional act or omission by you in connection with the App.</p>
+                    <p>10.3 Defense. The Indemnified Parties may, at their own discretion, assume control of the defense of any claim subject to this Section 10 with counsel of their own choosing, without releasing you from your indemnification obligations. You agree to reasonably cooperate with the Indemnified Parties in the investigation and defense of any such claim, including by providing information, documents, and testimony as reasonably requested.</p>
+                    <p>10.4 Settlement. Neither party will agree to any settlement that imposes liability, admits fault, or imposes non-monetary obligations on the other party without that party's prior written consent, which shall not be unreasonably withheld.</p>
+                    <p>10.5 No Limitation. Your indemnification obligations under this Section 10 are not subject to, and are not limited by, any liability cap or exclusion of damages elsewhere in these Terms, and are in addition to — not in place of — any other remedy available to the Companies, including those described in Section 8.</p>
+                    <p>10.6 Survival. This Section 10 survives termination of your account, termination of these Terms, and your discontinued use of the App with respect to any claim, loss, or expense arising from conduct that occurred while these Terms were in effect.</p>
+                    <h4>11. Changes to These Terms</h4>
+                    <p>11.1 The Companies reserve the right to modify, update, or replace these Terms at any time, at their sole discretion. Material changes will be communicated through the App where practicable. Your continued use of the App after any change constitutes your acceptance of the revised Terms.</p>
+                    <h4>12. Termination</h4>
+                    <p>12.1 HowlHouse and/or Suzan’s Security may suspend or terminate your access to the App, with or without notice, for any violation of these Terms or for any other reason at their sole discretion.</p>
+                    <h4>13. Governing Law and Dispute Resolution</h4>
+                    <p>13.1 Governing Law. These Terms shall be governed by and construed in accordance with the laws of the State of Arizona, without regard to its conflict-of-laws principles.</p>
+                    <p>13.2 Agreement to Arbitrate. Except as set forth in Section 13.5, you and the Companies agree that any dispute, claim, or controversy arising out of or relating to these Terms, the App, or any content, incident, or user conduct within the App (a “Dispute”) shall be resolved exclusively through final and binding arbitration, rather than in court, in accordance with this Section 13.</p>
+                    <p>13.3 Waiver of Right to Sue and Jury Trial. By agreeing to these Terms, you and the Companies each waive the right to a trial by jury and the right to bring or participate in a lawsuit in court regarding any Dispute, except as expressly permitted in Section 13.5. This means that, other than as set forth below, neither you nor the Companies may sue each other in court over content, incidents, or actions arising within the App — the Dispute must instead be arbitrated.</p>
+                    <p>13.4 Class Action and Representative Action Waiver. You and the Companies agree that any arbitration, or any permitted court proceeding under Section 13.5, will be conducted only on an individual basis and not as part of a class, consolidated, mass, or representative action. Neither you nor the Companies may file as a plaintiff, class representative, or class member in any class, collective, consolidated, or representative proceeding against the other, and an arbitrator has no authority to combine your claim with any other person's claim or to preside over any form of a class or representative proceeding. If a court or arbitrator determines that this class action waiver is unenforceable as to a particular Dispute, then that specific Dispute (and only that Dispute) shall proceed in a court of competent jurisdiction in Arizona rather than in arbitration, and the remainder of this Section 13 shall otherwise remain in full force and effect.</p>
+                    <p>13.5 Exceptions. Notwithstanding Sections 13.2–13.4, either party may: (a) bring an individual claim in small claims court if it qualifies; (b) seek temporary or preliminary injunctive relief in a court of competent jurisdiction to prevent actual or threatened misuse of the App, infringement of intellectual property, or unauthorized access to the App's systems, pending the outcome of arbitration; and (c) pursue any claim that, as a matter of applicable law, cannot be subject to mandatory arbitration or a class action waiver.</p>
+                    <p>13.6 Arbitration Procedure. Arbitration shall be administered by a recognized arbitration provider (such as the American Arbitration Association) under its rules then in effect, before a single arbitrator, and shall take place in Arizona or, if the user prefers and the provider's rules permit, remotely by video or telephone. The arbitrator's decision shall be final and binding and may be entered as a judgment in any court of competent jurisdiction. Each party shall bear its own attorneys' fees and costs in arbitration except as otherwise required by the arbitration provider's rules or applicable law, or as otherwise provided in Section 10 (Indemnification).</p>
+                    <p>13.7 Opt-Out. If you wish to opt out of this arbitration agreement and class action waiver, you must complete both of the following steps within the timeframes stated below, or the opt-out will not be effective:</p>
+                    <ul>
+                        <li>Step 1 — Initial Written Notice. Within thirty (30) days of first accepting these Terms, send written notice of your intent to opt out to howlhousemedia@gmail.com. HowlHouse will respond with the mailing address to which your signed opt-out notice must be sent.</li>
+                        <li>Step 2 — Signed Mailed Notice. Within thirty (30) days of HowlHouse's response providing the mailing address, you must mail a physically signed, written opt-out notice to that address. The notice must be physically signed by you (an electronic or typed signature will not satisfy this requirement) and must clearly state your intent to opt out of arbitration and the class action waiver under these Terms.</li>
+                    </ul>
+                    <p>Your opt-out is effective only once both steps are completed within the applicable timeframes. If you complete Step 1 but do not complete Step 2 within the required time, you will be deemed to have agreed to arbitrate all Disputes as set forth in this Section 13. If you opt out validly, both you and the Companies retain the right to bring Disputes in the courts identified in Section 13.1, but the remainder of these Terms, including the class action waiver in Section 13.4, continues to apply to the fullest extent permitted by law.</p>
+                    <h4>14. Miscellaneous</h4>
+                    <p>14.1 If any provision of these Terms is found to be unenforceable, the remaining provisions shall remain in full force and effect.</p>
+                    <p>14.2 These Terms, together with any policies referenced herein, constitute the entire agreement between you and the Companies regarding your use of the App.</p>
+                    <p>14.3 No waiver of any provision of these Terms shall be deemed a further or continuing waiver of such provision or any other provision.</p>
+                    <h4>15. Contact Information</h4>
+                    <p>Questions regarding these Terms may be directed to:</p>
+                    <ul>
+                        <li>HowlHouse — [Insert Contact Email/Address]</li>
+                        <li>Suzan’s Security — [Insert Contact Email/Address]</li>
+                        <li>Privacy, opt-out, and data deletion requests (California users) — howlhousemedia@gmail.com</li>
+                    </ul>
+            </div>
+            <div id="termsFooterGate" style="display: none; flex-direction: column;">
+                <label class="terms-ack-label">
+                    <input type="checkbox" id="termsAckCheckbox" disabled onchange="onTermsCheckboxChange()">
+                    <span>Scroll to the bottom to enable this checkbox. I have read and agree to the Terms &amp; Conditions of Use.</span>
+                </label>
+                <button class="btn" id="termsAcceptBtn" style="width: 100%;" disabled onclick="acceptTerms()">Accept &amp; Continue</button>
+            </div>
+            <div id="termsFooterView" style="display: none;">
+                <button class="btn" style="width: 100%;" onclick="closeModal('termsModal')">Close</button>
+            </div>
         </div>
     </div>
 
@@ -896,6 +1034,53 @@
             document.getElementById('regFields').style.display = isReg ? 'block' : 'none';
             document.getElementById('authBtn').innerText = isReg ? 'Register' : 'Sign In';
             document.getElementById('authToggleText').innerText = isReg ? 'Have credentials? Sign In' : 'New Officer? Register Account';
+            // A fresh trip into registration mode always requires a fresh
+            // Terms & Conditions acceptance - don't carry over an accepted
+            // state from a previous registration attempt this session.
+            if (isReg) { termsAccepted = false; updateTermsStatusUI(); }
+        }
+
+        /* TERMS & CONDITIONS MODAL - scroll-gated for registration ('gate'
+           mode), read-only for the About window ('view' mode). */
+        let termsAccepted = false;
+        let termsMode = 'gate';
+        function isScrolledToBottom(el) { return el.scrollTop + el.clientHeight >= el.scrollHeight - 24; }
+        function openTermsModal(mode) {
+            termsMode = mode;
+            document.getElementById('termsFooterGate').style.display = mode === 'gate' ? 'flex' : 'none';
+            document.getElementById('termsFooterView').style.display = mode === 'view' ? 'block' : 'none';
+            const body = document.getElementById('termsScrollBody');
+            body.scrollTop = 0;
+            if (mode === 'gate') {
+                const cb = document.getElementById('termsAckCheckbox');
+                cb.checked = false;
+                cb.disabled = true;
+                document.getElementById('termsAcceptBtn').disabled = true;
+                // Short content that doesn't need scrolling shouldn't trap the
+                // user - if it's already "at the bottom" on open, unlock it.
+                requestAnimationFrame(() => { if (isScrolledToBottom(body)) cb.disabled = false; });
+            }
+            document.getElementById('termsModal').style.display = 'flex';
+        }
+        function onTermsScroll() {
+            if (termsMode !== 'gate') return;
+            const body = document.getElementById('termsScrollBody');
+            if (isScrolledToBottom(body)) document.getElementById('termsAckCheckbox').disabled = false;
+        }
+        function onTermsCheckboxChange() {
+            document.getElementById('termsAcceptBtn').disabled = !document.getElementById('termsAckCheckbox').checked;
+        }
+        function acceptTerms() {
+            if (!document.getElementById('termsAckCheckbox').checked) return;
+            termsAccepted = true;
+            updateTermsStatusUI();
+            closeModal('termsModal');
+        }
+        function updateTermsStatusUI() {
+            const pill = document.getElementById('termsStatusPill');
+            if (!pill) return;
+            pill.innerText = termsAccepted ? '✓ Terms accepted' : 'Review required';
+            pill.classList.toggle('accepted', termsAccepted);
         }
 
         function friendlyAuthError(err) {
@@ -924,6 +1109,7 @@
                     const name = document.getElementById('authName').value.trim();
                     const phone = document.getElementById('authPhone').value.trim();
                     if (!name) { showErr('Full name / callsign is required.'); return; }
+                    if (!termsAccepted) { showErr('You must review and accept the Terms & Conditions to register.'); return; }
 
                     // isRegistering tells onAuthStateChanged to stand down for this
                     // sign-in - see the listener above. We own the full transition
