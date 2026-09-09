@@ -2,350 +2,125 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-    <title>Suzan's Security | Phoenix Staff Portal</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Firebase Compat Libraries -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suzan's Security App</title>
     <style>
-        :root {
-            /* Neon Desert Palette */
-            --bg-obsidian: #08080c; --bg-card: rgba(22, 22, 30, 0.72); --glass-sheet: rgba(18, 18, 26, 0.82); --border-glass: rgba(255, 255, 255, 0.12);
-            --neon-teal: #00f5d4; --neon-pink: #ff2a85; --neon-saguaro: #00ff87; --danger-glow: #ff3366;
-            --text-primary: #ffffff; --text-secondary: rgba(255, 255, 255, 0.7); --text-muted: rgba(255, 255, 255, 0.42);
-            --apple-spring: cubic-bezier(0.16, 1, 0.3, 1);
+        /* Base styles */
+        :root { 
+            --neon-teal: #00f0ff; 
+            --text-secondary: #aaaaaa; 
+            --border-glass: rgba(255,255,255,0.1); 
+            --text-muted: #888888; 
         }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-        body { background-color: var(--bg-obsidian); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; min-height: 100vh; padding-bottom: calc(110px + env(safe-area-inset-bottom, 20px)); overflow-x: hidden; }
-
-        .watermark-pattern { position: fixed; inset: 0; z-index: -3; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg width='350' height='350' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='20' y='60' font-size='32' transform='rotate(-15 20 60)'%3E🌵%3C/text%3E%3Ctext x='130' y='110' font-size='32' transform='rotate(10 130 110)'%3E🪩%3C/text%3E%3Ctext x='250' y='40' font-size='32' transform='rotate(-20 250 40)'%3E👢%3C/text%3E%3Ctext x='60' y='190' font-size='32' transform='rotate(15 60 190)'%3E🤠%3C/text%3E%3Ctext x='180' y='230' font-size='32' transform='rotate(-10 180 230)'%3E🌴%3C/text%3E%3Ctext x='280' y='170' font-size='32' transform='rotate(20 280 170)'%3E🐾%3C/text%3E%3Ctext x='30' y='300' font-size='32' transform='rotate(-15 30 300)'%3E🐻%3C/text%3E%3Ctext x='140' y='280' font-size='32' transform='rotate(5 140 280)'%3E🪴%3C/text%3E%3Ctext x='260' y='310' font-size='32' transform='rotate(-25 260 310)'%3E🐾%3C/text%3E%3C/svg%3E"); background-repeat: repeat; background-size: 350px 350px; filter: grayscale(100%) opacity(0.06) contrast(200%) drop-shadow(0 0 2px #00f5d4); }
-        body::before { content: ""; position: fixed; top: -15%; left: 50%; transform: translateX(-50%); width: 650px; height: 450px; background: radial-gradient(circle, rgba(121, 40, 202, 0.28) 0%, rgba(255, 42, 133, 0.15) 45%, transparent 70%); filter: blur(80px); z-index: -2; pointer-events: none; }
-        body::after { content: ""; position: fixed; bottom: 5%; right: -10%; width: 500px; height: 450px; background: radial-gradient(circle, rgba(0, 245, 212, 0.16) 0%, rgba(0, 255, 135, 0.12) 40%, transparent 70%); filter: blur(80px); z-index: -2; pointer-events: none; }
-
-        .pride-strip { height: 4px; width: 100%; position: fixed; top: 0; left: 0; z-index: 2000; background: linear-gradient(90deg, #ff0055, #ff5500, #ffea00, #00ff87, #00f5d4, #7928ca, #ff0055); background-size: 300% 100%; animation: circuitLaser 8s linear infinite; }
-        @keyframes circuitLaser { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
-        @keyframes cactusGroove { 0% { transform: translateY(0) rotate(-4deg) scale(1); filter: drop-shadow(0 0 10px var(--neon-saguaro)); } 100% { transform: translateY(-15px) rotate(4deg) scale(1.05); filter: drop-shadow(0 0 25px var(--neon-saguaro)); } }
-        @keyframes armWiggleL { 0% { transform: rotate(-8deg); } 100% { transform: rotate(18deg); } }
-        @keyframes armWiggleR { 0% { transform: rotate(8deg); } 100% { transform: rotate(-18deg); } }
-        @keyframes hatBob { 0% { transform: translateY(0) rotate(-3deg); } 100% { transform: translateY(-4px) rotate(3deg); } }
-
-        .howlhouse-watermark { position: fixed; bottom: calc(85px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 700; color: rgba(255, 255, 255, 0.25); text-transform: uppercase; pointer-events: none; z-index: 500; }
-        .howlhouse-watermark img { height: 14px; width: auto; filter: invert(1) opacity(0.6); }
-
-        header { position: sticky; top: 4px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(24px) saturate(180%); border-bottom: 1px solid var(--border-glass); }
-        .brand-container { display: flex; align-items: center; gap: 10px; }
-        .brand-icon { font-size: 1.5rem; filter: drop-shadow(0 0 10px rgba(0, 245, 212, 0.8)); animation: pulseGlow 3s ease-in-out infinite alternate; }
-        @keyframes pulseGlow { 0% { filter: drop-shadow(0 0 6px var(--neon-teal)); } 100% { filter: drop-shadow(0 0 16px var(--neon-pink)); } }
-        .brand-text { font-family: 'Outfit', sans-serif; font-size: 1.18rem; font-weight: 800; background: linear-gradient(135deg, #ffffff 40%, var(--neon-teal) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .user-pill { display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--border-glass); padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; color: var(--neon-teal); }
-
-        .container { max-width: 820px; margin: 0 auto; padding: 24px 18px; }
-        .glass-card { background: var(--bg-card); backdrop-filter: blur(20px) saturate(160%); border: 1px solid var(--border-glass); border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); overflow: hidden; margin-bottom: 22px; }
-
-        .event-tile { cursor: pointer; position: relative; transition: transform 0.3s var(--apple-spring); }
-        .event-tile:active { transform: scale(0.985); }
-        .event-img-wrap { position: relative; width: 100%; overflow: hidden; }
-        .event-img { width: 100%; height: auto; display: block; }
-        .event-img-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 12, 0.1) 0%, rgba(8, 8, 12, 0.85) 100%); }
-        .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); padding: 5px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; color: var(--neon-teal); }
-        .event-body { padding: 18px 20px; }
-        .event-title { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 700; margin-bottom: 8px; }
-        .event-desc { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin-bottom: 14px; }
-
-        .tags-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-        .neon-tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; display: inline-flex; }
-        .tag-active { background: rgba(0, 245, 212, 0.15); color: var(--neon-teal); border: 1px solid rgba(0, 245, 212, 0.4); }
-        .tag-nsfw { background: rgba(255, 42, 133, 0.15); color: var(--neon-pink); border: 1px solid rgba(255, 42, 133, 0.4); }
-        .tag-inactive { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid var(--border-glass); }
-
-        .roster-card { background: rgba(14, 14, 20, 0.6); border: 1px solid var(--border-glass); border-radius: 14px; padding: 12px 16px; margin: 14px 0; }
-        .roster-header { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 700; color: var(--neon-teal); margin-bottom: 8px; }
-        .guard-chip { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; display: inline-flex; gap: 5px; margin: 3px; }
-
-        .btn { border: none; background: linear-gradient(135deg, var(--neon-teal) 0%, #00c4a7 100%); color: #08080c; font-weight: 700; padding: 12px 20px; border-radius: 14px; cursor: pointer; transition: transform 0.25s var(--apple-spring); }
-        .btn:active { transform: scale(0.97); }
-        .btn:disabled { background: rgba(255, 255, 255, 0.08); color: var(--text-muted); cursor: not-allowed; }
-        .btn-magenta { background: linear-gradient(135deg, var(--neon-pink) 0%, #d81159 100%); color: #fff; }
-        .btn-outline { background: rgba(255, 255, 255, 0.04); color: #fff; border: 1px solid var(--border-glass); }
-        .btn-sm { padding: 7px 14px; font-size: 0.82rem; border-radius: 10px; }
-
-        .input-field, select, textarea { width: 100%; background: rgba(12, 12, 18, 0.7); border: 1px solid var(--border-glass); color: #fff; padding: 12px 14px; border-radius: 12px; margin: 6px 0 14px; outline: none; font-family: inherit; }
-        .input-field:focus { border-color: var(--neon-teal); }
-
-        .dock-nav { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); display: flex; background: rgba(18, 18, 26, 0.85); backdrop-filter: blur(28px); padding: 8px 12px; border-radius: 36px; border: 1px solid var(--border-glass); width: 92%; max-width: 480px; justify-content: space-around; z-index: 1500; }
-        .dock-item { background: none; border: none; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 600; padding: 6px 12px; border-radius: 20px; cursor: pointer; }
-        .dock-item span:first-child { font-size: 1.25rem; transition: transform 0.25s; }
-        .dock-item.active { color: var(--neon-teal); background: rgba(0, 245, 212, 0.12); }
-        .dock-item.active span:first-child { transform: translateY(-2px) scale(1.15); filter: drop-shadow(0 0 8px var(--neon-teal)); }
-
-        .chat-container { height: 380px; overflow-y: auto; background: rgba(12, 12, 18, 0.6); border: 1px solid var(--border-glass); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
-        .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 0.9rem; background: rgba(32, 32, 44, 0.75); border: 1px solid var(--border-glass); align-self: flex-start; }
-        .chat-bubble.mine { align-self: flex-end; background: linear-gradient(135deg, #7928ca 0%, #4a00e0 100%); }
-        .draggable-section { background: rgba(26, 26, 36, 0.85); border: 1px dashed rgba(255, 255, 255, 0.2); padding: 12px; border-radius: 12px; margin-bottom: 10px; cursor: grab; }
-        .draggable-section.dragging { opacity: 0.35; border-color: var(--neon-teal); }
-
-        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-        .cal-head { text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); }
-        .cal-day { background: rgba(22, 22, 32, 0.6); border: 1px solid var(--border-glass); border-radius: 12px; min-height: 85px; padding: 8px 6px; font-size: 0.85rem; cursor: pointer; }
-        .cal-badge { background: linear-gradient(135deg, var(--neon-teal), var(--neon-saguaro)); color: #08080c; font-size: 0.65rem; padding: 3px 5px; border-radius: 6px; margin-top: 3px; font-weight: 800; overflow: hidden; white-space: nowrap; }
-
-        .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.82); backdrop-filter: blur(14px); z-index: 2500; display: none; align-items: center; justify-content: center; padding: 18px; }
-        .modal-sheet { background: var(--glass-sheet); border: 1px solid var(--border-glass); border-radius: 24px; width: 100%; max-width: 480px; padding: 28px 24px; max-height: 90vh; overflow-y: auto; }
-        .segmented-control { display: flex; gap: 4px; overflow-x: auto; background: rgba(14, 14, 20, 0.8); border: 1px solid var(--border-glass); padding: 5px; border-radius: 14px; margin-bottom: 20px; }
-        .segment-btn { background: none; border: none; color: var(--text-muted); padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 700; white-space: nowrap; }
-        .segment-btn.active { background: var(--neon-teal); color: #08080c; }
-        .data-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; text-align: left; }
-        .data-table th { padding: 10px; color: var(--neon-teal); border-bottom: 1px solid var(--border-glass); }
-        .data-table td { padding: 12px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
-
-        /* --- Loading screen --- */
-        #loadingOverlay { position: fixed; inset: 0; z-index: 9999; background: var(--bg-obsidian); display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); transition: opacity 0.4s ease; padding: 24px; }
-        .load-progress-wrap { width: 100%; max-width: 280px; margin-top: 28px; }
-        .load-progress-track { width: 100%; height: 10px; border-radius: 999px; background: rgba(255,255,255,0.08); border: 1px solid var(--border-glass); overflow: hidden; }
-        .load-progress-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, var(--neon-saguaro), var(--neon-teal)); transition: width 0.35s var(--apple-spring); box-shadow: 0 0 12px var(--neon-teal); }
-        .load-progress-label { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-        #loadProgressPct { color: var(--neon-teal); }
-        #loadStepText { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; min-height: 1.2em; text-align: center; }
-        #loadWarnText { font-size: 0.72rem; color: var(--danger-glow); margin-top: 10px; text-align: center; display: none; max-width: 300px; }
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background: #111; 
+            color: #fff; 
+            margin: 0; 
+            padding: 20px; 
+        }
+        
+        /* Modals */
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.8); 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 1000;
+        }
+        .modal-sheet { 
+            background: #222; 
+            padding: 20px; 
+            border-radius: 12px; 
+            max-width: 400px; 
+            width: 90%; 
+        }
+        
+        /* Buttons & Inputs */
+        .btn { 
+            background: var(--neon-teal); 
+            color: #000; 
+            border: none; 
+            padding: 10px; 
+            cursor: pointer; 
+            border-radius: 8px; 
+            font-weight: bold; 
+        }
+        .btn-outline { 
+            background: transparent; 
+            color: var(--neon-teal); 
+            border: 1px solid var(--neon-teal); 
+        }
+        input { 
+            width: 100%; 
+            padding: 10px; 
+            margin: 10px 0; 
+            box-sizing: border-box; 
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #333;
+            color: #fff;
+        }
     </style>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
+    <!-- Firebase Auth SDK Added Here -->
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-auth-compat.js"></script>
 </head>
 <body>
-
-    <!-- LOADING SCREEN: dancing cowboy-cactus mascot + real progress bar -->
-    <div id="loadingOverlay">
-        <svg width="190" height="250" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" style="animation: cactusGroove 0.6s infinite alternate ease-in-out;">
-            <!-- legs / boots (behind torso) -->
-            <path d="M 88 188 C 84 208 78 224 68 238" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round"/>
-            <path d="M 112 188 C 116 208 122 224 132 238" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round"/>
-            <path d="M 54 238 L 72 238 L 72 248 L 48 248 Q 44 248 44 244 Q 44 239 54 238 Z" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
-            <path d="M 146 238 L 128 238 L 128 248 L 152 248 Q 156 248 156 244 Q 156 239 146 238 Z" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
-
-            <!-- left arm (dancing), pivots at the shoulder joint -->
-            <path d="M 80 118 Q 44 106 34 74" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round" style="animation: armWiggleL 0.5s infinite alternate ease-in-out; transform-origin: 80px 118px;"/>
-            <!-- right arm (dancing), pivots at the shoulder joint -->
-            <path d="M 120 118 Q 156 106 166 74" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round" style="animation: armWiggleR 0.5s infinite alternate ease-in-out; transform-origin: 120px 118px;"/>
-
-            <!-- torso / trunk, its top curve meets the head's bottom edge -->
-            <path d="M 74 98 Q 100 88 126 98 L 128 175 Q 128 190 100 190 Q 72 190 72 175 Z" fill="var(--bg-obsidian)" stroke="var(--neon-saguaro)" stroke-width="6"/>
-
-            <!-- belt -->
-            <rect x="82" y="163" width="36" height="10" rx="3" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
-            <circle cx="100" cy="168" r="3" fill="var(--neon-pink)"/>
-
-            <!-- bandana, sits right at the neck -->
-            <path d="M 72 96 Q 100 114 128 96" fill="none" stroke="var(--neon-pink)" stroke-width="6" stroke-linecap="round"/>
-            <path d="M 80 101 L 72 124 L 91 113 Z" fill="var(--neon-pink)"/>
-
-            <!-- head -->
-            <circle cx="100" cy="62" r="34" fill="var(--bg-obsidian)" stroke="var(--neon-saguaro)" stroke-width="6"/>
-
-            <!-- face -->
-            <circle cx="88" cy="60" r="4" fill="var(--neon-teal)"/>
-            <circle cx="112" cy="60" r="4" fill="var(--neon-teal)"/>
-            <path d="M 86 76 Q 100 87 114 76" fill="none" stroke="var(--neon-teal)" stroke-width="3" stroke-linecap="round"/>
-
-            <!-- hat, drawn last so it sits on top of the head; pivots at hat center -->
-            <g style="animation: hatBob 0.6s infinite alternate ease-in-out; transform-origin: 100px 40px;">
-                <ellipse cx="100" cy="40" rx="48" ry="10" fill="none" stroke="var(--neon-pink)" stroke-width="4"/>
-                <path d="M 74 40 Q 74 10 100 10 Q 126 10 126 40" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="4"/>
-            </g>
-        </svg>
-
-        <h2 style="color: var(--neon-teal); font-family: 'Outfit'; margin-top: 18px; font-weight: 800; letter-spacing: 2px;">SECURING THE GAYS...</h2>
-
-        <div class="load-progress-wrap">
-            <div class="load-progress-track"><div class="load-progress-fill" id="loadProgressFill"></div></div>
-            <div class="load-progress-label"><span>Loading</span><span id="loadProgressPct">0%</span></div>
-            <div id="loadStepText">Connecting to server...</div>
-            <div id="loadWarnText">Taking longer than usual — check your connection. Continuing to try...</div>
+    
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 id="userGreeting">Welcome</h2>
+        <div>
+            <button class="btn btn-outline" onclick="openModal('aboutModal')">About</button>
+            <button class="btn btn-outline" onclick="logout()">Logout</button>
         </div>
     </div>
 
-    <div class="watermark-pattern"></div>
-    <div class="pride-strip"></div>
-
-    <header>
-        <div class="brand-container">
-            <span class="brand-icon">🌵</span>
-            <div>
-                <h1 class="brand-text">SUZAN'S SECURITY</h1>
-                <p style="font-size: 0.63rem; font-weight: 700; letter-spacing: 0.8px; color: var(--neon-pink);">PHOENIX'S PREMIER QUEER SECURITY TEAM</p>
-            </div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="user-pill" id="userPill" onclick="if(confirm('Sign out of Suzan\'s Security?')) logout();" style="cursor:pointer;" title="Tap to sign out"><span>🛡️</span><span id="userGreeting">Officer</span><span style="opacity:0.6; font-size:0.7rem; margin-left:4px;">⏻</span></div>
-            <button class="btn btn-outline btn-sm" style="padding: 6px 12px; border-radius: 20px;" onclick="document.getElementById('aboutModal').style.display='flex'">ℹ️</button>
-        </div>
-    </header>
-
-    <div class="container">
-        <!-- VIEW 1: UPCOMING EVENTS FEED -->
-        <section id="eventsFeedView">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
-                <div>
-                    <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:800;">Upcoming Shift Postings</h2>
-                    <p style="color:var(--text-muted); font-size:0.85rem;">Phoenix nightlife details, venues &amp; circuit parties</p>
-                </div>
-            </div>
-            <div id="userEventsFeedList"></div>
-        </section>
-
-        <!-- VIEW 2: EVENT DETAIL & BRIEF -->
-        <section id="eventDetailView" style="display: none;">
-            <button class="btn btn-outline btn-sm" style="margin-bottom: 16px;" onclick="switchView('eventsFeed')">← Back to Postings</button>
-            <div id="eventDetailContent"></div>
-        </section>
-
-        <!-- VIEW 3: 30-DAY CALENDAR -->
-        <section id="calendarView" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800;" id="calMonthText">Calendar</h2>
-                <div style="display: flex; gap: 6px;">
-                    <button class="btn btn-outline btn-sm" onclick="changeMonth(-1)">◀</button>
-                    <button class="btn btn-outline btn-sm" onclick="changeMonth(1)">▶</button>
-                </div>
-            </div>
-            <div class="cal-grid" id="calGrid"></div>
-        </section>
-
-        <!-- VIEW 4: TEAM CHANNELS -->
-        <section id="teamChatView" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                <h2 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800;" id="chatTitle"># general</h2>
-                <select id="chatDropdown" class="input-field" style="width:auto; margin:0; padding:6px 12px;" onchange="switchChat(this.value)"></select>
-            </div>
-            <div class="chat-container" id="chatBox"></div>
-            <div style="display: flex; gap: 8px;">
-                <input type="text" id="chatInput" class="input-field" placeholder="Transmit field comms..." style="margin: 0;" data-1p-ignore>
-                <button class="btn btn-outline" style="padding: 12px 15px;" onclick="document.getElementById('fileInput').click()">📎</button>
-                <button class="btn" onclick="sendChat()">Send</button>
-                <input type="file" id="fileInput" style="display: none;" onchange="uploadFile(event)">
-            </div>
-        </section>
-
-        <!-- VIEW: BAN LIST -->
-        <section id="banListView" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
-                <div>
-                    <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:800;">Ban List</h2>
-                    <p style="color:var(--text-muted); font-size:0.85rem;">Known problem patrons &amp; incident history</p>
-                </div>
-            </div>
-            <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addBanEntry()">+ Add Person</button>
-            <div id="banListContainer"></div>
-        </section>
-
-        <!-- VIEW 5: ADMIN COMMAND CENTER -->
-        <section id="adminConsoleView" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h2 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal);">🛡️ Command Center</h2>
-                <button class="btn btn-outline btn-sm" onclick="switchView('eventsFeed')">Exit</button>
-            </div>
-
-            <div class="segmented-control">
-                <button class="segment-btn active" onclick="switchAdmin('adminEvents')">Events</button>
-                <button class="segment-btn" onclick="switchAdmin('adminChats')">Chat Management</button>
-                <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
-                <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
-                <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
-                <button class="segment-btn" onclick="switchAdmin('adminSettings')">⚙️ PIN</button>
-            </div>
-
-            <div id="adminEvents" class="admin-pane">
-                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addBlankEvent()">+ New Shift Posting</button>
-                <div id="adminEventsList"></div>
-            </div>
-
-            <div id="adminChats" class="admin-pane" style="display: none;">
-                <div style="display:flex; gap:8px; margin-bottom:15px;">
-                    <input type="text" id="newChanInput" class="input-field" placeholder="New Channel name..." style="margin:0;" data-1p-ignore>
-                    <button class="btn btn-sm" onclick="addChannel()">Add</button>
-                </div>
-                <h4>Active Channels</h4><div id="adminChanList" style="margin-bottom:20px;"></div>
-                <h4>Recent Comms</h4><div id="adminMsgList" style="max-height:200px; overflow-y:auto; margin-bottom:20px;" class="glass-card"></div>
-                <h4>Attachments</h4><div id="adminAttachList" class="glass-card" style="padding:12px;"></div>
-            </div>
-
-            <div id="adminLogs" class="admin-pane" style="display: none;">
-                <div class="glass-card" style="padding:12px; overflow-x:auto;">
-                    <table class="data-table"><thead><tr><th>Time</th><th>User</th><th>Action</th></tr></thead><tbody id="logsBody"></tbody></table>
-                </div>
-            </div>
-
-            <div id="adminUsers" class="admin-pane" style="display: none;">
-                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="openUserModal(null)">+ Add User</button>
-                <div class="glass-card" style="padding:12px; overflow-x:auto;">
-                    <table class="data-table"><thead><tr><th>Name</th><th>Contact</th><th>Role/Reset</th></tr></thead><tbody id="usersBody"></tbody></table>
-                </div>
-            </div>
-
-            <div id="adminContacts" class="admin-pane" style="display: none;">
-                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addPromoter()">+ New Promoter</button>
-                <div id="promoterList"></div>
-            </div>
-
-            <div id="adminSettings" class="admin-pane" style="display: none;">
-                <div class="glass-card" style="padding: 20px; max-width: 360px;">
-                    <label style="font-size: 0.8rem; color: var(--text-muted);">Change Admin PIN</label>
-                    <input type="password" id="newPinInput" class="input-field" placeholder="New PIN" data-1p-ignore>
-                    <button class="btn btn-sm" onclick="changePin()">Save PIN</button>
-                </div>
-            </div>
-        </section>
-    </div>
-
-    <!-- HowlHouse Global Watermark -->
-    <div class="howlhouse-watermark">
-        <img src="House_Black_Logo.png" alt="HowlHouse Logo" onerror="this.style.display='none'">
-        <span>Created and Managed by HowlHouse</span>
-    </div>
-
-    <!-- Apple Floating Dock Bar -->
-    <nav class="dock-nav">
-        <button class="dock-item active" onclick="switchView('eventsFeed')"><span>🪩</span><span>Events</span></button>
-        <button class="dock-item" onclick="switchView('calendarView')"><span>📅</span><span>Calendar</span></button>
-        <button class="dock-item" onclick="switchView('teamChatView')"><span>💬</span><span>Comms</span></button>
-        <button class="dock-item" onclick="switchView('banListView')"><span>🚫</span><span>Ban List</span></button>
-        <button class="dock-item" onclick="promptAdminPin()"><span>🔒</span><span>Admin</span></button>
-    </nav>
-
-    <!-- MODALS -->
-    <div class="modal" id="authModal">
+    <!-- Auth Modal -->
+    <div class="modal" id="authModal" style="display: flex;">
         <div class="modal-sheet">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <span style="font-size: 2.4rem;">🤠</span>
-                <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; margin-top:8px;">Suzan's Security</h3>
-            </div>
-            <p id="authErr" style="color:var(--danger-glow); font-size:0.85rem; margin-bottom:12px; display:none;"></p>
-            <input type="email" id="authEmail" class="input-field" placeholder="Email Address" data-1p-ignore>
-            <input type="password" id="authPass" class="input-field" placeholder="Password" data-1p-ignore>
+            <h3 style="color: var(--neon-teal); margin-top: 0;">Authentication</h3>
+            <div id="authErr" style="color: #ff6b6b; display: none; margin-bottom: 10px; font-size: 0.9rem;"></div>
+            
             <div id="regFields" style="display: none;">
-                <input type="text" id="authName" class="input-field" placeholder="Full Name / Callsign" data-1p-ignore>
-                <input type="tel" id="authPhone" class="input-field" placeholder="Mobile Phone" data-1p-ignore>
+                <input type="text" id="authName" placeholder="Full Name / Callsign">
+                <input type="tel" id="authPhone" placeholder="Phone Number">
             </div>
-            <button class="btn" style="width: 100%; margin-top: 8px;" id="authBtn" onclick="handleAuth()">Sign In to Dispatch</button>
-            <p style="text-align: center; margin-top: 18px; color: var(--neon-teal); font-size: 0.85rem; cursor: pointer; font-weight: 600;" onclick="toggleAuth()" id="authToggleText">New Officer? Register Account</p>
-            <p style="text-align: center; margin-top: 10px; color: var(--text-muted); font-size: 0.72rem;">Forgot your password? Ask your admin to reset it in Command Center → Users.</p>
+            
+            <input type="email" id="authEmail" placeholder="Email Address">
+            <input type="password" id="authPass" placeholder="Password">
+            
+            <button class="btn" id="authBtn" style="width: 100%; margin-top: 10px;" onclick="handleAuth()">Sign In</button>
+            <p id="authToggleText" style="text-align: center; cursor: pointer; color: var(--neon-teal); margin-top: 15px; font-size: 0.9rem;" onclick="toggleAuth()">New Officer? Register Account</p>
         </div>
     </div>
 
+    <!-- About Modal -->
     <div class="modal" id="aboutModal">
         <div class="modal-sheet" style="text-align: center; padding-top: 15px;">
             <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
                 <button class="btn btn-outline btn-sm" style="border-radius:50%; padding: 4px 8px;" onclick="closeModal('aboutModal')">✕</button>
             </div>
-            <img src="House_Black_Logo.png" alt="HowlHouse Logo" style="width: 55px; height: 55px; filter: invert(1); margin-bottom: 12px;" onerror="this.style.display='none'">
+            
+            <!-- Side-by-side Logo Container -->
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 12px;">
+                <img src="Suzans_security_logo.jpeg" alt="Suzan's Security Logo" style="width: 55px; height: 55px; object-fit: contain; border-radius: 8px;" onerror="this.style.display='none'">
+                <img src="House_Black_Logo.png" alt="HowlHouse Logo" style="width: 55px; height: 55px; filter: invert(1);" onerror="this.style.display='none'">
+            </div>
+            
             <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal); margin-bottom: 6px;">Suzan's Security App</h3>
             <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 20px;">Created & Managed in partnership with Howlhouse, LLC</p>
-            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.82rem; color: var(--text-muted); text-align: left; line-height: 1.6; margin-bottom: 10px;">
+            
+            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.82rem; color: var(--text-muted); text-align: left;">
                 <p><strong>Version Date:</strong> September 2026</p>
                 <p><strong>Location:</strong> Phoenix, AZ 85012</p>
                 <hr style="border:0; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0;">
@@ -356,350 +131,73 @@
         </div>
     </div>
 
-    <div class="modal" id="userModal">
-        <div class="modal-sheet">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 id="umTitle" style="font-family:'Outfit'; font-size:1.35rem; color:var(--neon-teal);">Edit User</h3>
-                <button class="btn btn-outline btn-sm" onclick="closeModal('userModal')">✕</button>
-            </div>
-            <p id="umErr" style="color:var(--danger-glow); font-size:0.85rem; margin-bottom:10px; display:none;"></p>
-            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Full Name / Callsign</label>
-            <input type="text" id="umName" class="input-field" data-1p-ignore>
-            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Email</label>
-            <input type="email" id="umEmail" class="input-field" data-1p-ignore>
-            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Mobile Phone</label>
-            <input type="tel" id="umPhone" class="input-field" data-1p-ignore>
-            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Password</label>
-            <input type="text" id="umPassword" class="input-field" placeholder="Leave blank to keep current password" data-1p-ignore>
-            <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 16px; cursor:pointer;">
-                <input type="checkbox" id="umIsAdmin" style="width:auto; margin:0;">
-                <span style="font-size:0.85rem;">Commander (Admin) access</span>
-            </label>
-            <div style="display:flex; gap:8px;">
-                <button class="btn" style="flex:1;" onclick="saveUserModal()">💾 Save</button>
-                <button id="umDeleteBtn" class="btn btn-magenta btn-sm" onclick="deleteUserFromModal()">Delete</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="banModal">
-        <div class="modal-sheet">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 id="banModalTitle" style="font-family:'Outfit'; font-size:1.35rem; color:var(--neon-pink);"></h3>
-                <button class="btn btn-outline btn-sm" onclick="closeModal('banModal')">✕</button>
-            </div>
-            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Full Name</label>
-            <div style="display:flex; gap:6px;">
-                <input type="text" id="banNameInput" class="input-field" style="margin:0;" data-1p-ignore>
-                <button class="btn btn-sm" onclick="saveBanName()">Save</button>
-            </div>
-            <h4 style="font-size: 0.95rem; margin: 16px 0 8px;">Incident Journal</h4>
-            <div id="banNotes" style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); padding:12px; border-radius:12px; margin-bottom:12px; max-height:200px; overflow-y:auto;"></div>
-            <textarea id="banNoteIn" class="input-field" rows="2" placeholder="Log an incident..." data-1p-ignore></textarea>
-            <button class="btn btn-sm" onclick="addBanNote()">Add Incident</button>
-            <button class="btn btn-sm btn-magenta" style="width:100%; margin-top:10px;" onclick="delBanFromModal()">Remove From List</button>
-        </div>
-    </div>
-
-    <div class="modal" id="promoterModal">
-        <div class="modal-sheet">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 id="pName" style="font-family:'Outfit'; font-size:1.35rem; color:var(--neon-teal);"></h3>
-                <button class="btn btn-outline btn-sm" onclick="closeModal('promoterModal')">✕</button>
-            </div>
-            <p id="pContact" style="font-size:0.86rem; color:var(--text-secondary); margin-bottom:14px;"></p>
-            <div id="pTags" class="tags-container" style="margin: 8px 0;"></div>
-            <div style="display: flex; gap: 6px; margin-bottom: 18px;">
-                <input type="text" id="pTagIn" class="input-field" placeholder="Add custom tag..." style="margin:0;" data-1p-ignore>
-                <button class="btn btn-sm" onclick="addPTag()">Add</button>
-            </div>
-            <h4 style="font-size: 0.95rem; margin-bottom: 8px;">Debrief Notes</h4>
-            <div id="pNotes" style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); padding:12px; border-radius:12px; margin-bottom:12px; max-height:160px; overflow-y:auto;"></div>
-            <textarea id="pNoteIn" class="input-field" rows="2" placeholder="Record incident note..." data-1p-ignore></textarea>
-            <button class="btn btn-sm" onclick="addPNote()">Add Note</button>
-            <button class="btn btn-sm btn-magenta" style="width:100%; margin-top:10px;" onclick="delPromoterFromModal()">Delete This Contact</button>
-        </div>
-    </div>
-
     <script>
         // --- 1. FIREBASE INITIALIZATION ---
+        // (Keep or replace these keys with your project's config)
         const firebaseConfig = {
             apiKey: "AIzaSyCeM8RGdRFEu8eEWvEOqEgjUAm3_mXOCWk",
-            authDomain: "suzans-security-app.firebaseapp.com",
-            projectId: "suzans-security-app",
-            storageBucket: "suzans-security-app.firebasestorage.app",
+            authDomain: "suzans-security.firebaseapp.com",
+            projectId: "suzans-security",
+            storageBucket: "suzans-security.appspot.com",
             messagingSenderId: "754272810044",
             appId: "1:754272810044:web:cbcabb5e7431aa052c7f39"
         };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const auth = firebase.auth();
+        const db = firebase.firestore();
 
-        // --- 2. NOTIFICATION ENGINE ---
-        function requestNotificationPermission() {
-            if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
-                Notification.requestPermission();
+        // --- 2. MODAL & UTILITY FUNCTIONS ---
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function logAction(msg) { console.log("[Audit Log]:", msg); }
+
+        // --- 3. NATIVE FIREBASE AUTH LOGIC ---
+        let isReg = false;
+        let currentUserProfile = null;
+
+        // Session Listener (Saves login state across app restarts)
+        auth.onAuthStateChanged(async (user) => {
+            try {
+                if (user) {
+                    // Try to load profile doc
+                    const docRef = db.collection('users').doc(user.uid);
+                    const doc = await docRef.get();
+
+                    if (doc.exists) {
+                        currentUserProfile = doc.data();
+                    } else {
+                        // If profile missing create a minimal profile so admins can see accounts created by users
+                        const newProfile = {
+                            uid: user.uid,
+                            name: user.displayName || '',
+                            email: user.email || '',
+                            phone: '',
+                            isAdmin: false,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        await docRef.set(newProfile);
+                        currentUserProfile = newProfile;
+                        logAction('Auto-created profile for existing user: ' + user.uid);
+                    }
+
+                    document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
+                    document.getElementById('authModal').style.display = 'none';
+
+                    // If you have a renderEvents function for the roster, it triggers here
+                    if (typeof renderEvents === 'function') renderEvents();
+                } else {
+                    currentUserProfile = null;
+                    document.getElementById('authModal').style.display = 'flex';
+                }
+            } catch (err) {
+                console.error('onAuthStateChanged error:', err);
+                // keep auth modal open if something goes wrong
+                document.getElementById('authModal').style.display = 'flex';
             }
-        }
-        function notifyUser(title, body) {
-            if ("Notification" in window && Notification.permission === "granted") {
-                new Notification(title, { body: body, icon: 'House_Black_Logo.png' });
-            }
-        }
-
-        // --- 3. GLOBAL STATE ---
-        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [] };
-        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist'];
-        const getDB = k => window.ss_state[k] || [];
-
-        // --- 3b. SAFE WRITE HELPER (fixes silent-fail / undefined-field save bug) ---
-        // JSON round-trip strips `undefined` values (Firestore rejects them outright,
-        // which was silently killing entire writes any time one field was unset).
-        function cleanData(obj) { return JSON.parse(JSON.stringify(obj)); }
-
-        // If Firestore genuinely never responds (blocked by a firewall/ad
-        // blocker, an expired auth session, a misconfigured project, etc.)
-        // the SDK's own promise can hang indefinitely with no error at all -
-        // that's what produced a permanent "Saving..." with nothing in the
-        // console and no alert. This forces a definitive failure after 15s so
-        // every write/delete in the app gets a clear signal instead of a
-        // silent, endless spinner.
-        function withTimeout(promise, ms, label) {
-            let timer;
-            const timeout = new Promise((_, reject) => {
-                timer = setTimeout(() => reject(new Error(
-                    `Timed out after ${ms / 1000}s waiting for ${label}. This usually means the browser can't reach Firestore - check your internet connection, disable any ad blocker/privacy extension for this site, and confirm your Firestore rules are actually published (not just written locally).`
-                )), ms);
-            });
-            return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-        }
-
-        function saveDoc(col, id, data) {
-            const payload = cleanData(data);
-            return withTimeout(db.collection(col).doc(id).set(payload), 15000, `saving to ${col}`)
-                // Same fix applied to events: don't trust the local optimistic
-                // write as proof of success. Explicitly re-read from the
-                // server to confirm it actually landed - this is what was
-                // missing here, and why a user/contact edit could report
-                // success and then vanish on refresh.
-                .then(() => withTimeout(db.collection(col).doc(id).get({ source: 'server' }), 15000, `confirming save to ${col}`))
-                .then(snap => {
-                    if (!snap.exists) throw new Error(`Document unexpectedly missing on the server right after saving to ${col}.`);
-                    return snap;
-                })
-                .catch(err => {
-                    console.error(`Save failed [${col}/${id}]:`, err);
-                    alert('⚠️ Save failed: ' + err.message);
-                    throw err;
-                });
-        }
-        function deleteDoc(col, id) {
-            return withTimeout(db.collection(col).doc(id).delete(), 15000, `deleting from ${col}`).catch(err => {
-                console.error(`Delete failed [${col}/${id}]:`, err);
-                alert('⚠️ Delete failed: ' + err.message);
-                throw err;
-            });
-        }
-
-        const logAction = act => {
-            const id = 'l' + Date.now();
-            saveDoc('logs', id, { id, time: new Date().toLocaleTimeString(), user: currUser()?.name || 'System', action: act });
-        };
-
-        // --- 4. LOADING SCREEN: real progress, not a fake timer ---
-        let isUILoaded = false;
-        let totalLoadSteps = allCollections.length + 1; // +1 for the auth handshake
-        let doneLoadSteps = 0;
-        const HARD_LOAD_TIMEOUT_MS = 20000; // absolute ceiling per requirement
-
-        function bumpProgress(stepLabel) {
-            doneLoadSteps = Math.min(totalLoadSteps, doneLoadSteps + 1);
-            const pct = Math.round((doneLoadSteps / totalLoadSteps) * 100);
-            const fill = document.getElementById('loadProgressFill');
-            const pctEl = document.getElementById('loadProgressPct');
-            const stepEl = document.getElementById('loadStepText');
-            if (fill) fill.style.width = pct + '%';
-            if (pctEl) pctEl.innerText = pct + '%';
-            if (stepEl && stepLabel) stepEl.innerText = stepLabel;
-        }
-
-        function dropLoadingScreen() {
-            if (!isUILoaded) {
-                isUILoaded = true;
-                bumpProgress('Ready.');
-                const overlay = document.getElementById('loadingOverlay');
-                overlay.style.opacity = '0';
-                setTimeout(() => { overlay.style.display = 'none'; }, 400);
-                checkAuth();
-                refreshGlobalUI();
-            }
-        }
-
-        // Hard failsafe: never make staff wait more than 20s, per spec. This only
-        // forces the OVERLAY to hide early if something is truly stuck; the real
-        // load (below) keeps running and will populate the UI once it finishes.
-        setTimeout(() => {
-            if (!isUILoaded) document.getElementById('loadWarnText').style.display = 'block';
-            dropLoadingScreen();
-        }, HARD_LOAD_TIMEOUT_MS);
-
-        // Sign in anonymously to Firebase Auth first. This is required if your
-        // Firestore rules require `request.auth != null` (recommended - see
-        // firestore.rules). It is separate from your app's own staff login system.
-        auth.signInAnonymously().then(() => {
-            bumpProgress('Connected to server...');
-            initialLoad();
-        }).catch(err => {
-            console.error('Anonymous auth failed:', err);
-            document.getElementById('loadStepText').innerText = 'Connection error: ' + err.message;
-            document.getElementById('loadWarnText').style.display = 'block';
-            // Still attempt to load in case rules allow unauthenticated access
-            initialLoad();
         });
 
-        // FIX for "blank portal that fills in a moment later" AND "reverts to
-        // Neon Circuit on refresh": both bugs had the same root cause. Firestore's
-        // onSnapshot can fire an empty result from local cache for an instant
-        // before the real server data arrives. The old code treated that very
-        // first callback as "fully loaded," which (a) sometimes showed an empty
-        // UI that then popped in real data a moment later, and (b) sometimes
-        // made the app wrongly conclude "this database is empty" and re-run the
-        // seed script - wiping out edits to the "Neon Circuit" event.
-        //
-        // Fix: do one explicit, authoritative, SERVER-sourced read of every
-        // collection before showing anything, and gate seeding behind a
-        // permanent "_meta/seedStatus" flag document instead of guessing from
-        // collection size. Seeding can now only ever happen once, ever.
-        async function initialLoad() {
-            try {
-                const seedDoc = await db.collection('_meta').doc('seedStatus').get({ source: 'server' }).catch(() => null);
-                const alreadySeeded = !!(seedDoc && seedDoc.exists && seedDoc.data().seeded === true);
-
-                await Promise.all(allCollections.map(col =>
-                    db.collection(col).get({ source: 'server' }).then(snap => {
-                        window.ss_state[col] = snap.docs.map(d => col === 'channels' ? d.id : d.data());
-                        bumpProgress('Loaded ' + col + '...');
-                    })
-                ));
-
-                if (!alreadySeeded && window.ss_state.users.length === 0) {
-                    await seedDatabase();
-                    await db.collection('_meta').doc('seedStatus').set({ seeded: true, at: Date.now() });
-                }
-
-                dropLoadingScreen();
-            } catch (err) {
-                console.error('Initial load failed:', err);
-                document.getElementById('loadStepText').innerText = 'Load error: ' + err.message;
-                document.getElementById('loadWarnText').style.display = 'block';
-                dropLoadingScreen();
-            }
-            attachRealtimeListeners(); // live updates going forward, regardless of outcome above
-        }
-
-        function attachRealtimeListeners() {
-            allCollections.forEach(col => {
-                let firstFire = true;
-                db.collection(col).onSnapshot(snap => {
-                    if (!firstFire) {
-                        snap.docChanges().forEach(change => {
-                            if (change.type === 'added') {
-                                const data = change.doc.data();
-                                if (col === 'events') notifyUser("🚨 New Deployment Posted", data.title);
-                                if (col === 'chats' && data.user !== currUser()?.name) {
-                                    let chanClean = data.channel.replace('evt_', 'Event ');
-                                    notifyUser(`💬 ${data.user} in #${chanClean}`, data.text);
-                                }
-                            }
-                        });
-                    }
-                    firstFire = false;
-                    window.ss_state[col] = snap.docs.map(d => col === 'channels' ? d.id : d.data());
-                    refreshGlobalUI();
-                }, err => console.error(`Listener error [${col}]:`, err));
-            });
-        }
-
-        function seedDatabase() {
-            return Promise.all([
-                saveDoc('users', 'u1', { id: 'u1', name: 'Admin Suzan', email: 'admin@suzan.com', phone: '555-0000', password: 'admin', isAdmin: true }),
-                saveDoc('channels', 'general', { name: 'general' }),
-                saveDoc('promoters', 'p1', { id: 'p1', name: 'Dax', phone: '555-1234', email: 'dax@club.com', tags: ['VIP'], notes: [{ date: '2026-09-08', text: 'Great payer.' }] }),
-                saveDoc('events', 'e1', {
-                    id: 'e1', title: 'Neon Circuit', date: '2026-09-15', tags: ['NSFW', 'Club', 'Kink'],
-                    desc: 'Main door watch.', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [],
-                    promoterId: 'p1', ticketLink: '',
-                    image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
-                    layout: ['img', 'info', 'tags', 'logistics', 'roster']
-                })
-            ]);
-        }
-
-        function refreshGlobalUI() {
-            validateSession();
-            renderEvents();
-            if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
-            if (document.getElementById('calendarView').style.display !== 'none') renderCal();
-            if (document.getElementById('teamChatView').style.display !== 'none') renderChat();
-            if (document.getElementById('banListView').style.display !== 'none') renderBanList();
-            if (document.getElementById('adminConsoleView').style.display !== 'none') {
-                if (document.getElementById('adminEvents').style.display === 'block') renderAdminEv();
-                if (document.getElementById('adminChats').style.display === 'block') renderAdminChats();
-                if (document.getElementById('adminLogs').style.display === 'block') renderLogs();
-                if (document.getElementById('adminUsers').style.display === 'block') renderUsers();
-                if (document.getElementById('adminContacts').style.display === 'block') renderContacts();
-            }
-        }
-
-        // --- 5. CORE LOGIC ---
-        const PRESET_TAGS = ['SFW', 'NSFW', '18+', 'Bar', 'Club', 'Dungeon', 'Warehouse', 'Residential', 'Commercial', 'Kink', 'Sober', 'WatchDog', 'Themed'];
-        const LEGACY_POST_OPTIONS = ['Unassigned', 'Person/Bag Check', 'ID Check', 'Ticket', 'Float', 'Play Guard', 'Dancefloor', 'Bar', 'Parking Lot', 'Other'];
-
-        // Position-based slot tracking. Events created before this feature
-        // won't have `positions` defined, so everything here falls back to
-        // the old flat `openSlots` counter to stay backward-compatible.
-        function positionFilled(e, posName) { return (e.guards || []).filter(g => (e.guardPosts || {})[g] === posName).length; }
-        function eventOpenSlots(e) {
-            if (e.positions && e.positions.length) {
-                return e.positions.reduce((sum, p) => sum + Math.max(0, (p.slots || 0) - positionFilled(e, p.name)), 0);
-            }
-            return e.openSlots || 0;
-        }
-
-        let isReg = false;
-        const currUser = () => JSON.parse(localStorage.getItem('ss_session'));
-
-        // FIX: the app used to trust whatever was sitting in localStorage
-        // forever, with no check that account still exists server-side. That
-        // meant a stale session (leftover test account, or a user an admin
-        // deleted while they were still browsing) could stay "signed in"
-        // indefinitely, showing a name that isn't in the real user list. This
-        // re-validates the local session against the live `users` collection
-        // every time user data changes, and logs out immediately if it's gone.
-        let usersEverLoaded = false;
-        function validateSession() {
-            const u = currUser();
-            if (!u) return;
-            const users = getDB('users');
-            if (users.length === 0 && !usersEverLoaded) return; // don't false-trigger before initial data has arrived
-            usersEverLoaded = true;
-            const stillValid = users.some(x => x.id === u.id);
-            if (!stillValid) {
-                localStorage.removeItem('ss_session');
-                alert('Your session is no longer valid — your account may have been removed or the app data was reset. Please sign in again.');
-                location.reload();
-            }
-        }
-
-        function checkAuth() {
-            validateSession();
-            if (!currUser()) document.getElementById('authModal').style.display = 'flex';
-            else {
-                document.getElementById('authModal').style.display = 'none';
-                document.getElementById('userGreeting').innerText = currUser().name;
-                requestNotificationPermission();
-            }
-        }
         function toggleAuth() {
             isReg = !isReg;
             document.getElementById('regFields').style.display = isReg ? 'block' : 'none';
@@ -707,834 +205,90 @@
             document.getElementById('authToggleText').innerText = isReg ? 'Have credentials? Sign In' : 'New Officer? Register Account';
         }
 
-        function handleAuth() {
+        async function handleAuth() {
             const email = document.getElementById('authEmail').value.trim();
             const pass = document.getElementById('authPass').value;
             const errEl = document.getElementById('authErr');
-            const showErr = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
-            let users = getDB('users');
+            const btn = document.getElementById('authBtn');
 
-            if (!email || !pass) { showErr('Email and password are required.'); return; }
-
-            if (isReg) {
-                const name = document.getElementById('authName').value.trim();
-                const phone = document.getElementById('authPhone').value.trim();
-                if (!name) { showErr('Full name / callsign is required.'); return; }
-                if (users.some(x => x.email.toLowerCase() === email.toLowerCase())) {
-                    showErr('An account with that email already exists. Sign in instead, or ask an admin to reset your password.');
-                    return;
-                }
-                const nu = { id: 'u' + Date.now(), name, email, phone, password: pass, isAdmin: false };
-                saveDoc('users', nu.id, nu);
-                localStorage.setItem('ss_session', JSON.stringify(nu));
-                logAction('Registered new guard');
-            } else {
-                const u = users.find(x => x.email.toLowerCase() === email.toLowerCase() && x.password === pass);
-                if (u) {
-                    localStorage.setItem('ss_session', JSON.stringify(u));
-                    logAction('Logged in');
-                } else {
-                    showErr('Invalid credentials.');
-                    return;
-                }
-            }
             errEl.style.display = 'none';
-            checkAuth();
-        }
-        function logout() { logAction('Logged out'); localStorage.removeItem('ss_session'); location.reload(); }
 
-        function switchView(v) {
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'adminConsoleView'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
-            });
-            document.querySelectorAll('.dock-item').forEach(item => item.classList.remove('active'));
-            if (v === 'eventsFeed') { document.querySelectorAll('.dock-item')[0].classList.add('active'); renderEvents(); }
-            if (v === 'calendarView') { document.querySelectorAll('.dock-item')[1].classList.add('active'); renderCal(); }
-            if (v === 'teamChatView') { document.querySelectorAll('.dock-item')[2].classList.add('active'); renderChat(); }
-            if (v === 'banListView') { document.querySelectorAll('.dock-item')[3].classList.add('active'); renderBanList(); }
-            if (v === 'adminConsoleView') { document.querySelectorAll('.dock-item')[4].classList.add('active'); renderAdminEv(); }
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        /* EVENTS FEED */
-        function renderEvents() {
-            const evs = getDB('events').sort((a, b) => new Date(a.date) - new Date(b.date));
-            const u = currUser();
-            document.getElementById('userEventsFeedList').innerHTML = evs.map(e => {
-                const hasPositions = e.positions && e.positions.length;
-                const openSlots = eventOpenSlots(e);
-                const isSignedUp = (e.guards || []).includes(u?.name);
-                const actionBtn = hasPositions
-                    ? `<button class="btn" style="width:100%;" onclick="openEventDetail('${e.id}')">🎯 View Positions & Claim</button>`
-                    : `<button class="btn ${isSignedUp ? 'btn-magenta' : ''}" style="width:100%;" onclick="toggleSignUp('${e.id}', event)" ${openSlots === 0 && !isSignedUp ? 'disabled' : ''}>
-                            ${isSignedUp ? 'Cancel My Shift' : (openSlots === 0 ? 'Full' : 'Claim Shift')}
-                        </button>`;
-                return `
-                <div class="glass-card event-tile" onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'A' && event.target.tagName !== 'SELECT') openEventDetail('${e.id}')">
-                    <div class="event-img-wrap">
-                        <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
-                        <div class="event-img-overlay"></div>
-                        <div class="date-badge">🗓️ ${e.date}</div>
-                    </div>
-                    <div class="event-body">
-                        <h3 class="event-title">${e.title}</h3>
-                        <div class="tags-container">
-                            ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
-                        </div>
-                        <p class="event-desc">${e.desc}</p>
-                        ${e.address ? `<p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">📍 ${e.address}</p>` : ''}
-                        <div class="roster-card">
-                            <div class="roster-header">
-                                <span>Assigned Team (${(e.guards || []).length})</span>
-                                <span>${openSlots} Open Slots</span>
-                            </div>
-                            ${hasPositions ? `
-                            <div class="tags-container" style="margin-top:6px;">
-                                ${e.positions.map(p => `<span class="neon-tag ${positionFilled(e, p.name) >= p.slots ? 'tag-inactive' : 'tag-active'}">${p.name} ${positionFilled(e, p.name)}/${p.slots}</span>`).join('')}
-                            </div>` : `
-                            <div>
-                                ${(e.guards || []).map(g => `<span class="guard-chip">🛡️ ${g}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No officers assigned.</span>'}
-                            </div>`}
-                        </div>
-                        ${actionBtn}
-                    </div>
-                </div>
-            `; }).join('');
-        }
-
-        function toggleSignUp(id, eEvent = null) {
-            if (eEvent) eEvent.stopPropagation();
-            let e = getDB('events').find(x => x.id === id), u = currUser();
-            e.guards = e.guards || []; e.guardPosts = e.guardPosts || {};
-            if (e.guards.includes(u.name)) {
-                e.guards = e.guards.filter(g => g !== u.name);
-                delete e.guardPosts[u.name];
-                e.openSlots++;
-                logAction('Dropped shift: ' + e.title);
-            } else {
-                e.guards.push(u.name);
-                e.guardPosts[u.name] = 'Unassigned';
-                e.openSlots--;
-                logAction('Claimed shift: ' + e.title);
+            if (!email || !pass) {
+                errEl.innerText = 'Please enter both email and password.';
+                errEl.style.display = 'block';
+                return;
             }
-            saveDoc('events', e.id, e);
-        }
 
-        // Position-aware claim/cancel/reassign for events with defined position types.
-        function claimPosition(eventId, positionName) {
-            const e = getDB('events').find(x => x.id === eventId);
-            const u = currUser();
-            if (!e || !u) return;
-            e.guards = e.guards || []; e.guardPosts = e.guardPosts || {};
-            const currentlyOnThis = e.guardPosts[u.name] === positionName;
-            if (currentlyOnThis) {
-                // Cancel this position
-                e.guards = e.guards.filter(g => g !== u.name);
-                delete e.guardPosts[u.name];
-                logAction(`Dropped ${positionName} at ${e.title}`);
-            } else {
-                const pos = (e.positions || []).find(p => p.name === positionName);
-                const filled = positionFilled(e, positionName);
-                if (pos && filled >= pos.slots) { alert(`${positionName} is already full.`); return; }
-                if (!e.guards.includes(u.name)) e.guards.push(u.name);
-                e.guardPosts[u.name] = positionName;
-                logAction(`Claimed ${positionName} at ${e.title}`);
-            }
-            saveDoc('events', e.id, e);
-        }
+            // disable button while working to avoid duplicate submits
+            btn.disabled = true;
 
-        /* EVENT DETAIL */
-        let activeDetailId = null;
-        function openEventDetail(id) { activeDetailId = id; switchView('eventDetail'); renderEventDetail(id); }
+            try {
+                if (isReg) {
+                    const name = document.getElementById('authName').value.trim();
+                    const phone = document.getElementById('authPhone').value.trim();
 
-        function renderEventDetail(id) {
-            const e = getDB('events').find(x => x.id === id);
-            if (!e) { switchView('eventsFeed'); return; }
-            const u = currUser();
-            const promoter = getDB('promoters').find(p => p.id === e.promoterId);
-            const isSignedUp = u && (e.guards || []).includes(u.name);
-            const hasPositions = e.positions && e.positions.length;
-            const myNote = u && e.guardNotes && e.guardNotes[u.name];
-
-            let rosterHtml = (e.guards || []).map(g => {
-                const isMe = g === u?.name;
-                const posLabel = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
-                const positionCell = (!hasPositions && isMe)
-                    ? `<select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:700;" onchange="updateGuardPost('${e.id}', '${g}', this.value)">
-                            ${LEGACY_POST_OPTIONS.map(p => `<option value="${p}" ${posLabel === p ? 'selected' : ''}>${p}</option>`).join('')}
-                       </select>`
-                    : `<span style="color:var(--neon-teal); font-weight:700; font-size:0.85rem;">${posLabel}</span>`;
-                return `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                    <td style="padding:10px 6px;">🛡️ ${g}${isMe ? ' <span style="color:var(--neon-pink); font-size:0.75rem;">(You)</span>' : ''}</td>
-                    <td style="padding:10px 6px; text-align:right;">${positionCell}</td>
-                </tr>`;
-            }).join('') || '';
-
-            const positionsHtml = hasPositions ? `
-                <div style="margin: 20px 0;">
-                    <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px;">Available Positions</h4>
-                    <div style="display:flex; flex-direction:column; gap:8px;">
-                        ${e.positions.map(p => {
-                            const filled = positionFilled(e, p.name);
-                            const full = filled >= p.slots;
-                            const onThis = u && (e.guardPosts || {})[u.name] === p.name;
-                            return `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
-                                <div>
-                                    <strong>${p.name}</strong>
-                                    <span style="color:var(--text-muted); font-size:0.82rem; margin-left:8px;">${filled}/${p.slots} filled</span>
-                                </div>
-                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${full && !onThis ? 'disabled' : ''}>
-                                    ${onThis ? 'Cancel' : (full ? 'Full' : 'Claim')}
-                                </button>
-                            </div>`;
-                        }).join('')}
-                    </div>
-                </div>` : '';
-
-            const timelineSorted = [...(e.timeline || [])].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-
-            document.getElementById('eventDetailContent').innerHTML = `
-                <div class="glass-card">
-                    <div class="event-img-wrap" style="height:240px;">
-                        <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
-                        <div class="event-img-overlay"></div>
-                        <div class="date-badge">🗓️ ${e.date}</div>
-                    </div>
-                    <div class="event-body">
-                        <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:800; margin-bottom:8px;">${e.title}</h2>
-                        <div class="tags-container">
-                            ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
-                        </div>
-                        ${e.ticketLink ? `<a href="${e.ticketLink}" target="_blank" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
-
-                        ${myNote ? `
-                        <div style="background:rgba(255,42,133,0.1); border:1px solid rgba(255,42,133,0.4); border-radius:12px; padding:14px; margin: 16px 0;">
-                            <h4 style="color:var(--neon-pink); font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">📝 Note for you from Command</h4>
-                            <p style="font-size:0.9rem; color:var(--text-primary);">${myNote}</p>
-                        </div>` : ''}
-
-                        <div style="margin: 16px 0;">
-                            <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">Operational Brief</h4>
-                            <p style="font-size:0.95rem; line-height:1.5; color:var(--text-secondary);">${e.desc || 'No brief provided.'}</p>
-                        </div>
-
-                        ${e.address ? `
-                        <div style="margin: 16px 0;">
-                            <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">Location</h4>
-                            <p style="font-size:0.95rem; color:var(--text-secondary);">${e.address}</p>
-                            <a href="https://maps.google.com/?q=${encodeURIComponent(e.address)}" target="_blank" class="btn btn-outline btn-sm" style="margin-top:8px; text-decoration:none; display:inline-block;">📍 Get Directions</a>
-                        </div>` : ''}
-
-                        ${timelineSorted.length ? `
-                        <div style="margin: 16px 0;">
-                            <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">Shift Timeline</h4>
-                            <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:6px 16px;">
-                                ${timelineSorted.map(t => `<div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><strong style="color:var(--neon-teal); min-width:64px;">${t.time || '--:--'}</strong><span style="font-size:0.9rem;">${t.label || ''}</span></div>`).join('')}
-                            </div>
-                        </div>` : ''}
-
-                        ${promoter ? `
-                        <div style="background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:12px; padding:14px; margin: 16px 0;">
-                            <h4 style="color:var(--neon-teal); font-size:0.8rem; font-weight:800; text-transform:uppercase; margin-bottom:4px;">Client / Producer Detail</h4>
-                            <p style="font-weight:700;">${promoter.name}</p>
-                            <p style="font-size:0.85rem; color:var(--text-muted);">📞 ${promoter.phone} • ✉️ ${promoter.email}</p>
-                        </div>` : ''}
-
-                        ${positionsHtml}
-
-                        <div style="margin: 20px 0;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px;">Signed-Up Team (${eventOpenSlots(e)} Slots Open)</h4>
-                                ${!hasPositions ? `<button class="btn btn-sm ${isSignedUp ? 'btn-magenta' : ''}" onclick="toggleSignUp('${e.id}')" ${eventOpenSlots(e) === 0 && !isSignedUp ? 'disabled' : ''}>
-                                    ${isSignedUp ? 'Cancel Shift' : (eventOpenSlots(e) === 0 ? 'Full' : 'Claim Shift')}
-                                </button>` : ''}
-                            </div>
-                            <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:6px 16px;">
-                                ${rosterHtml ? `<table style="width:100%; border-collapse:collapse; font-size:0.9rem;"><tbody>${rosterHtml}</tbody></table>` : '<p style="color:var(--text-muted); font-size:0.85rem; padding:10px 0;">No officers assigned yet.</p>'}
-                            </div>
-                        </div>
-
-                        <div style="margin-top: 24px;">
-                            <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">Live Shift Comms</h4>
-                            <div id="detailChatBox" style="height:220px; overflow-y:auto; background:rgba(12,12,18,0.6); border:1px solid var(--border-glass); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
-                            <div style="display:flex; gap:8px;">
-                                <input type="text" id="detailChatInput" class="input-field" placeholder="Transmit shift update..." style="margin:0;" data-1p-ignore>
-                                <button class="btn btn-sm" onclick="sendDetailChat('${e.id}')">Send</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            renderDetailChat(e.id);
-        }
-
-        function updateGuardPost(eventId, guardName, postVal) {
-            let e = getDB('events').find(x => x.id === eventId);
-            if (e) {
-                if (!e.guardPosts) e.guardPosts = {};
-                e.guardPosts[guardName] = postVal;
-                saveDoc('events', e.id, e);
-                logAction(`Assigned ${guardName} to post [${postVal}] at ${e.title}`);
-            }
-        }
-
-        function renderDetailChat(eventId) {
-            const chanName = 'evt_' + eventId;
-            const msgs = getDB('chats').filter(c => c.channel === chanName).sort((a, b) => a.id.localeCompare(b.id));
-            const box = document.getElementById('detailChatBox');
-            if (!box) return;
-            box.innerHTML = msgs.map(c => `
-                <div style="background:rgba(255,255,255,0.06); padding:8px 12px; border-radius:10px; font-size:0.85rem;">
-                    <div style="color:var(--neon-teal); font-size:0.75rem; font-weight:700;">${c.user}</div>
-                    <div>${c.text}</div>
-                </div>
-            `).join('') || '<p style="color:var(--text-muted); font-size:0.8rem; text-align:center; margin:auto;">No shift messages logged yet.</p>';
-            box.scrollTop = box.scrollHeight;
-        }
-
-        function sendDetailChat(eventId) {
-            const input = document.getElementById('detailChatInput');
-            const v = input.value.trim();
-            if (v) {
-                const cm = { id: 'm' + Date.now(), channel: 'evt_' + eventId, user: currUser().name, text: v, file: null };
-                saveDoc('chats', cm.id, cm);
-                input.value = '';
-            }
-        }
-
-        /* CALENDAR */
-        let calD = new Date(2026, 8, 1);
-        function changeMonth(d) { calD.setMonth(calD.getMonth() + d); renderCal(); }
-        function renderCal() {
-            document.getElementById('calMonthText').innerText = calD.toLocaleString('default', { month: 'long', year: 'numeric' });
-            const grid = document.getElementById('calGrid'); grid.innerHTML = '';
-            const evs = getDB('events'), days = new Date(calD.getFullYear(), calD.getMonth() + 1, 0).getDate(), first = new Date(calD.getFullYear(), calD.getMonth(), 1).getDay();
-            ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(d => grid.innerHTML += `<div class="cal-head">${d}</div>`);
-            for (let i = 0; i < first; i++) grid.innerHTML += `<div class="cal-day" style="background:transparent; border-color:transparent; cursor:default;"></div>`;
-            for (let i = 1; i <= days; i++) {
-                const dateStr = `${calD.getFullYear()}-${String(calD.getMonth() + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-                const dayEvs = evs.filter(e => e.date === dateStr);
-                grid.innerHTML += `<div class="cal-day">
-                    <span>${i}</span>
-                    <div>${dayEvs.map(e => `<div class="cal-badge" onclick="event.stopPropagation(); openEventDetail('${e.id}')">${e.title}</div>`).join('')}</div>
-                </div>`;
-            }
-        }
-
-        /* ADMIN SECURE */
-        function promptAdminPin() {
-            if (prompt('Enter Admin PIN:') === (localStorage.getItem('ss_pin') || '0000')) switchView('adminConsoleView');
-            else alert('Invalid PIN');
-        }
-        function switchAdmin(t) {
-            document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
-            document.querySelectorAll('.admin-pane').forEach(el => el.style.display = 'none'); document.getElementById(t).style.display = 'block';
-            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
-        }
-
-        /* ADMIN EVENTS — staged draft + explicit Save button
-           FIX for "date field glitches" AND "edits don't save / revert":
-           Editing used to write to Firestore on every single keystroke/blur,
-           and the admin list re-rendered on every incoming snapshot (including
-           the echo of your own edit) — together those two things could yank a
-           native date picker out from under you mid-interaction, and any single
-           failed micro-write (permission hiccup, offline blip) silently dropped
-           just that one field with no feedback.
-
-           Now each event tile edits a local in-memory DRAFT copy only. Nothing
-           reaches Firestore until you click "Save Changes" — which does exactly
-           one write for the whole tile and shows you a clear ✅ Saved / ❌ Failed
-           result right on the button. A tile with unsaved changes is never
-           overwritten by incoming live updates (and is never overwritten mid-
-           focus either), so you can't lose in-progress edits, and you always
-           know for certain whether something saved. */
-        window._eventDrafts = {}; // id -> working copy being edited, not yet saved
-        window._eventDraftStatus = {}; // id -> 'saving' | 'saved' | 'error:<msg>' (transient)
-
-        // Stable (key-order-independent) comparison. Firestore's SDK does not
-        // guarantee it returns object keys in the same order they were
-        // written, so a plain JSON.stringify comparison could report a tile
-        // as "dirty" forever even when its content is actually identical to
-        // the server, silently freezing that tile out of all future updates.
-        function stableStringify(obj) {
-            if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
-            if (Array.isArray(obj)) return '[' + obj.map(stableStringify).join(',') + ']';
-            return '{' + Object.keys(obj).sort().map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}';
-        }
-        function isDraftDirty(id) {
-            const draft = window._eventDrafts[id];
-            const server = getDB('events').find(x => x.id === id);
-            if (!draft || !server) return false;
-            return stableStringify(draft) !== stableStringify(server);
-        }
-
-        // Builds/updates ONE tile from its current draft, unconditionally.
-        // Unlike renderAdminEv(), this never skips for "dirty" state - it's
-        // meant to be called right after a deliberate user action (toggling a
-        // tag, adding a timeline row, a successful save, etc.) where we WANT
-        // the tile to visibly update immediately.
-        function renderTile(id) {
-            const draft = window._eventDrafts[id];
-            if (!draft) return;
-            const listEl = document.getElementById('adminEventsList');
-            let tile = document.getElementById('tile_' + id);
-            const html = `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <span style="color:var(--neon-teal); font-weight:700;">Manage: ${draft.title}</span>
-                    <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
-                </div>
-                <div id="drag_${id}">
-                    ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
-                </div>
-                <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-glass);">
-                    <button class="btn" onclick="saveEventDraft('${id}')">💾 Save Changes</button>
-                    <button class="btn btn-outline btn-sm" onclick="discardEventDraft('${id}')">Discard</button>
-                    <span id="saveStatus_${id}" style="font-size:0.8rem; font-weight:700;"></span>
-                </div>
-            `;
-            if (!tile) {
-                tile = document.createElement('div');
-                tile.className = 'glass-card';
-                tile.style.padding = '15px';
-                tile.id = 'tile_' + id;
-                listEl.appendChild(tile);
-            }
-            tile.innerHTML = html;
-            initDragDrop(`drag_${id}`, id);
-        }
-
-        function renderAdminEv() {
-            const listEl = document.getElementById('adminEventsList');
-            const evs = getDB('events').sort((a, b) => new Date(a.date) - new Date(b.date));
-            const currentIds = evs.map(e => e.id);
-
-            // Remove tiles (and drafts) for events that no longer exist
-            [...listEl.children].forEach(child => {
-                const id = (child.id || '').replace('tile_', '');
-                if (id && !currentIds.includes(id)) { child.remove(); delete window._eventDrafts[id]; }
-            });
-
-            evs.forEach(e => {
-                let tile = document.getElementById('tile_' + e.id);
-
-                // Never clobber a tile that's mid-edit (focused) or has unsaved changes.
-                if (tile && (tile.contains(document.activeElement) || isDraftDirty(e.id))) return;
-
-                // (Re)initialize the draft from the latest server data.
-                window._eventDrafts[e.id] = JSON.parse(JSON.stringify(e));
-                renderTile(e.id);
-            });
-        }
-
-        function setTileStatus(id, text, color) {
-            // Always re-query fresh - never hold onto an element reference
-            // across an await/then, since a live update elsewhere can replace
-            // that element in the DOM in the meantime, silently orphaning any
-            // reference captured earlier (this was why "Saving..." used to
-            // get stuck: the "✅ Saved" update was landing on an invisible,
-            // detached copy of the status span).
-            const el = document.getElementById('saveStatus_' + id);
-            if (el) { el.style.color = color; el.innerText = text; }
-        }
-
-        function saveEventDraft(id) {
-            const draft = window._eventDrafts[id];
-            if (!draft) return;
-            setTileStatus(id, 'Saving...', 'var(--text-muted)');
-            const payload = cleanData(draft);
-            withTimeout(db.collection('events').doc(id).set(payload), 15000, 'save to complete')
-                // Don't trust Firestore's local optimistic echo as proof of
-                // success - it can show a write as "done" in the UI even when
-                // it's ultimately never accepted by the server, which was why
-                // a "saved" event could vanish again on refresh. Explicitly
-                // re-read from the server to confirm it really landed.
-                .then(() => withTimeout(db.collection('events').doc(id).get({ source: 'server' }), 15000, 'save confirmation'))
-                .then(snap => {
-                    if (!snap.exists) throw new Error('Event not found on server after save.');
-                    window._eventDrafts[id] = snap.data();
-                    setTileStatus(id, '✅ Saved', 'var(--neon-saguaro)');
-                    logAction('Updated shift posting: ' + draft.title);
-                    renderTile(id); // safe now - draft matches confirmed server data
-                })
-                .catch(err => {
-                    console.error(`Save failed [events/${id}]:`, err);
-                    setTileStatus(id, '❌ Failed: ' + err.message, 'var(--danger-glow)');
-                    alert('⚠️ Save failed: ' + err.message + '\n\nYour edits are still here in the form — fix the issue and click Save Changes again.');
-                });
-        }
-        function discardEventDraft(id) {
-            const server = getDB('events').find(x => x.id === id);
-            if (!server) return;
-            window._eventDrafts[id] = JSON.parse(JSON.stringify(server));
-            renderTile(id);
-        }
-
-        function genAdminSec(sec, e) {
-            const promOpts = `<option value="">-- No Client/Promoter Linked --</option>` + getDB('promoters').map(p => `<option value="${p.id}" ${e.promoterId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
-            if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="draftSet('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="draftSet('${e.id}','title',this.value)" data-1p-ignore></div>`;
-            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
-            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">TAGS</label><div class="tags-container" style="margin-top:8px;">${PRESET_TAGS.map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('')}</div></div>`;
-            if (sec === 'logistics') return `<div class="draggable-section" draggable="true" data-id="logistics">
-                <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ADDRESS &amp; TIMELINE</label>
-                <input class="input-field" placeholder="Venue address (e.g. 123 Main St, Phoenix, AZ)" value="${e.address || ''}" onchange="draftSet('${e.id}','address',this.value)" data-1p-ignore>
-                <div id="tl_${e.id}" style="margin-top:6px;">
-                    ${(e.timeline || []).map((t, i) => `
-                    <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
-                        <input type="time" class="input-field" style="margin:0; width:120px;" value="${t.time || ''}" onchange="draftUpdTimeline('${e.id}',${i},'time',this.value)" data-1p-ignore>
-                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="What happens at this time" value="${(t.label || '').replace(/"/g, '&quot;')}" onchange="draftUpdTimeline('${e.id}',${i},'label',this.value)" data-1p-ignore>
-                        <button class="btn btn-sm btn-magenta" onclick="draftRmTimeline('${e.id}',${i})">×</button>
-                    </div>`).join('')}
-                </div>
-                <button class="btn btn-sm btn-outline" onclick="draftAddTimeline('${e.id}')">+ Add Timeline Item</button>
-            </div>`;
-            if (sec === 'roster') return `<div class="draggable-section" draggable="true" data-id="roster">
-                <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">POSITION TYPES</label>
-                <p style="font-size:0.75rem; color:var(--text-muted); margin:2px 0 8px;">Define how many of each position you need. Leave empty to use simple Open Slots below instead.</p>
-                <div id="postypes_${e.id}">
-                    ${(e.positions || []).map((p, i) => `
-                    <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
-                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="Position name (e.g. Door)" value="${(p.name || '').replace(/"/g, '&quot;')}" onchange="draftUpdPosition('${e.id}',${i},'name',this.value)" data-1p-ignore>
-                        <input type="number" min="0" class="input-field" style="margin:0; width:70px;" value="${p.slots || 0}" onchange="draftUpdPosition('${e.id}',${i},'slots',parseInt(this.value)||0)" data-1p-ignore>
-                        <button class="btn btn-sm btn-magenta" onclick="draftRmPosition('${e.id}',${i})">×</button>
-                    </div>`).join('')}
-                </div>
-                <button class="btn btn-sm btn-outline" onclick="draftAddPosition('${e.id}')">+ Add Position Type</button>
-
-                <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-glass); font-size:0.8rem;">
-                    Open Slots (legacy/simple mode - ignored once a position type exists above):
-                    <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots || 0}" onchange="draftSet('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore>
-                </div>
-
-                <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700; display:block; margin-top:14px;">SIGNED-UP TEAM</label>
-                <div style="overflow-x:auto; margin-top:6px;">
-                    <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
-                        <thead><tr style="text-align:left; color:var(--text-muted);"><th style="padding:4px;">Name</th><th style="padding:4px;">Position</th><th style="padding:4px;">Note to them</th><th></th></tr></thead>
-                        <tbody>
-                            ${(e.guards || []).map((g, i) => {
-                                const posOptions = (e.positions && e.positions.length) ? e.positions.map(p => p.name) : LEGACY_POST_OPTIONS.filter(p => p !== 'Unassigned');
-                                const currentPos = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
-                                return `<tr style="border-top:1px solid rgba(255,255,255,0.06);">
-                                    <td style="padding:6px 4px;">${g}</td>
-                                    <td style="padding:6px 4px;">
-                                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${e.id}','${g.replace(/'/g, "\\'")}',this.value)">
-                                            <option value="Unassigned" ${currentPos === 'Unassigned' ? 'selected' : ''}>Unassigned</option>
-                                            ${posOptions.map(p => `<option value="${p}" ${currentPos === p ? 'selected' : ''}>${p}</option>`).join('')}
-                                        </select>
-                                    </td>
-                                    <td style="padding:6px 4px;">
-                                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${((e.guardNotes && e.guardNotes[g]) || '').replace(/"/g, '&quot;')}" onchange="draftSetGuardNote('${e.id}','${g.replace(/'/g, "\\'")}',this.value)" data-1p-ignore>
-                                    </td>
-                                    <td style="padding:6px 4px;"><b style="color:var(--danger-glow);cursor:pointer;" onclick="draftRmGuard('${e.id}',${i})">✕</b></td>
-                                </tr>`;
-                            }).join('') || `<tr><td colspan="4" style="padding:10px 4px; color:var(--text-muted);">No one signed up yet.</td></tr>`}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div style="display:flex; gap:5px; margin-top:12px; flex-wrap:wrap;">
-                    <select id="au_${e.id}" class="input-field" style="margin:0; flex:1; min-width:150px;">
-                        <option value="">-- Add existing user --</option>
-                        ${getDB('users').filter(u => !(e.guards || []).includes(u.name)).map(u => `<option value="${u.name.replace(/"/g, '&quot;')}">${u.name}</option>`).join('')}
-                    </select>
-                    <button class="btn btn-sm" onclick="draftAddExistingGuard('${e.id}')">Add</button>
-                </div>
-                <div style="display:flex; gap:5px; margin-top:8px;">
-                    <input id="mg_${e.id}" class="input-field" placeholder="Or add a manual name (not a system user)" style="margin:0;" data-1p-ignore>
-                    <button class="btn btn-sm btn-outline" onclick="draftAddGuard('${e.id}')">Add</button>
-                </div>
-            </div>`;
-            return '';
-        }
-        function initDragDrop(cid, eid) {
-            const cont = document.getElementById(cid);
-            if (!cont) return;
-            cont.querySelectorAll('.draggable-section').forEach(dr => {
-                dr.addEventListener('dragstart', () => dr.classList.add('dragging'));
-                dr.addEventListener('dragend', () => { dr.classList.remove('dragging'); draftSet(eid, 'layout', [...cont.children].map(c => c.dataset.id)); });
-            });
-            cont.addEventListener('dragover', e => {
-                e.preventDefault(); const drg = cont.querySelector('.dragging');
-                if (!drg) return;
-                const aft = [...cont.querySelectorAll('.draggable-section:not(.dragging)')].find(c => e.clientY <= c.getBoundingClientRect().top + c.offsetHeight / 2);
-                aft ? cont.insertBefore(drg, aft) : cont.appendChild(drg);
-            });
-        }
-
-        // --- Draft mutators: these touch ONLY the in-memory draft, never Firestore ---
-        function getDraft(id) { return window._eventDrafts[id]; }
-        function markDirty(id) { setTileStatus(id, '● Unsaved changes', 'var(--neon-pink)'); }
-        function draftSet(id, f, v) { const d = getDraft(id); if (!d) return; d[f] = v; markDirty(id); }
-        function draftToggleTag(id, t) {
-            const d = getDraft(id); if (!d) return;
-            d.tags = d.tags || [];
-            d.tags.includes(t) ? d.tags = d.tags.filter(x => x !== t) : d.tags.push(t);
-            renderTile(id); markDirty(id);
-        }
-        function draftAddGuard(id) {
-            const d = getDraft(id), input = document.getElementById('mg_' + id), v = input ? input.value.trim() : '';
-            if (!d || !v) return;
-            d.guards = d.guards || [];
-            if (d.guards.includes(v)) { alert(v + ' is already on this shift.'); return; }
-            d.guards.push(v);
-            d.guardPosts = d.guardPosts || {}; d.guardPosts[v] = 'Unassigned';
-            if (!(d.positions && d.positions.length) && d.openSlots > 0) d.openSlots--;
-            renderTile(id); markDirty(id);
-        }
-        function draftAddExistingGuard(id) {
-            const d = getDraft(id), sel = document.getElementById('au_' + id), v = sel ? sel.value : '';
-            if (!d || !v) return;
-            d.guards = d.guards || [];
-            if (d.guards.includes(v)) { alert(v + ' is already on this shift.'); return; }
-            d.guards.push(v);
-            d.guardPosts = d.guardPosts || {}; d.guardPosts[v] = 'Unassigned';
-            if (!(d.positions && d.positions.length) && d.openSlots > 0) d.openSlots--;
-            renderTile(id); markDirty(id);
-        }
-        function draftRmGuard(id, i) {
-            const d = getDraft(id); if (!d) return;
-            const g = d.guards[i]; d.guards.splice(i, 1);
-            if (d.guardPosts) delete d.guardPosts[g];
-            if (d.guardNotes) delete d.guardNotes[g];
-            if (!(d.positions && d.positions.length)) d.openSlots++;
-            renderTile(id); markDirty(id);
-        }
-        function draftReassignGuard(id, guardName, newPosition) {
-            const d = getDraft(id); if (!d) return;
-            d.guardPosts = d.guardPosts || {};
-            d.guardPosts[guardName] = newPosition;
-            markDirty(id);
-        }
-        function draftSetGuardNote(id, guardName, noteText) {
-            const d = getDraft(id); if (!d) return;
-            d.guardNotes = d.guardNotes || {};
-            d.guardNotes[guardName] = noteText;
-            markDirty(id);
-        }
-        function draftAddPosition(id) {
-            const d = getDraft(id); if (!d) return;
-            d.positions = d.positions || [];
-            d.positions.push({ name: 'New Position', slots: 1 });
-            renderTile(id); markDirty(id);
-        }
-        function draftUpdPosition(id, i, field, value) {
-            const d = getDraft(id); if (!d || !d.positions || !d.positions[i]) return;
-            d.positions[i][field] = value;
-            markDirty(id);
-        }
-        function draftRmPosition(id, i) {
-            const d = getDraft(id); if (!d || !d.positions) return;
-            d.positions.splice(i, 1);
-            renderTile(id); markDirty(id);
-        }
-        function draftAddTimeline(id) { const d = getDraft(id); if (!d) return; d.timeline = d.timeline || []; d.timeline.push({ time: '18:00', label: 'New item' }); renderTile(id); markDirty(id); }
-        function draftUpdTimeline(id, i, f, v) { const d = getDraft(id); if (!d || !d.timeline || !d.timeline[i]) return; d.timeline[i][f] = v; markDirty(id); }
-        function draftRmTimeline(id, i) { const d = getDraft(id); if (!d) return; d.timeline.splice(i, 1); renderTile(id); markDirty(id); }
-
-        function addBlankEvent() {
-            const newEv = {
-                id: 'e' + Date.now(), title: 'New Shift Detail', date: new Date().toISOString().split('T')[0],
-                tags: [], desc: '', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '',
-                image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
-                layout: ['img', 'info', 'tags', 'logistics', 'roster'], ticketLink: ''
-            };
-            saveDoc('events', newEv.id, newEv).then(() => {
-                // Newly created events land in ss_state via the live listener; give it a beat.
-                setTimeout(renderAdminEv, 300);
-            });
-        }
-        function delEv(id) {
-            if (confirm('Delete this shift posting permanently? This cannot be undone.')) {
-                delete window._eventDrafts[id];
-                deleteDoc('events', id);
-            }
-        }
-
-        /* ADMIN CHAT */
-        function renderAdminChats() {
-            const ch = getDB('channels'), msgs = getDB('chats').sort((a, b) => b.id.localeCompare(a.id));
-            document.getElementById('adminChanList').innerHTML = ch.map(c => `<div class="glass-card" style="display:flex;justify-content:space-between;padding:10px;margin-bottom:8px;"><span># ${c}</span><div><button class="btn btn-sm btn-magenta" onclick="delChan('${c}')">Del Chan</button> <button class="btn btn-sm btn-outline" onclick="clrChan('${c}')">Clr Hist</button></div></div>`).join('');
-            document.getElementById('adminMsgList').innerHTML = msgs.map(m => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:8px;font-size:0.85rem;"><span style="color:var(--neon-teal);">[#${m.channel}] ${m.user}: ${m.text}</span><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border:none;" onclick="delMsg('${m.id}')">✕</button></div>`).join('');
-            document.getElementById('adminAttachList').innerHTML = msgs.filter(m => m.file).map(m => `<div style="margin-bottom:6px;"><a href="${m.file}" style="color:var(--neon-teal); font-size:0.85rem; font-weight:700;">📎 Attachment in #${m.channel}</a></div>`).join('');
-        }
-        function addChannel() { let v = document.getElementById('newChanInput').value.toLowerCase().replace(/\s+/g, '-'); if (v) saveDoc('channels', v, { name: v }); }
-        function delChan(c) { if (confirm('Delete channel #' + c + ' and all its history?')) { deleteDoc('channels', c); clrChan(c); } }
-        function clrChan(c) { db.collection('chats').where('channel', '==', c).get().then(s => { let b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }).catch(err => alert('Clear failed: ' + err.message)); }
-        function delMsg(id) { deleteDoc('chats', id); }
-
-        /* LOGS, USERS, CONTACTS */
-        function renderLogs() { document.getElementById('logsBody').innerHTML = getDB('logs').sort((a, b) => b.id.localeCompare(a.id)).map(l => `<tr><td style="color:var(--text-muted);">${l.time}</td><td style="color:var(--neon-teal); font-weight:700;">${l.user}</td><td>${l.action}</td></tr>`).join(''); }
-
-        function renderUsers() {
-            const me = currUser();
-            document.getElementById('usersBody').innerHTML = getDB('users').map(u => `<tr>
-                <td><strong>${u.name}</strong></td>
-                <td style="font-size:0.8rem;">${u.email}<br>${u.phone || ''}</td>
-                <td style="white-space:nowrap;">
-                    <button class="btn btn-sm ${u.isAdmin ? 'btn-magenta' : 'btn-outline'}" onclick="togAdmin('${u.id}')">${u.isAdmin ? 'Commander' : 'Guard'}</button>
-                    <button class="btn btn-sm btn-outline" onclick="openUserModal('${u.id}')">Edit</button>
-                    <button class="btn btn-sm btn-outline" style="color:var(--danger-glow);" onclick="delUser('${u.id}')" ${me && me.id === u.id ? 'disabled title="Cannot delete your own active session"' : ''}>Delete</button>
-                </td>
-            </tr>`).join('');
-        }
-        function togAdmin(id) { let usr = getDB('users').find(x => x.id === id); usr.isAdmin = !usr.isAdmin; saveDoc('users', usr.id, usr); }
-        function rstPass(id) { let np = prompt('New Pass:'); if (np) { let usr = getDB('users').find(x => x.id === id); usr.password = np; saveDoc('users', usr.id, usr); alert('Reset!'); } }
-        function delUser(id) {
-            const me = currUser();
-            if (me && me.id === id) { alert("You can't delete the account you're currently signed in as. Sign in as another admin first."); return; }
-            if (confirm('Permanently delete this user account? This cannot be undone.')) deleteDoc('users', id);
-        }
-
-        // --- Admin console: add / edit user profiles directly ---
-        let editingUserId = null; // null while the modal is open in "create new user" mode
-        function openUserModal(id) {
-            editingUserId = id || null;
-            const u = id ? getDB('users').find(x => x.id === id) : null;
-            document.getElementById('umErr').style.display = 'none';
-            document.getElementById('umTitle').innerText = id ? 'Edit User' : 'Add New User';
-            document.getElementById('umName').value = u ? u.name : '';
-            document.getElementById('umEmail').value = u ? u.email : '';
-            document.getElementById('umPhone').value = u ? (u.phone || '') : '';
-            document.getElementById('umPassword').value = '';
-            document.getElementById('umPassword').placeholder = id ? 'Leave blank to keep current password' : 'Set an initial password';
-            document.getElementById('umIsAdmin').checked = u ? !!u.isAdmin : false;
-            document.getElementById('umDeleteBtn').style.display = id ? 'inline-block' : 'none';
-            document.getElementById('userModal').style.display = 'flex';
-        }
-        function saveUserModal() {
-            const name = document.getElementById('umName').value.trim();
-            const email = document.getElementById('umEmail').value.trim();
-            const phone = document.getElementById('umPhone').value.trim();
-            const pw = document.getElementById('umPassword').value;
-            const isAdmin = document.getElementById('umIsAdmin').checked;
-            const errEl = document.getElementById('umErr');
-            const showErr = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
-
-            if (!name || !email) { showErr('Name and email are required.'); return; }
-            const users = getDB('users');
-            const dupe = users.find(x => x.email.toLowerCase() === email.toLowerCase() && x.id !== editingUserId);
-            if (dupe) { showErr('Another account already uses that email.'); return; }
-
-            if (editingUserId) {
-                const existing = users.find(x => x.id === editingUserId);
-                if (!existing) return;
-                const updated = { ...existing, name, email, phone, isAdmin };
-                if (pw) updated.password = pw;
-                saveDoc('users', editingUserId, updated).then(() => {
-                    logAction('Updated user profile: ' + name);
-                    const me = currUser();
-                    if (me && me.id === editingUserId) {
-                        localStorage.setItem('ss_session', JSON.stringify(updated));
-                        document.getElementById('userGreeting').innerText = updated.name;
+                    if (!name) {
+                        errEl.innerText = 'Please enter your full name/callsign.';
+                        errEl.style.display = 'block';
+                        btn.disabled = false;
+                        return;
                     }
-                    closeModal('userModal');
-                });
-            } else {
-                if (!pw) { showErr('Please set an initial password for the new user.'); return; }
-                const nu = { id: 'u' + Date.now(), name, email, phone, password: pw, isAdmin };
-                saveDoc('users', nu.id, nu).then(() => {
-                    logAction('Admin created new user: ' + name);
-                    closeModal('userModal');
-                });
-            }
-        }
-        function deleteUserFromModal() {
-            if (!editingUserId) return;
-            const me = currUser();
-            if (me && me.id === editingUserId) { alert("You can't delete the account you're currently signed in as. Sign in as another admin first."); return; }
-            if (confirm('Permanently delete this user account? This cannot be undone.')) {
-                deleteDoc('users', editingUserId);
-                closeModal('userModal');
+
+                    // Create user in Firebase Auth
+                    const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+                    const user = userCredential.user;
+
+                    // Optional: set displayName on the Auth user record
+                    if (user && user.updateProfile) {
+                        try {
+                            await user.updateProfile({ displayName: name });
+                        } catch (e) {
+                            console.warn('updateProfile failed:', e);
+                        }
+                    }
+
+                    // Save profile to Firestore (await it so we know it was persisted)
+                    const profileData = {
+                        uid: user.uid,
+                        name: name,
+                        email: email,
+                        phone: phone || '',
+                        isAdmin: false,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    await db.collection('users').doc(user.uid).set(profileData);
+
+                    // Optional: send verification email (comment out if you don't want this)
+                    try { await user.sendEmailVerification(); } catch (e) { console.warn('sendEmailVerification failed:', e); }
+
+                    logAction('Registered new guard: ' + name);
+                    // UI will update when onAuthStateChanged fires
+                } else {
+                    // Sign in existing user
+                    await auth.signInWithEmailAndPassword(email, pass);
+                    logAction('Logged in');
+                    // onAuthStateChanged will handle UI update
+                }
+            } catch (error) {
+                console.error('handleAuth error:', error);
+                // Show friendly error text
+                errEl.innerText = error && error.message ? error.message : 'An error occurred during authentication.';
+                errEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
             }
         }
 
-        let selP = null;
-        function renderContacts() { document.getElementById('promoterList').innerHTML = getDB('promoters').map(p => `<div class="glass-card" style="padding:16px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;"><div style="cursor:pointer; flex:1;" onclick="openP('${p.id}')"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4><div class="tags-container" style="margin-top:8px;">${(p.tags || []).map(t => `<span class="neon-tag tag-active">${t}</span>`).join('')}</div></div><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); flex-shrink:0;" onclick="delPromoter('${p.id}')">Delete</button></div></div>`).join(''); }
-        function addPromoter() { const id = 'p' + Date.now(); const name = prompt('Name:'); if (!name) return; saveDoc('promoters', id, { id, name, phone: prompt('Phone:') || '', email: prompt('Email:') || '', tags: [], notes: [] }); }
-        function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').innerText = p.name; document.getElementById('pContact').innerText = `📞 ${p.phone} | ✉️ ${p.email}`; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:700;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
-        function addPTag() { let pr = getDB('promoters').find(x => x.id === selP), v = document.getElementById('pTagIn').value; if (v) { pr.tags = pr.tags || []; pr.tags.push(v); saveDoc('promoters', pr.id, pr); document.getElementById('pTagIn').value = ''; } }
-        function rmPTag(i) { let pr = getDB('promoters').find(x => x.id === selP); pr.tags.splice(i, 1); saveDoc('promoters', pr.id, pr); }
-        function addPNote() { let pr = getDB('promoters').find(x => x.id === selP), v = document.getElementById('pNoteIn').value; if (v) { pr.notes = pr.notes || []; pr.notes.unshift({ date: new Date().toLocaleDateString(), text: v }); saveDoc('promoters', pr.id, pr); document.getElementById('pNoteIn').value = ''; } }
-        function delPromoter(id) { if (confirm('Delete this contact permanently? This cannot be undone.')) deleteDoc('promoters', id); }
-        function delPromoterFromModal() { if (selP && confirm('Delete this contact permanently? This cannot be undone.')) { deleteDoc('promoters', selP); closeModal('promoterModal'); } }
-
-        /* BAN LIST - open to every signed-in user, not just admins */
-        function renderBanList() {
-            const list = getDB('banlist').slice().sort((a, b) => a.name.localeCompare(b.name));
-            document.getElementById('banListContainer').innerHTML = list.map(b => `
-                <div class="glass-card event-tile" style="padding:16px;" onclick="openBanEntry('${b.id}')">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h4 style="color:var(--neon-pink); font-family:'Outfit'; font-size:1.15rem;">🚫 ${b.name}</h4>
-                        <span style="font-size:0.72rem; color:var(--text-muted); white-space:nowrap;">${(b.notes || []).length} incident${(b.notes || []).length === 1 ? '' : 's'}</span>
-                    </div>
-                    ${(b.notes && b.notes[0]) ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">Latest: ${b.notes[0].text}</p>` : '<p style="font-size:0.82rem; color:var(--text-muted); margin-top:8px;">No incidents logged yet.</p>'}
-                </div>
-            `).join('') || '<p style="color:var(--text-muted); text-align:center; margin-top:40px;">No one on the ban list yet.</p>';
-        }
-        function addBanEntry() {
-            const name = prompt('Name of the person to add to the ban list:');
-            if (!name || !name.trim()) return;
-            const id = 'b' + Date.now();
-            saveDoc('banlist', id, { id, name: name.trim(), notes: [] }).then(() => logAction('Added to ban list: ' + name.trim()));
-        }
-        let selBan = null;
-        function openBanEntry(id) {
-            selBan = id;
-            const b = getDB('banlist').find(x => x.id === id);
-            if (!b) return;
-            document.getElementById('banModalTitle').innerText = '🚫 ' + b.name;
-            document.getElementById('banNameInput').value = b.name;
-            renderBanNotes(b);
-            document.getElementById('banNoteIn').value = '';
-            document.getElementById('banModal').style.display = 'flex';
-        }
-        function renderBanNotes(b) {
-            document.getElementById('banNotes').innerHTML = (b.notes || []).map(n => `
-                <div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;">
-                    <span style="color:var(--neon-pink); font-size:0.75rem; font-weight:700;">${n.date}${n.by ? ' · ' + n.by : ''}</span>
-                    <p style="font-size:0.85rem;">${n.text}</p>
-                </div>
-            `).join('') || '<p style="color:var(--text-muted); font-size:0.85rem;">No incidents logged yet.</p>';
-        }
-        function saveBanName() {
-            const b = getDB('banlist').find(x => x.id === selBan);
-            if (!b) return;
-            const newName = document.getElementById('banNameInput').value.trim();
-            if (!newName) { alert('Name cannot be empty.'); return; }
-            const updated = { ...b, name: newName };
-            saveDoc('banlist', selBan, updated).then(() => {
-                document.getElementById('banModalTitle').innerText = '🚫 ' + newName;
-                logAction('Updated ban list entry: ' + newName);
+        function logout() {
+            auth.signOut().then(() => {
+                logAction('Logged out');
+                location.reload();
+            }).catch(err => {
+                console.error('Sign-out failed:', err);
+                alert('Sign out failed: ' + (err.message || err));
             });
         }
-        function addBanNote() {
-            const b = getDB('banlist').find(x => x.id === selBan);
-            const v = document.getElementById('banNoteIn').value.trim();
-            if (!b || !v) return;
-            const updated = { ...b, notes: [{ date: new Date().toLocaleDateString(), by: currUser()?.name || '', text: v }, ...(b.notes || [])] };
-            saveDoc('banlist', selBan, updated).then(() => {
-                renderBanNotes(updated);
-                document.getElementById('banNoteIn').value = '';
-                logAction('Logged ban list incident for: ' + b.name);
-            });
-        }
-        function delBanFromModal() {
-            if (!selBan) return;
-            if (confirm('Remove this person from the ban list permanently? This cannot be undone.')) {
-                deleteDoc('banlist', selBan);
-                closeModal('banModal');
-            }
-        }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function changePin() { let np = document.getElementById('newPinInput').value; if (np) { localStorage.setItem('ss_pin', np); alert('PIN Saved'); document.getElementById('newPinInput').value = ''; } }
-
-        /* CHAT */
-        let actChan = 'general';
-        function renderChat() { document.getElementById('chatDropdown').innerHTML = getDB('channels').map(c => `<option value="${c}" ${c === actChan ? 'selected' : ''}>#${c}</option>`).join(''); document.getElementById('chatTitle').innerText = '# ' + actChan; document.getElementById('chatBox').innerHTML = getDB('chats').filter(c => c.channel === actChan).sort((a, b) => a.id.localeCompare(b.id)).map(c => `<div class="chat-bubble ${c.user === currUser()?.name ? 'mine' : ''}"><div style="font-size:0.72rem; font-weight:700; color:${c.user === currUser()?.name ? '#ff9ee2' : 'var(--neon-teal)'}; margin-bottom:3px;">${c.user}</div><div>${c.text}</div>${c.file ? `<div style="margin-top:6px;"><a href="${c.file}" style="color:var(--text-primary); font-size:0.75rem; font-weight:700;">📎 View File</a></div>` : ''}</div>`).join(''); document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; }
-        function switchChat(c) { actChan = c; renderChat(); }
-        function sendChat(fUrl = null) { let v = document.getElementById('chatInput').value; if (v || fUrl) { let cm = { id: 'm' + Date.now(), channel: actChan, user: currUser().name, text: v || 'Sent file', file: fUrl }; saveDoc('chats', cm.id, cm); document.getElementById('chatInput').value = ''; } }
-        function uploadFile(e) { if (e.target.files[0]) sendChat(URL.createObjectURL(e.target.files[0])); }
     </script>
 </body>
 </html>
