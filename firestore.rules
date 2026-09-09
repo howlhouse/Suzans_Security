@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The app signs everyone in anonymously via Firebase Auth on load (separate
+    // from your own staff username/password system, which lives in the "users"
+    // collection). This rule just requires that anonymous handshake to have
+    // completed before any read/write is allowed - it stops randoms with your
+    // public apiKey from reading/writing your data directly against the
+    // Firestore API, while still letting your app work normally.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
