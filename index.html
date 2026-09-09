@@ -410,9 +410,7 @@
         let isUILoaded = false;
         let totalLoadSteps = allCollections.length + 1; // +1 for the auth handshake
         let doneLoadSteps = 0;
-        let loadTrackers = {};
         const HARD_LOAD_TIMEOUT_MS = 20000; // absolute ceiling per requirement
-        let hardTimeoutFired = false;
 
         function bumpProgress(stepLabel) {
             doneLoadSteps = Math.min(totalLoadSteps, doneLoadSteps + 1);
@@ -437,13 +435,11 @@
             }
         }
 
-        // Hard failsafe: never make staff wait more than 20s, per spec.
+        // Hard failsafe: never make staff wait more than 20s, per spec. This only
+        // forces the OVERLAY to hide early if something is truly stuck; the real
+        // load (below) keeps running and will populate the UI once it finishes.
         setTimeout(() => {
-            hardTimeoutFired = true;
-            if (!isUILoaded) {
-                const warn = document.getElementById('loadWarnText');
-                if (warn) warn.style.display = 'block';
-            }
+            if (!isUILoaded) document.getElementById('loadWarnText').style.display = 'block';
             dropLoadingScreen();
         }, HARD_LOAD_TIMEOUT_MS);
 
@@ -452,22 +448,60 @@
         // firestore.rules). It is separate from your app's own staff login system.
         auth.signInAnonymously().then(() => {
             bumpProgress('Connected to server...');
-            attachFirestoreListeners();
+            initialLoad();
         }).catch(err => {
             console.error('Anonymous auth failed:', err);
             document.getElementById('loadStepText').innerText = 'Connection error: ' + err.message;
             document.getElementById('loadWarnText').style.display = 'block';
-            // Still attempt to attach listeners in case rules allow unauthenticated access
-            attachFirestoreListeners();
+            // Still attempt to load in case rules allow unauthenticated access
+            initialLoad();
         });
 
-        function attachFirestoreListeners() {
-            allCollections.forEach(col => {
-                loadTrackers[col] = true; // tracks first initial download of this collection
+        // FIX for "blank portal that fills in a moment later" AND "reverts to
+        // Neon Circuit on refresh": both bugs had the same root cause. Firestore's
+        // onSnapshot can fire an empty result from local cache for an instant
+        // before the real server data arrives. The old code treated that very
+        // first callback as "fully loaded," which (a) sometimes showed an empty
+        // UI that then popped in real data a moment later, and (b) sometimes
+        // made the app wrongly conclude "this database is empty" and re-run the
+        // seed script - wiping out edits to the "Neon Circuit" event.
+        //
+        // Fix: do one explicit, authoritative, SERVER-sourced read of every
+        // collection before showing anything, and gate seeding behind a
+        // permanent "_meta/seedStatus" flag document instead of guessing from
+        // collection size. Seeding can now only ever happen once, ever.
+        async function initialLoad() {
+            try {
+                const seedDoc = await db.collection('_meta').doc('seedStatus').get({ source: 'server' }).catch(() => null);
+                const alreadySeeded = !!(seedDoc && seedDoc.exists && seedDoc.data().seeded === true);
 
+                await Promise.all(allCollections.map(col =>
+                    db.collection(col).get({ source: 'server' }).then(snap => {
+                        window.ss_state[col] = snap.docs.map(d => col === 'channels' ? d.id : d.data());
+                        bumpProgress('Loaded ' + col + '...');
+                    })
+                ));
+
+                if (!alreadySeeded && window.ss_state.users.length === 0) {
+                    await seedDatabase();
+                    await db.collection('_meta').doc('seedStatus').set({ seeded: true, at: Date.now() });
+                }
+
+                dropLoadingScreen();
+            } catch (err) {
+                console.error('Initial load failed:', err);
+                document.getElementById('loadStepText').innerText = 'Load error: ' + err.message;
+                document.getElementById('loadWarnText').style.display = 'block';
+                dropLoadingScreen();
+            }
+            attachRealtimeListeners(); // live updates going forward, regardless of outcome above
+        }
+
+        function attachRealtimeListeners() {
+            allCollections.forEach(col => {
+                let firstFire = true;
                 db.collection(col).onSnapshot(snap => {
-                    // Live notification triggers (only after initial load)
-                    if (!loadTrackers[col]) {
+                    if (!firstFire) {
                         snap.docChanges().forEach(change => {
                             if (change.type === 'added') {
                                 const data = change.doc.data();
@@ -479,45 +513,30 @@
                             }
                         });
                     }
-
+                    firstFire = false;
                     window.ss_state[col] = snap.docs.map(d => col === 'channels' ? d.id : d.data());
-
-                    if (loadTrackers[col]) {
-                        loadTrackers[col] = false;
-                        bumpProgress('Loaded ' + col + '...');
-                        if (allCollections.every(c => loadTrackers[c] === false)) {
-                            if (window.ss_state.users.length === 0) seedDatabase();
-                            dropLoadingScreen();
-                        }
-                    } else {
-                        refreshGlobalUI();
-                    }
-                }, err => {
-                    console.error(`Listener error [${col}]:`, err);
-                    if (loadTrackers[col]) {
-                        loadTrackers[col] = false;
-                        bumpProgress(col + ' unavailable (' + err.code + ')');
-                        document.getElementById('loadWarnText').style.display = 'block';
-                        if (allCollections.every(c => loadTrackers[c] === false)) dropLoadingScreen();
-                    }
-                });
+                    refreshGlobalUI();
+                }, err => console.error(`Listener error [${col}]:`, err));
             });
         }
 
         function seedDatabase() {
-            saveDoc('users', 'u1', { id: 'u1', name: 'Admin Suzan', email: 'admin@suzan.com', phone: '555-0000', password: 'admin', isAdmin: true });
-            saveDoc('channels', 'general', { name: 'general' });
-            saveDoc('promoters', 'p1', { id: 'p1', name: 'Dax', phone: '555-1234', email: 'dax@club.com', tags: ['VIP'], notes: [{ date: '2026-09-08', text: 'Great payer.' }] });
-            saveDoc('events', 'e1', {
-                id: 'e1', title: 'Neon Circuit', date: '2026-09-15', tags: ['NSFW', 'Club', 'Kink'],
-                desc: 'Main door watch.', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {},
-                promoterId: 'p1', ticketLink: '',
-                image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
-                layout: ['img', 'info', 'tags', 'logistics', 'roster']
-            });
+            return Promise.all([
+                saveDoc('users', 'u1', { id: 'u1', name: 'Admin Suzan', email: 'admin@suzan.com', phone: '555-0000', password: 'admin', isAdmin: true }),
+                saveDoc('channels', 'general', { name: 'general' }),
+                saveDoc('promoters', 'p1', { id: 'p1', name: 'Dax', phone: '555-1234', email: 'dax@club.com', tags: ['VIP'], notes: [{ date: '2026-09-08', text: 'Great payer.' }] }),
+                saveDoc('events', 'e1', {
+                    id: 'e1', title: 'Neon Circuit', date: '2026-09-15', tags: ['NSFW', 'Club', 'Kink'],
+                    desc: 'Main door watch.', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {},
+                    promoterId: 'p1', ticketLink: '',
+                    image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
+                    layout: ['img', 'info', 'tags', 'logistics', 'roster']
+                })
+            ]);
         }
 
         function refreshGlobalUI() {
+            validateSession();
             renderEvents();
             if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();
@@ -537,7 +556,30 @@
         let isReg = false;
         const currUser = () => JSON.parse(localStorage.getItem('ss_session'));
 
+        // FIX: the app used to trust whatever was sitting in localStorage
+        // forever, with no check that account still exists server-side. That
+        // meant a stale session (leftover test account, or a user an admin
+        // deleted while they were still browsing) could stay "signed in"
+        // indefinitely, showing a name that isn't in the real user list. This
+        // re-validates the local session against the live `users` collection
+        // every time user data changes, and logs out immediately if it's gone.
+        let usersEverLoaded = false;
+        function validateSession() {
+            const u = currUser();
+            if (!u) return;
+            const users = getDB('users');
+            if (users.length === 0 && !usersEverLoaded) return; // don't false-trigger before initial data has arrived
+            usersEverLoaded = true;
+            const stillValid = users.some(x => x.id === u.id);
+            if (!stillValid) {
+                localStorage.removeItem('ss_session');
+                alert('Your session is no longer valid — your account may have been removed or the app data was reset. Please sign in again.');
+                location.reload();
+            }
+        }
+
         function checkAuth() {
+            validateSession();
             if (!currUser()) document.getElementById('authModal').style.display = 'flex';
             else {
                 document.getElementById('authModal').style.display = 'none';
@@ -816,36 +858,65 @@
             if (t === 'adminEvents') renderAdminEv(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
         }
 
-        /* ADMIN EVENTS
-           FIX for "date field glitches": we used to blow away the WHOLE admin
-           events list (innerHTML) on every single Firestore snapshot, including
-           the echo of your own edit. That destroyed the <input type="date">
-           mid-interaction. Now we update each event tile independently, and we
-           SKIP re-rendering any tile that currently has focus inside it (i.e.
-           you're actively typing/picking a date in it), so it can't be yanked
-           out from under you. */
+        /* ADMIN EVENTS — staged draft + explicit Save button
+           FIX for "date field glitches" AND "edits don't save / revert":
+           Editing used to write to Firestore on every single keystroke/blur,
+           and the admin list re-rendered on every incoming snapshot (including
+           the echo of your own edit) — together those two things could yank a
+           native date picker out from under you mid-interaction, and any single
+           failed micro-write (permission hiccup, offline blip) silently dropped
+           just that one field with no feedback.
+
+           Now each event tile edits a local in-memory DRAFT copy only. Nothing
+           reaches Firestore until you click "Save Changes" — which does exactly
+           one write for the whole tile and shows you a clear ✅ Saved / ❌ Failed
+           result right on the button. A tile with unsaved changes is never
+           overwritten by incoming live updates (and is never overwritten mid-
+           focus either), so you can't lose in-progress edits, and you always
+           know for certain whether something saved. */
+        window._eventDrafts = {}; // id -> working copy being edited, not yet saved
+        window._eventDraftStatus = {}; // id -> 'saving' | 'saved' | 'error:<msg>' (transient)
+
+        function isDraftDirty(id) {
+            const draft = window._eventDrafts[id];
+            const server = getDB('events').find(x => x.id === id);
+            if (!draft || !server) return false;
+            return JSON.stringify(draft) !== JSON.stringify(server);
+        }
+
         function renderAdminEv() {
             const listEl = document.getElementById('adminEventsList');
             const evs = getDB('events').sort((a, b) => new Date(a.date) - new Date(b.date));
             const currentIds = evs.map(e => e.id);
 
-            // Remove tiles for events that no longer exist
+            // Remove tiles (and drafts) for events that no longer exist
             [...listEl.children].forEach(child => {
                 const id = (child.id || '').replace('tile_', '');
-                if (id && !currentIds.includes(id)) child.remove();
+                if (id && !currentIds.includes(id)) { child.remove(); delete window._eventDrafts[id]; }
             });
 
             evs.forEach(e => {
                 let tile = document.getElementById('tile_' + e.id);
-                if (tile && tile.contains(document.activeElement)) return; // don't disturb active edits
+
+                // Never clobber a tile that's mid-edit (focused) or has unsaved changes.
+                if (tile && (tile.contains(document.activeElement) || isDraftDirty(e.id))) return;
+
+                // (Re)initialize the draft from the latest server data.
+                window._eventDrafts[e.id] = JSON.parse(JSON.stringify(e));
+                const draft = window._eventDrafts[e.id];
 
                 const html = `
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <span style="color:var(--neon-teal); font-weight:700;">Manage: ${e.title}</span>
+                        <span style="color:var(--neon-teal); font-weight:700;">Manage: ${draft.title}</span>
                         <button class="btn btn-sm btn-magenta" onclick="delEv('${e.id}')">Delete Tile</button>
                     </div>
                     <div id="drag_${e.id}">
-                        ${(e.layout || []).map(sec => genAdminSec(sec, e)).join('')}
+                        ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-glass);">
+                        <button class="btn" onclick="saveEventDraft('${e.id}')">💾 Save Changes</button>
+                        <button class="btn btn-outline btn-sm" onclick="discardEventDraft('${e.id}')">Discard</button>
+                        <span id="saveStatus_${e.id}" style="font-size:0.8rem; font-weight:700;"></span>
                     </div>
                 `;
                 if (!tile) {
@@ -860,25 +931,48 @@
             });
         }
 
+        function saveEventDraft(id) {
+            const draft = window._eventDrafts[id];
+            if (!draft) return;
+            const statusEl = document.getElementById('saveStatus_' + id);
+            if (statusEl) { statusEl.style.color = 'var(--text-muted)'; statusEl.innerText = 'Saving...'; }
+            db.collection('events').doc(id).set(cleanData(draft)).then(() => {
+                if (statusEl) { statusEl.style.color = 'var(--neon-saguaro)'; statusEl.innerText = '✅ Saved'; }
+                logAction('Updated shift posting: ' + draft.title);
+                // Re-render this tile fresh from (now-matching) server state on the next tick.
+                setTimeout(renderAdminEv, 300);
+            }).catch(err => {
+                console.error(`Save failed [events/${id}]:`, err);
+                if (statusEl) { statusEl.style.color = 'var(--danger-glow)'; statusEl.innerText = '❌ Failed: ' + err.message; }
+                alert('⚠️ Save failed: ' + err.message + '\n\nCheck your internet connection or Firestore rules (see firestore.rules / README). Your edits are still here in the form — click Save Changes again once fixed.');
+            });
+        }
+        function discardEventDraft(id) {
+            const server = getDB('events').find(x => x.id === id);
+            if (!server) return;
+            window._eventDrafts[id] = JSON.parse(JSON.stringify(server));
+            renderAdminEv();
+        }
+
         function genAdminSec(sec, e) {
             const promOpts = `<option value="">-- No Client/Promoter Linked --</option>` + getDB('promoters').map(p => `<option value="${p.id}" ${e.promoterId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
-            if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="updEv('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="updEv('${e.id}','title',this.value)" data-1p-ignore></div>`;
-            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="updEv('${e.id}','date',this.value)" data-1p-ignore><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="updEv('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="updEv('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><textarea class="input-field" onchange="updEv('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
-            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">TAGS</label><div class="tags-container" style="margin-top:8px;">${PRESET_TAGS.map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="togTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('')}</div></div>`;
+            if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="draftSet('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="draftSet('${e.id}','title',this.value)" data-1p-ignore></div>`;
+            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
+            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">TAGS</label><div class="tags-container" style="margin-top:8px;">${PRESET_TAGS.map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('')}</div></div>`;
             if (sec === 'logistics') return `<div class="draggable-section" draggable="true" data-id="logistics">
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ADDRESS &amp; TIMELINE</label>
-                <input class="input-field" placeholder="Venue address (e.g. 123 Main St, Phoenix, AZ)" value="${e.address || ''}" onchange="updEv('${e.id}','address',this.value)" data-1p-ignore>
+                <input class="input-field" placeholder="Venue address (e.g. 123 Main St, Phoenix, AZ)" value="${e.address || ''}" onchange="draftSet('${e.id}','address',this.value)" data-1p-ignore>
                 <div id="tl_${e.id}" style="margin-top:6px;">
                     ${(e.timeline || []).map((t, i) => `
                     <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
-                        <input type="time" class="input-field" style="margin:0; width:120px;" value="${t.time || ''}" onchange="updTimelineItem('${e.id}',${i},'time',this.value)" data-1p-ignore>
-                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="What happens at this time" value="${(t.label || '').replace(/"/g, '&quot;')}" onchange="updTimelineItem('${e.id}',${i},'label',this.value)" data-1p-ignore>
-                        <button class="btn btn-sm btn-magenta" onclick="rmTimelineItem('${e.id}',${i})">×</button>
+                        <input type="time" class="input-field" style="margin:0; width:120px;" value="${t.time || ''}" onchange="draftUpdTimeline('${e.id}',${i},'time',this.value)" data-1p-ignore>
+                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="What happens at this time" value="${(t.label || '').replace(/"/g, '&quot;')}" onchange="draftUpdTimeline('${e.id}',${i},'label',this.value)" data-1p-ignore>
+                        <button class="btn btn-sm btn-magenta" onclick="draftRmTimeline('${e.id}',${i})">×</button>
                     </div>`).join('')}
                 </div>
-                <button class="btn btn-sm btn-outline" onclick="addTimelineItem('${e.id}')">+ Add Timeline Item</button>
+                <button class="btn btn-sm btn-outline" onclick="draftAddTimeline('${e.id}')">+ Add Timeline Item</button>
             </div>`;
-            if (sec === 'roster') return `<div class="draggable-section" draggable="true" data-id="roster"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ROSTER & SLOTS</label><div style="margin-top:4px; font-size:0.8rem;">Open Slots: <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots}" onchange="updEv('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore></div><div style="display:flex; gap:5px; margin-top:8px;"><input id="mg_${e.id}" class="input-field" placeholder="Manual Name" style="margin:0;" data-1p-ignore><button class="btn btn-sm" onclick="manAddG('${e.id}')">Add</button></div><p style="font-size:0.8rem; margin-top:10px;">Guards: ${(e.guards || []).map((g, i) => `<span class="guard-chip">${g} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmG('${e.id}',${i})">×</b></span>`).join(' ')}</p></div>`;
+            if (sec === 'roster') return `<div class="draggable-section" draggable="true" data-id="roster"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ROSTER & SLOTS</label><div style="margin-top:4px; font-size:0.8rem;">Open Slots: <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots}" onchange="draftSet('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore></div><div style="display:flex; gap:5px; margin-top:8px;"><input id="mg_${e.id}" class="input-field" placeholder="Manual Name" style="margin:0;" data-1p-ignore><button class="btn btn-sm" onclick="draftAddGuard('${e.id}')">Add</button></div><p style="font-size:0.8rem; margin-top:10px;">Guards: ${(e.guards || []).map((g, i) => `<span class="guard-chip">${g} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="draftRmGuard('${e.id}',${i})">×</b></span>`).join(' ')}</p></div>`;
             return '';
         }
         function initDragDrop(cid, eid) {
@@ -886,7 +980,7 @@
             if (!cont) return;
             cont.querySelectorAll('.draggable-section').forEach(dr => {
                 dr.addEventListener('dragstart', () => dr.classList.add('dragging'));
-                dr.addEventListener('dragend', () => { dr.classList.remove('dragging'); updEv(eid, 'layout', [...cont.children].map(c => c.dataset.id)); });
+                dr.addEventListener('dragend', () => { dr.classList.remove('dragging'); draftSet(eid, 'layout', [...cont.children].map(c => c.dataset.id)); });
             });
             cont.addEventListener('dragover', e => {
                 e.preventDefault(); const drg = cont.querySelector('.dragging');
@@ -895,13 +989,38 @@
                 aft ? cont.insertBefore(drg, aft) : cont.appendChild(drg);
             });
         }
-        function updEv(id, f, v) { let e = getDB('events').find(x => x.id === id); if (!e) return; e[f] = v; saveDoc('events', e.id, e); }
-        function togTag(id, t) { let e = getDB('events').find(x => x.id === id); e.tags = e.tags || []; e.tags.includes(t) ? e.tags = e.tags.filter(x => x !== t) : e.tags.push(t); saveDoc('events', e.id, e); }
-        function manAddG(id) { let e = getDB('events').find(x => x.id === id), v = document.getElementById('mg_' + id).value; if (!v) return; e.guards = e.guards || []; e.guards.push(v); e.guardPosts = e.guardPosts || {}; e.guardPosts[v] = 'Unassigned'; if (e.openSlots > 0) e.openSlots--; saveDoc('events', e.id, e); }
-        function rmG(id, i) { let e = getDB('events').find(x => x.id === id); const g = e.guards[i]; e.guards.splice(i, 1); if (e.guardPosts) delete e.guardPosts[g]; e.openSlots++; saveDoc('events', e.id, e); }
-        function addTimelineItem(id) { let e = getDB('events').find(x => x.id === id); e.timeline = e.timeline || []; e.timeline.push({ time: '18:00', label: 'New item' }); saveDoc('events', e.id, e); }
-        function updTimelineItem(id, i, f, v) { let e = getDB('events').find(x => x.id === id); if (!e.timeline || !e.timeline[i]) return; e.timeline[i][f] = v; saveDoc('events', e.id, e); }
-        function rmTimelineItem(id, i) { let e = getDB('events').find(x => x.id === id); e.timeline.splice(i, 1); saveDoc('events', e.id, e); }
+
+        // --- Draft mutators: these touch ONLY the in-memory draft, never Firestore ---
+        function getDraft(id) { return window._eventDrafts[id]; }
+        function markDirty(id) {
+            const statusEl = document.getElementById('saveStatus_' + id);
+            if (statusEl) { statusEl.style.color = 'var(--neon-pink)'; statusEl.innerText = '● Unsaved changes'; }
+        }
+        function draftSet(id, f, v) { const d = getDraft(id); if (!d) return; d[f] = v; markDirty(id); }
+        function draftToggleTag(id, t) {
+            const d = getDraft(id); if (!d) return;
+            d.tags = d.tags || [];
+            d.tags.includes(t) ? d.tags = d.tags.filter(x => x !== t) : d.tags.push(t);
+            markDirty(id); renderAdminEv();
+        }
+        function draftAddGuard(id) {
+            const d = getDraft(id), v = document.getElementById('mg_' + id).value; if (!d || !v) return;
+            d.guards = d.guards || []; d.guards.push(v);
+            d.guardPosts = d.guardPosts || {}; d.guardPosts[v] = 'Unassigned';
+            if (d.openSlots > 0) d.openSlots--;
+            markDirty(id); renderAdminEv();
+        }
+        function draftRmGuard(id, i) {
+            const d = getDraft(id); if (!d) return;
+            const g = d.guards[i]; d.guards.splice(i, 1);
+            if (d.guardPosts) delete d.guardPosts[g];
+            d.openSlots++;
+            markDirty(id); renderAdminEv();
+        }
+        function draftAddTimeline(id) { const d = getDraft(id); if (!d) return; d.timeline = d.timeline || []; d.timeline.push({ time: '18:00', label: 'New item' }); markDirty(id); renderAdminEv(); }
+        function draftUpdTimeline(id, i, f, v) { const d = getDraft(id); if (!d || !d.timeline || !d.timeline[i]) return; d.timeline[i][f] = v; markDirty(id); }
+        function draftRmTimeline(id, i) { const d = getDraft(id); if (!d) return; d.timeline.splice(i, 1); markDirty(id); renderAdminEv(); }
+
         function addBlankEvent() {
             const newEv = {
                 id: 'e' + Date.now(), title: 'New Shift Detail', date: new Date().toISOString().split('T')[0],
@@ -909,9 +1028,17 @@
                 image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                 layout: ['img', 'info', 'tags', 'logistics', 'roster'], ticketLink: ''
             };
-            saveDoc('events', newEv.id, newEv);
+            saveDoc('events', newEv.id, newEv).then(() => {
+                // Newly created events land in ss_state via the live listener; give it a beat.
+                setTimeout(renderAdminEv, 300);
+            });
         }
-        function delEv(id) { if (confirm('Delete this shift posting permanently? This cannot be undone.')) deleteDoc('events', id); }
+        function delEv(id) {
+            if (confirm('Delete this shift posting permanently? This cannot be undone.')) {
+                delete window._eventDrafts[id];
+                deleteDoc('events', id);
+            }
+        }
 
         /* ADMIN CHAT */
         function renderAdminChats() {
