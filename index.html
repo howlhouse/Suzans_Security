@@ -172,7 +172,7 @@
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="user-pill" id="userPill"><span>🛡️</span><span id="userGreeting">Officer</span></div>
+            <div class="user-pill" id="userPill" onclick="if(confirm('Sign out of Suzan\'s Security?')) logout();" style="cursor:pointer;" title="Tap to sign out"><span>🛡️</span><span id="userGreeting">Officer</span><span style="opacity:0.6; font-size:0.7rem; margin-left:4px;">⏻</span></div>
             <button class="btn btn-outline btn-sm" style="padding: 6px 12px; border-radius: 20px;" onclick="document.getElementById('aboutModal').style.display='flex'">ℹ️</button>
         </div>
     </header>
@@ -877,11 +877,56 @@
         window._eventDrafts = {}; // id -> working copy being edited, not yet saved
         window._eventDraftStatus = {}; // id -> 'saving' | 'saved' | 'error:<msg>' (transient)
 
+        // Stable (key-order-independent) comparison. Firestore's SDK does not
+        // guarantee it returns object keys in the same order they were
+        // written, so a plain JSON.stringify comparison could report a tile
+        // as "dirty" forever even when its content is actually identical to
+        // the server, silently freezing that tile out of all future updates.
+        function stableStringify(obj) {
+            if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+            if (Array.isArray(obj)) return '[' + obj.map(stableStringify).join(',') + ']';
+            return '{' + Object.keys(obj).sort().map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}';
+        }
         function isDraftDirty(id) {
             const draft = window._eventDrafts[id];
             const server = getDB('events').find(x => x.id === id);
             if (!draft || !server) return false;
-            return JSON.stringify(draft) !== JSON.stringify(server);
+            return stableStringify(draft) !== stableStringify(server);
+        }
+
+        // Builds/updates ONE tile from its current draft, unconditionally.
+        // Unlike renderAdminEv(), this never skips for "dirty" state - it's
+        // meant to be called right after a deliberate user action (toggling a
+        // tag, adding a timeline row, a successful save, etc.) where we WANT
+        // the tile to visibly update immediately.
+        function renderTile(id) {
+            const draft = window._eventDrafts[id];
+            if (!draft) return;
+            const listEl = document.getElementById('adminEventsList');
+            let tile = document.getElementById('tile_' + id);
+            const html = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="color:var(--neon-teal); font-weight:700;">Manage: ${draft.title}</span>
+                    <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
+                </div>
+                <div id="drag_${id}">
+                    ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-glass);">
+                    <button class="btn" onclick="saveEventDraft('${id}')">💾 Save Changes</button>
+                    <button class="btn btn-outline btn-sm" onclick="discardEventDraft('${id}')">Discard</button>
+                    <span id="saveStatus_${id}" style="font-size:0.8rem; font-weight:700;"></span>
+                </div>
+            `;
+            if (!tile) {
+                tile = document.createElement('div');
+                tile.className = 'glass-card';
+                tile.style.padding = '15px';
+                tile.id = 'tile_' + id;
+                listEl.appendChild(tile);
+            }
+            tile.innerHTML = html;
+            initDragDrop(`drag_${id}`, id);
         }
 
         function renderAdminEv() {
@@ -903,55 +948,51 @@
 
                 // (Re)initialize the draft from the latest server data.
                 window._eventDrafts[e.id] = JSON.parse(JSON.stringify(e));
-                const draft = window._eventDrafts[e.id];
-
-                const html = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <span style="color:var(--neon-teal); font-weight:700;">Manage: ${draft.title}</span>
-                        <button class="btn btn-sm btn-magenta" onclick="delEv('${e.id}')">Delete Tile</button>
-                    </div>
-                    <div id="drag_${e.id}">
-                        ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
-                    </div>
-                    <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-glass);">
-                        <button class="btn" onclick="saveEventDraft('${e.id}')">💾 Save Changes</button>
-                        <button class="btn btn-outline btn-sm" onclick="discardEventDraft('${e.id}')">Discard</button>
-                        <span id="saveStatus_${e.id}" style="font-size:0.8rem; font-weight:700;"></span>
-                    </div>
-                `;
-                if (!tile) {
-                    tile = document.createElement('div');
-                    tile.className = 'glass-card';
-                    tile.style.padding = '15px';
-                    tile.id = 'tile_' + e.id;
-                    listEl.appendChild(tile);
-                }
-                tile.innerHTML = html;
-                initDragDrop(`drag_${e.id}`, e.id);
+                renderTile(e.id);
             });
+        }
+
+        function setTileStatus(id, text, color) {
+            // Always re-query fresh - never hold onto an element reference
+            // across an await/then, since a live update elsewhere can replace
+            // that element in the DOM in the meantime, silently orphaning any
+            // reference captured earlier (this was why "Saving..." used to
+            // get stuck: the "✅ Saved" update was landing on an invisible,
+            // detached copy of the status span).
+            const el = document.getElementById('saveStatus_' + id);
+            if (el) { el.style.color = color; el.innerText = text; }
         }
 
         function saveEventDraft(id) {
             const draft = window._eventDrafts[id];
             if (!draft) return;
-            const statusEl = document.getElementById('saveStatus_' + id);
-            if (statusEl) { statusEl.style.color = 'var(--text-muted)'; statusEl.innerText = 'Saving...'; }
-            db.collection('events').doc(id).set(cleanData(draft)).then(() => {
-                if (statusEl) { statusEl.style.color = 'var(--neon-saguaro)'; statusEl.innerText = '✅ Saved'; }
-                logAction('Updated shift posting: ' + draft.title);
-                // Re-render this tile fresh from (now-matching) server state on the next tick.
-                setTimeout(renderAdminEv, 300);
-            }).catch(err => {
-                console.error(`Save failed [events/${id}]:`, err);
-                if (statusEl) { statusEl.style.color = 'var(--danger-glow)'; statusEl.innerText = '❌ Failed: ' + err.message; }
-                alert('⚠️ Save failed: ' + err.message + '\n\nCheck your internet connection or Firestore rules (see firestore.rules / README). Your edits are still here in the form — click Save Changes again once fixed.');
-            });
+            setTileStatus(id, 'Saving...', 'var(--text-muted)');
+            const payload = cleanData(draft);
+            db.collection('events').doc(id).set(payload)
+                // Don't trust Firestore's local optimistic echo as proof of
+                // success - it can show a write as "done" in the UI even when
+                // it's ultimately never accepted by the server, which was why
+                // a "saved" event could vanish again on refresh. Explicitly
+                // re-read from the server to confirm it really landed.
+                .then(() => db.collection('events').doc(id).get({ source: 'server' }))
+                .then(snap => {
+                    if (!snap.exists) throw new Error('Event not found on server after save.');
+                    window._eventDrafts[id] = snap.data();
+                    setTileStatus(id, '✅ Saved', 'var(--neon-saguaro)');
+                    logAction('Updated shift posting: ' + draft.title);
+                    renderTile(id); // safe now - draft matches confirmed server data
+                })
+                .catch(err => {
+                    console.error(`Save failed [events/${id}]:`, err);
+                    setTileStatus(id, '❌ Failed: ' + err.message, 'var(--danger-glow)');
+                    alert('⚠️ Save failed: ' + err.message + '\n\nCheck your internet connection or Firestore rules (see firestore.rules / README). Your edits are still here in the form — click Save Changes again once fixed.');
+                });
         }
         function discardEventDraft(id) {
             const server = getDB('events').find(x => x.id === id);
             if (!server) return;
             window._eventDrafts[id] = JSON.parse(JSON.stringify(server));
-            renderAdminEv();
+            renderTile(id);
         }
 
         function genAdminSec(sec, e) {
@@ -992,34 +1033,31 @@
 
         // --- Draft mutators: these touch ONLY the in-memory draft, never Firestore ---
         function getDraft(id) { return window._eventDrafts[id]; }
-        function markDirty(id) {
-            const statusEl = document.getElementById('saveStatus_' + id);
-            if (statusEl) { statusEl.style.color = 'var(--neon-pink)'; statusEl.innerText = '● Unsaved changes'; }
-        }
+        function markDirty(id) { setTileStatus(id, '● Unsaved changes', 'var(--neon-pink)'); }
         function draftSet(id, f, v) { const d = getDraft(id); if (!d) return; d[f] = v; markDirty(id); }
         function draftToggleTag(id, t) {
             const d = getDraft(id); if (!d) return;
             d.tags = d.tags || [];
             d.tags.includes(t) ? d.tags = d.tags.filter(x => x !== t) : d.tags.push(t);
-            markDirty(id); renderAdminEv();
+            renderTile(id); markDirty(id);
         }
         function draftAddGuard(id) {
             const d = getDraft(id), v = document.getElementById('mg_' + id).value; if (!d || !v) return;
             d.guards = d.guards || []; d.guards.push(v);
             d.guardPosts = d.guardPosts || {}; d.guardPosts[v] = 'Unassigned';
             if (d.openSlots > 0) d.openSlots--;
-            markDirty(id); renderAdminEv();
+            renderTile(id); markDirty(id);
         }
         function draftRmGuard(id, i) {
             const d = getDraft(id); if (!d) return;
             const g = d.guards[i]; d.guards.splice(i, 1);
             if (d.guardPosts) delete d.guardPosts[g];
             d.openSlots++;
-            markDirty(id); renderAdminEv();
+            renderTile(id); markDirty(id);
         }
-        function draftAddTimeline(id) { const d = getDraft(id); if (!d) return; d.timeline = d.timeline || []; d.timeline.push({ time: '18:00', label: 'New item' }); markDirty(id); renderAdminEv(); }
+        function draftAddTimeline(id) { const d = getDraft(id); if (!d) return; d.timeline = d.timeline || []; d.timeline.push({ time: '18:00', label: 'New item' }); renderTile(id); markDirty(id); }
         function draftUpdTimeline(id, i, f, v) { const d = getDraft(id); if (!d || !d.timeline || !d.timeline[i]) return; d.timeline[i][f] = v; markDirty(id); }
-        function draftRmTimeline(id, i) { const d = getDraft(id); if (!d) return; d.timeline.splice(i, 1); markDirty(id); renderAdminEv(); }
+        function draftRmTimeline(id, i) { const d = getDraft(id); if (!d) return; d.timeline.splice(i, 1); renderTile(id); markDirty(id); }
 
         function addBlankEvent() {
             const newEv = {
