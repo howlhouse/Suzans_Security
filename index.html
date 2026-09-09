@@ -121,33 +121,42 @@
 
     <!-- LOADING SCREEN: dancing cowboy-cactus mascot + real progress bar -->
     <div id="loadingOverlay">
-        <svg width="180" height="230" viewBox="0 0 180 230" xmlns="http://www.w3.org/2000/svg" style="animation: cactusGroove 0.6s infinite alternate ease-in-out;">
-            <!-- hat -->
-            <g style="animation: hatBob 0.6s infinite alternate ease-in-out; transform-origin: 90px 30px;">
-                <ellipse cx="90" cy="34" rx="42" ry="9" fill="none" stroke="var(--neon-pink)" stroke-width="4"/>
-                <path d="M 68 34 Q 68 8 90 8 Q 112 8 112 34" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="4"/>
-            </g>
-            <!-- bandana -->
-            <path d="M 62 58 Q 90 72 118 58" fill="none" stroke="var(--neon-pink)" stroke-width="6" stroke-linecap="round"/>
-            <path d="M 70 62 L 62 82 L 80 74 Z" fill="var(--neon-pink)"/>
-            <!-- cactus body / torso -->
-            <path d="M 66 130 C 58 60 122 60 114 130 C 111 155 100 156 90 156 C 80 156 69 155 66 130 Z" fill="var(--bg-obsidian)" stroke="var(--neon-saguaro)" stroke-width="6"/>
-            <!-- face -->
-            <circle cx="78" cy="88" r="4" fill="var(--neon-teal)"/>
-            <circle cx="102" cy="88" r="4" fill="var(--neon-teal)"/>
-            <path d="M 76 104 Q 90 114 104 104" fill="none" stroke="var(--neon-teal)" stroke-width="3" stroke-linecap="round"/>
-            <!-- left arm (dancing) -->
-            <path d="M 66 118 Q 30 108 22 78" fill="none" stroke="var(--neon-saguaro)" stroke-width="9" stroke-linecap="round" style="animation: armWiggleL 0.5s infinite alternate ease-in-out; transform-origin: 66px 118px;"/>
-            <!-- right arm (dancing) -->
-            <path d="M 114 118 Q 150 108 158 78" fill="none" stroke="var(--neon-saguaro)" stroke-width="9" stroke-linecap="round" style="animation: armWiggleR 0.5s infinite alternate ease-in-out; transform-origin: 114px 118px;"/>
+        <svg width="190" height="250" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" style="animation: cactusGroove 0.6s infinite alternate ease-in-out;">
+            <!-- legs / boots (behind torso) -->
+            <path d="M 88 188 C 84 208 78 224 68 238" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 112 188 C 116 208 122 224 132 238" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 54 238 L 72 238 L 72 248 L 48 248 Q 44 248 44 244 Q 44 239 54 238 Z" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
+            <path d="M 146 238 L 128 238 L 128 248 L 152 248 Q 156 248 156 244 Q 156 239 146 238 Z" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
+
+            <!-- left arm (dancing), pivots at the shoulder joint -->
+            <path d="M 80 118 Q 44 106 34 74" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round" style="animation: armWiggleL 0.5s infinite alternate ease-in-out; transform-origin: 80px 118px;"/>
+            <!-- right arm (dancing), pivots at the shoulder joint -->
+            <path d="M 120 118 Q 156 106 166 74" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round" style="animation: armWiggleR 0.5s infinite alternate ease-in-out; transform-origin: 120px 118px;"/>
+
+            <!-- torso / trunk, its top curve meets the head's bottom edge -->
+            <path d="M 74 98 Q 100 88 126 98 L 128 175 Q 128 190 100 190 Q 72 190 72 175 Z" fill="var(--bg-obsidian)" stroke="var(--neon-saguaro)" stroke-width="6"/>
+
             <!-- belt -->
-            <rect x="72" y="148" width="36" height="10" rx="3" fill="none" stroke="var(--neon-pink)" stroke-width="3"/>
-            <circle cx="90" cy="153" r="3" fill="var(--neon-pink)"/>
-            <!-- legs / boots -->
-            <path d="M 78 158 C 74 178 68 196 60 214" fill="none" stroke="var(--neon-saguaro)" stroke-width="9" stroke-linecap="round"/>
-            <path d="M 102 158 C 106 178 112 196 120 214" fill="none" stroke="var(--neon-saguaro)" stroke-width="9" stroke-linecap="round"/>
-            <path d="M 48 214 L 68 214 L 68 224 L 44 224 Q 40 224 40 220 Q 40 215 48 214 Z" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
-            <path d="M 132 214 L 112 214 L 112 224 L 136 224 Q 140 224 140 220 Q 140 215 132 214 Z" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
+            <rect x="82" y="163" width="36" height="10" rx="3" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="3"/>
+            <circle cx="100" cy="168" r="3" fill="var(--neon-pink)"/>
+
+            <!-- bandana, sits right at the neck -->
+            <path d="M 72 96 Q 100 114 128 96" fill="none" stroke="var(--neon-pink)" stroke-width="6" stroke-linecap="round"/>
+            <path d="M 80 101 L 72 124 L 91 113 Z" fill="var(--neon-pink)"/>
+
+            <!-- head -->
+            <circle cx="100" cy="62" r="34" fill="var(--bg-obsidian)" stroke="var(--neon-saguaro)" stroke-width="6"/>
+
+            <!-- face -->
+            <circle cx="88" cy="60" r="4" fill="var(--neon-teal)"/>
+            <circle cx="112" cy="60" r="4" fill="var(--neon-teal)"/>
+            <path d="M 86 76 Q 100 87 114 76" fill="none" stroke="var(--neon-teal)" stroke-width="3" stroke-linecap="round"/>
+
+            <!-- hat, drawn last so it sits on top of the head; pivots at hat center -->
+            <g style="animation: hatBob 0.6s infinite alternate ease-in-out; transform-origin: 100px 40px;">
+                <ellipse cx="100" cy="40" rx="48" ry="10" fill="none" stroke="var(--neon-pink)" stroke-width="4"/>
+                <path d="M 74 40 Q 74 10 100 10 Q 126 10 126 40" fill="var(--bg-obsidian)" stroke="var(--neon-pink)" stroke-width="4"/>
+            </g>
         </svg>
 
         <h2 style="color: var(--neon-teal); font-family: 'Outfit'; margin-top: 18px; font-weight: 800; letter-spacing: 2px;">SYNCING COMMS...</h2>
@@ -260,6 +269,7 @@
             </div>
 
             <div id="adminUsers" class="admin-pane" style="display: none;">
+                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="openUserModal(null)">+ Add User</button>
                 <div class="glass-card" style="padding:12px; overflow-x:auto;">
                     <table class="data-table"><thead><tr><th>Name</th><th>Contact</th><th>Role/Reset</th></tr></thead><tbody id="usersBody"></tbody></table>
                 </div>
@@ -333,6 +343,32 @@
         </div>
     </div>
 
+    <div class="modal" id="userModal">
+        <div class="modal-sheet">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 id="umTitle" style="font-family:'Outfit'; font-size:1.35rem; color:var(--neon-teal);">Edit User</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('userModal')">✕</button>
+            </div>
+            <p id="umErr" style="color:var(--danger-glow); font-size:0.85rem; margin-bottom:10px; display:none;"></p>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Full Name / Callsign</label>
+            <input type="text" id="umName" class="input-field" data-1p-ignore>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Email</label>
+            <input type="email" id="umEmail" class="input-field" data-1p-ignore>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Mobile Phone</label>
+            <input type="tel" id="umPhone" class="input-field" data-1p-ignore>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Password</label>
+            <input type="text" id="umPassword" class="input-field" placeholder="Leave blank to keep current password" data-1p-ignore>
+            <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 16px; cursor:pointer;">
+                <input type="checkbox" id="umIsAdmin" style="width:auto; margin:0;">
+                <span style="font-size:0.85rem;">Commander (Admin) access</span>
+            </label>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" style="flex:1;" onclick="saveUserModal()">💾 Save</button>
+                <button id="umDeleteBtn" class="btn btn-magenta btn-sm" onclick="deleteUserFromModal()">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="promoterModal">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -388,16 +424,36 @@
         // JSON round-trip strips `undefined` values (Firestore rejects them outright,
         // which was silently killing entire writes any time one field was unset).
         function cleanData(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+        // If Firestore genuinely never responds (blocked by a firewall/ad
+        // blocker, an expired auth session, a misconfigured project, etc.)
+        // the SDK's own promise can hang indefinitely with no error at all -
+        // that's what produced a permanent "Saving..." with nothing in the
+        // console and no alert. This forces a definitive failure after 15s so
+        // every write/delete in the app gets a clear signal instead of a
+        // silent, endless spinner.
+        function withTimeout(promise, ms, label) {
+            let timer;
+            const timeout = new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error(
+                    `Timed out after ${ms / 1000}s waiting for ${label}. This usually means the browser can't reach Firestore - check your internet connection, disable any ad blocker/privacy extension for this site, and confirm your Firestore rules are actually published (not just written locally).`
+                )), ms);
+            });
+            return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+        }
+
         function saveDoc(col, id, data) {
-            return db.collection(col).doc(id).set(cleanData(data)).catch(err => {
+            return withTimeout(db.collection(col).doc(id).set(cleanData(data)), 15000, `saving to ${col}`).catch(err => {
                 console.error(`Save failed [${col}/${id}]:`, err);
-                alert('⚠️ Save failed: ' + err.message + '\n\nCheck your internet connection or Firestore rules (see firestore.rules / README).');
+                alert('⚠️ Save failed: ' + err.message);
+                throw err;
             });
         }
         function deleteDoc(col, id) {
-            return db.collection(col).doc(id).delete().catch(err => {
+            return withTimeout(db.collection(col).doc(id).delete(), 15000, `deleting from ${col}`).catch(err => {
                 console.error(`Delete failed [${col}/${id}]:`, err);
                 alert('⚠️ Delete failed: ' + err.message);
+                throw err;
             });
         }
 
@@ -968,13 +1024,13 @@
             if (!draft) return;
             setTileStatus(id, 'Saving...', 'var(--text-muted)');
             const payload = cleanData(draft);
-            db.collection('events').doc(id).set(payload)
+            withTimeout(db.collection('events').doc(id).set(payload), 15000, 'save to complete')
                 // Don't trust Firestore's local optimistic echo as proof of
                 // success - it can show a write as "done" in the UI even when
                 // it's ultimately never accepted by the server, which was why
                 // a "saved" event could vanish again on refresh. Explicitly
                 // re-read from the server to confirm it really landed.
-                .then(() => db.collection('events').doc(id).get({ source: 'server' }))
+                .then(() => withTimeout(db.collection('events').doc(id).get({ source: 'server' }), 15000, 'save confirmation'))
                 .then(snap => {
                     if (!snap.exists) throw new Error('Event not found on server after save.');
                     window._eventDrafts[id] = snap.data();
@@ -985,7 +1041,7 @@
                 .catch(err => {
                     console.error(`Save failed [events/${id}]:`, err);
                     setTileStatus(id, '❌ Failed: ' + err.message, 'var(--danger-glow)');
-                    alert('⚠️ Save failed: ' + err.message + '\n\nCheck your internet connection or Firestore rules (see firestore.rules / README). Your edits are still here in the form — click Save Changes again once fixed.');
+                    alert('⚠️ Save failed: ' + err.message + '\n\nYour edits are still here in the form — fix the issue and click Save Changes again.');
                 });
         }
         function discardEventDraft(id) {
@@ -1100,7 +1156,7 @@
                 <td style="font-size:0.8rem;">${u.email}<br>${u.phone || ''}</td>
                 <td style="white-space:nowrap;">
                     <button class="btn btn-sm ${u.isAdmin ? 'btn-magenta' : 'btn-outline'}" onclick="togAdmin('${u.id}')">${u.isAdmin ? 'Commander' : 'Guard'}</button>
-                    <button class="btn btn-sm btn-outline" onclick="rstPass('${u.id}')">Reset</button>
+                    <button class="btn btn-sm btn-outline" onclick="openUserModal('${u.id}')">Edit</button>
                     <button class="btn btn-sm btn-outline" style="color:var(--danger-glow);" onclick="delUser('${u.id}')" ${me && me.id === u.id ? 'disabled title="Cannot delete your own active session"' : ''}>Delete</button>
                 </td>
             </tr>`).join('');
@@ -1111,6 +1167,69 @@
             const me = currUser();
             if (me && me.id === id) { alert("You can't delete the account you're currently signed in as. Sign in as another admin first."); return; }
             if (confirm('Permanently delete this user account? This cannot be undone.')) deleteDoc('users', id);
+        }
+
+        // --- Admin console: add / edit user profiles directly ---
+        let editingUserId = null; // null while the modal is open in "create new user" mode
+        function openUserModal(id) {
+            editingUserId = id || null;
+            const u = id ? getDB('users').find(x => x.id === id) : null;
+            document.getElementById('umErr').style.display = 'none';
+            document.getElementById('umTitle').innerText = id ? 'Edit User' : 'Add New User';
+            document.getElementById('umName').value = u ? u.name : '';
+            document.getElementById('umEmail').value = u ? u.email : '';
+            document.getElementById('umPhone').value = u ? (u.phone || '') : '';
+            document.getElementById('umPassword').value = '';
+            document.getElementById('umPassword').placeholder = id ? 'Leave blank to keep current password' : 'Set an initial password';
+            document.getElementById('umIsAdmin').checked = u ? !!u.isAdmin : false;
+            document.getElementById('umDeleteBtn').style.display = id ? 'inline-block' : 'none';
+            document.getElementById('userModal').style.display = 'flex';
+        }
+        function saveUserModal() {
+            const name = document.getElementById('umName').value.trim();
+            const email = document.getElementById('umEmail').value.trim();
+            const phone = document.getElementById('umPhone').value.trim();
+            const pw = document.getElementById('umPassword').value;
+            const isAdmin = document.getElementById('umIsAdmin').checked;
+            const errEl = document.getElementById('umErr');
+            const showErr = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
+
+            if (!name || !email) { showErr('Name and email are required.'); return; }
+            const users = getDB('users');
+            const dupe = users.find(x => x.email.toLowerCase() === email.toLowerCase() && x.id !== editingUserId);
+            if (dupe) { showErr('Another account already uses that email.'); return; }
+
+            if (editingUserId) {
+                const existing = users.find(x => x.id === editingUserId);
+                if (!existing) return;
+                const updated = { ...existing, name, email, phone, isAdmin };
+                if (pw) updated.password = pw;
+                saveDoc('users', editingUserId, updated).then(() => {
+                    logAction('Updated user profile: ' + name);
+                    const me = currUser();
+                    if (me && me.id === editingUserId) {
+                        localStorage.setItem('ss_session', JSON.stringify(updated));
+                        document.getElementById('userGreeting').innerText = updated.name;
+                    }
+                    closeModal('userModal');
+                });
+            } else {
+                if (!pw) { showErr('Please set an initial password for the new user.'); return; }
+                const nu = { id: 'u' + Date.now(), name, email, phone, password: pw, isAdmin };
+                saveDoc('users', nu.id, nu).then(() => {
+                    logAction('Admin created new user: ' + name);
+                    closeModal('userModal');
+                });
+            }
+        }
+        function deleteUserFromModal() {
+            if (!editingUserId) return;
+            const me = currUser();
+            if (me && me.id === editingUserId) { alert("You can't delete the account you're currently signed in as. Sign in as another admin first."); return; }
+            if (confirm('Permanently delete this user account? This cannot be undone.')) {
+                deleteDoc('users', editingUserId);
+                closeModal('userModal');
+            }
         }
 
         let selP = null;
