@@ -33,6 +33,11 @@
 
         .pride-strip { height: 4px; width: 100%; position: fixed; top: 0; left: 0; z-index: 2000; background: linear-gradient(90deg, #ff0055, #ff5500, #ffea00, #00ff87, #00f5d4, #7928ca, #ff0055); background-size: 300% 100%; animation: circuitLaser 8s linear infinite; }
         @keyframes circuitLaser { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+
+        /* Same rainbow gradient/animation as .pride-strip, used as a thin
+           glowing frame wrapped around a modal-sheet instead of a top bar. */
+        .rainbow-frame { width: 100%; max-width: 480px; padding: 3px; border-radius: 27px; background: linear-gradient(90deg, #ff0055, #ff5500, #ffea00, #00ff87, #00f5d4, #7928ca, #ff0055); background-size: 300% 100%; animation: circuitLaser 8s linear infinite; box-shadow: 0 0 24px rgba(0, 245, 212, 0.25); }
+        .rainbow-frame .modal-sheet { max-width: none; }
         @keyframes cactusGroove { 0% { transform: translateY(0) rotate(-4deg) scale(1); filter: drop-shadow(0 0 10px var(--neon-saguaro)); } 100% { transform: translateY(-15px) rotate(4deg) scale(1.05); filter: drop-shadow(0 0 25px var(--neon-saguaro)); } }
         @keyframes armWiggleL { 0% { transform: rotate(-8deg); } 100% { transform: rotate(18deg); } }
         @keyframes armWiggleR { 0% { transform: rotate(8deg); } 100% { transform: rotate(-18deg); } }
@@ -358,6 +363,7 @@
 
     <!-- MODALS -->
     <div class="modal" id="authModal">
+        <div class="rainbow-frame">
         <div class="modal-sheet">
             <div style="text-align: center; margin-bottom: 20px;">
                 <img src="Suzans_Security_Logo.png" alt="Suzan's Security" style="width: 140px; height: auto; margin-bottom: 4px;" onerror="this.style.display='none'">
@@ -377,6 +383,7 @@
             <button class="btn" style="width: 100%; margin-top: 8px;" id="authBtn" onclick="handleAuth()">Sign In to Dispatch</button>
             <p style="text-align: center; margin-top: 18px; color: var(--neon-teal); font-size: 0.85rem; cursor: pointer; font-weight: 600;" onclick="toggleAuth()" id="authToggleText">New Officer? Register Account</p>
             <p style="text-align: center; margin-top: 10px; color: var(--text-muted); font-size: 0.72rem; cursor:pointer;" onclick="forgotPassword()">Forgot password? Tap here to get a reset email.</p>
+        </div>
         </div>
     </div>
 
