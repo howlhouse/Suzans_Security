@@ -253,6 +253,7 @@
             <div class="segmented-control">
                 <button class="segment-btn active" onclick="switchAdmin('adminEvents')">Events</button>
                 <button class="segment-btn" onclick="switchAdmin('adminChats')">Chat Management</button>
+                <button class="segment-btn" onclick="switchAdmin('adminTags')">Tags</button>
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
                 <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
                 <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
@@ -272,6 +273,15 @@
                 <h4>Active Channels</h4><div id="adminChanList" style="margin-bottom:20px;"></div>
                 <h4>Recent Comms</h4><div id="adminMsgList" style="max-height:200px; overflow-y:auto; margin-bottom:20px;" class="glass-card"></div>
                 <h4>Attachments</h4><div id="adminAttachList" class="glass-card" style="padding:12px;"></div>
+            </div>
+
+            <div id="adminTags" class="admin-pane" style="display: none;">
+                <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Tags added here become available to pick from on every event. Deleting a tag removes it from this list going forward, but won't strip it off events that already have it.</p>
+                <div style="display:flex; gap:8px; margin-bottom:15px;">
+                    <input type="text" id="newTagInput" class="input-field" placeholder="New tag name (e.g. Rooftop)" style="margin:0;" data-1p-ignore>
+                    <button class="btn btn-sm" onclick="addCatalogTag()">Add Tag</button>
+                </div>
+                <div id="adminTagsList" class="tags-container"></div>
             </div>
 
             <div id="adminLogs" class="admin-pane" style="display: none;">
@@ -448,8 +458,8 @@
         }
 
         // --- 3. GLOBAL STATE ---
-        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [] };
-        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist'];
+        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [], tags: [] };
+        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist', 'tags'];
         const getDB = k => window.ss_state[k] || [];
 
         // --- 3b. SAFE WRITE HELPER (fixes silent-fail / undefined-field save bug) ---
@@ -587,6 +597,18 @@
                     await db.collection('_meta').doc('seedStatus').set({ seeded: true, at: Date.now() });
                 }
 
+                // Tag management used to be a hardcoded list in the app, not a
+                // real Firestore collection. For an existing installation the
+                // new `tags` collection starts out empty (the full-database
+                // seed above only ever runs once, on a genuinely fresh
+                // database). Backfill it independently, exactly once, so
+                // existing events keep working with the same tag options as
+                // before instead of suddenly having none to pick from.
+                if (window.ss_state.tags.length === 0) {
+                    await Promise.all(DEFAULT_TAGS.map(name => saveDoc('tags', tagToId(name), { id: tagToId(name), name })));
+                    window.ss_state.tags = DEFAULT_TAGS.map(name => ({ id: tagToId(name), name }));
+                }
+
                 dropLoadingScreen();
             } catch (err) {
                 console.error('Initial load failed:', err);
@@ -631,7 +653,8 @@
                     promoterId: 'p1', ticketLink: '',
                     image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                     layout: ['img', 'info', 'tags', 'logistics', 'roster']
-                })
+                }),
+                ...DEFAULT_TAGS.map(name => saveDoc('tags', tagToId(name), { id: tagToId(name), name }))
             ]);
         }
 
@@ -645,6 +668,7 @@
             if (document.getElementById('adminConsoleView').style.display !== 'none') {
                 if (document.getElementById('adminEvents').style.display === 'block') renderAdminEv();
                 if (document.getElementById('adminChats').style.display === 'block') renderAdminChats();
+                if (document.getElementById('adminTags').style.display === 'block') renderAdminTags();
                 if (document.getElementById('adminLogs').style.display === 'block') renderLogs();
                 if (document.getElementById('adminUsers').style.display === 'block') renderUsers();
                 if (document.getElementById('adminContacts').style.display === 'block') renderContacts();
@@ -652,7 +676,9 @@
         }
 
         // --- 5. CORE LOGIC ---
-        const PRESET_TAGS = ['SFW', 'NSFW', '18+', 'Bar', 'Club', 'Dungeon', 'Warehouse', 'Residential', 'Commercial', 'Kink', 'Sober', 'WatchDog', 'Themed'];
+        const DEFAULT_TAGS = ['SFW', 'NSFW', '18+', 'Bar', 'Club', 'Dungeon', 'Warehouse', 'Residential', 'Commercial', 'Kink', 'Sober', 'WatchDog', 'Themed'];
+        function tagToId(name) { return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 't' + Date.now(); }
+        function getTagCatalog() { return getDB('tags').map(t => t.name).sort((a, b) => a.localeCompare(b)); }
         const LEGACY_POST_OPTIONS = ['Unassigned', 'Person/Bag Check', 'ID Check', 'Ticket', 'Float', 'Play Guard', 'Dancefloor', 'Bar', 'Parking Lot', 'Other'];
 
         // Position-based slot tracking. Events created before this feature
@@ -1031,7 +1057,7 @@
         function switchAdmin(t) {
             document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
             document.querySelectorAll('.admin-pane').forEach(el => el.style.display = 'none'); document.getElementById(t).style.display = 'block';
-            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
+            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') renderAdminTags(); if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
         }
 
         /* ADMIN EVENTS — staged draft + explicit Save button
@@ -1119,6 +1145,12 @@
             evs.forEach(e => {
                 let tile = document.getElementById('tile_' + e.id);
 
+                // Roster stays in sync live no matter what - a guard claiming
+                // or dropping a shift isn't something the admin is "editing",
+                // so it shouldn't wait on whatever unsaved edits are pending
+                // elsewhere in this tile.
+                if (tile) syncRosterLive(e.id);
+
                 // Never clobber a tile that's mid-edit (focused) or has unsaved changes.
                 if (tile && (tile.contains(document.activeElement) || isDraftDirty(e.id))) return;
 
@@ -1171,11 +1203,69 @@
             renderTile(id);
         }
 
+        function buildRosterRows(eventId, e) {
+            return (e.guards || []).map((g, i) => {
+                const posOptions = (e.positions && e.positions.length) ? e.positions.map(p => p.name) : LEGACY_POST_OPTIONS.filter(p => p !== 'Unassigned');
+                const currentPos = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
+                return `<tr style="border-top:1px solid rgba(255,255,255,0.06);">
+                    <td style="padding:6px 4px;">${g}</td>
+                    <td style="padding:6px 4px;">
+                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${eventId}','${g.replace(/'/g, "\\'")}',this.value)">
+                            <option value="Unassigned" ${currentPos === 'Unassigned' ? 'selected' : ''}>Unassigned</option>
+                            ${posOptions.map(p => `<option value="${p}" ${currentPos === p ? 'selected' : ''}>${p}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td style="padding:6px 4px;">
+                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${((e.guardNotes && e.guardNotes[g]) || '').replace(/"/g, '&quot;')}" onchange="draftSetGuardNote('${eventId}','${g.replace(/'/g, "\\'")}',this.value)" data-1p-ignore>
+                    </td>
+                    <td style="padding:6px 4px;"><b style="color:var(--danger-glow);cursor:pointer;" onclick="draftRmGuard('${eventId}',${i})">✕</b></td>
+                </tr>`;
+            }).join('') || `<tr><td colspan="4" style="padding:10px 4px; color:var(--text-muted);">No one signed up yet.</td></tr>`;
+        }
+
+        // Who's signed up for a shift can change from actions OTHER people take
+        // (a guard claiming/dropping a shift) at any moment, independent of
+        // whatever the admin happens to be editing elsewhere on that same
+        // event tile. Previously the whole tile froze from live updates the
+        // instant it had any unsaved edit, which meant an admin editing, say,
+        // the description wouldn't see a shift get dropped until they hit
+        // Save or Discard. This keeps the roster table, add-user dropdown,
+        // and per-position fill counts synced from the live server data at
+        // all times, regardless of the tile's dirty state - while still never
+        // touching a control the admin currently has focused.
+        function syncRosterLive(id) {
+            const draft = window._eventDrafts[id];
+            const server = getDB('events').find(x => x.id === id);
+            if (!draft || !server) return;
+
+            draft.guards = JSON.parse(JSON.stringify(server.guards || []));
+            draft.guardPosts = JSON.parse(JSON.stringify(server.guardPosts || {}));
+            draft.guardNotes = JSON.parse(JSON.stringify(server.guardNotes || {}));
+
+            const tbody = document.getElementById('rosterBody_' + id);
+            if (tbody && !tbody.contains(document.activeElement)) {
+                tbody.innerHTML = buildRosterRows(id, draft);
+            }
+
+            const addSelect = document.getElementById('au_' + id);
+            if (addSelect && document.activeElement !== addSelect) {
+                const currentVal = addSelect.value;
+                const options = getDB('users').filter(u => !(draft.guards || []).includes(u.name));
+                addSelect.innerHTML = `<option value="">-- Add existing user --</option>` + options.map(u => `<option value="${u.name.replace(/"/g, '&quot;')}">${u.name}</option>`).join('');
+                if (options.some(u => u.name === currentVal)) addSelect.value = currentVal;
+            }
+
+            (draft.positions || []).forEach((p, i) => {
+                const span = document.getElementById(`posfill_${id}_${i}`);
+                if (span) span.innerText = `(${positionFilled(draft, p.name)} filled)`;
+            });
+        }
+
         function genAdminSec(sec, e) {
             const promOpts = `<option value="">-- No Client/Promoter Linked --</option>` + getDB('promoters').map(p => `<option value="${p.id}" ${e.promoterId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
             if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="draftSet('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="draftSet('${e.id}','title',this.value)" data-1p-ignore></div>`;
             if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
-            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">TAGS</label><div class="tags-container" style="margin-top:8px;">${PRESET_TAGS.map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('')}</div></div>`;
+            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">TAGS</label><div class="tags-container" style="margin-top:8px;">${getTagCatalog().map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>'}</div><p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Need a new tag option? Add or remove them under Command Center → Tags.</p></div>`;
             if (sec === 'logistics') return `<div class="draggable-section" draggable="true" data-id="logistics">
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ADDRESS &amp; TIMELINE</label>
                 <input class="input-field" placeholder="Venue address (e.g. 123 Main St, Phoenix, AZ)" value="${e.address || ''}" onchange="draftSet('${e.id}','address',this.value)" data-1p-ignore>
@@ -1197,6 +1287,7 @@
                     <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
                         <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="Position name (e.g. Door)" value="${(p.name || '').replace(/"/g, '&quot;')}" onchange="draftUpdPosition('${e.id}',${i},'name',this.value)" data-1p-ignore>
                         <input type="number" min="0" class="input-field" style="margin:0; width:70px;" value="${p.slots || 0}" onchange="draftUpdPosition('${e.id}',${i},'slots',parseInt(this.value)||0)" data-1p-ignore>
+                        <span id="posfill_${e.id}_${i}" style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">(${positionFilled(e, p.name)} filled)</span>
                         <button class="btn btn-sm btn-magenta" onclick="draftRmPosition('${e.id}',${i})">×</button>
                     </div>`).join('')}
                 </div>
@@ -1207,29 +1298,11 @@
                     <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots || 0}" onchange="draftSet('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore>
                 </div>
 
-                <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700; display:block; margin-top:14px;">SIGNED-UP TEAM</label>
+                <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700; display:block; margin-top:14px;">SIGNED-UP TEAM <span style="color:var(--neon-saguaro); font-weight:400; text-transform:none;">(updates live)</span></label>
                 <div style="overflow-x:auto; margin-top:6px;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
                         <thead><tr style="text-align:left; color:var(--text-muted);"><th style="padding:4px;">Name</th><th style="padding:4px;">Position</th><th style="padding:4px;">Note to them</th><th></th></tr></thead>
-                        <tbody>
-                            ${(e.guards || []).map((g, i) => {
-                                const posOptions = (e.positions && e.positions.length) ? e.positions.map(p => p.name) : LEGACY_POST_OPTIONS.filter(p => p !== 'Unassigned');
-                                const currentPos = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
-                                return `<tr style="border-top:1px solid rgba(255,255,255,0.06);">
-                                    <td style="padding:6px 4px;">${g}</td>
-                                    <td style="padding:6px 4px;">
-                                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${e.id}','${g.replace(/'/g, "\\'")}',this.value)">
-                                            <option value="Unassigned" ${currentPos === 'Unassigned' ? 'selected' : ''}>Unassigned</option>
-                                            ${posOptions.map(p => `<option value="${p}" ${currentPos === p ? 'selected' : ''}>${p}</option>`).join('')}
-                                        </select>
-                                    </td>
-                                    <td style="padding:6px 4px;">
-                                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${((e.guardNotes && e.guardNotes[g]) || '').replace(/"/g, '&quot;')}" onchange="draftSetGuardNote('${e.id}','${g.replace(/'/g, "\\'")}',this.value)" data-1p-ignore>
-                                    </td>
-                                    <td style="padding:6px 4px;"><b style="color:var(--danger-glow);cursor:pointer;" onclick="draftRmGuard('${e.id}',${i})">✕</b></td>
-                                </tr>`;
-                            }).join('') || `<tr><td colspan="4" style="padding:10px 4px; color:var(--text-muted);">No one signed up yet.</td></tr>`}
-                        </tbody>
+                        <tbody id="rosterBody_${e.id}">${buildRosterRows(e.id, e)}</tbody>
                     </table>
                 </div>
 
@@ -1362,6 +1435,30 @@
         function delChan(c) { if (confirm('Delete channel #' + c + ' and all its history?')) { deleteDoc('channels', c); clrChan(c); } }
         function clrChan(c) { db.collection('chats').where('channel', '==', c).get().then(s => { let b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }).catch(err => alert('Clear failed: ' + err.message)); }
         function delMsg(id) { deleteDoc('chats', id); }
+
+        /* TAG CATALOG - available options for every event's tag picker */
+        function renderAdminTags() {
+            const tags = getDB('tags').slice().sort((a, b) => a.name.localeCompare(b.name));
+            document.getElementById('adminTagsList').innerHTML = tags.map(t => `
+                <span class="neon-tag tag-active">${t.name} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="delCatalogTag('${t.id}','${t.name.replace(/'/g, "\\'")}')">×</b></span>
+            `).join('') || '<span style="color:var(--text-muted); font-size:0.85rem;">No tags yet - add one above.</span>';
+        }
+        function addCatalogTag() {
+            const input = document.getElementById('newTagInput');
+            const name = input.value.trim();
+            if (!name) return;
+            const id = tagToId(name);
+            if (getDB('tags').some(t => t.id === id)) { alert('That tag already exists.'); return; }
+            saveDoc('tags', id, { id, name }).then(() => {
+                logAction('Added tag to catalog: ' + name);
+                input.value = '';
+            });
+        }
+        function delCatalogTag(id, name) {
+            if (confirm(`Remove "${name}" from the tag catalog? It will no longer be selectable on events, but any event that already has it keeps it until edited.`)) {
+                deleteDoc('tags', id).then(() => logAction('Removed tag from catalog: ' + name));
+            }
+        }
 
         /* LOGS, USERS, CONTACTS */
         function renderLogs() { document.getElementById('logsBody').innerHTML = getDB('logs').sort((a, b) => b.id.localeCompare(a.id)).map(l => `<tr><td style="color:var(--text-muted);">${l.time}</td><td style="color:var(--neon-teal); font-weight:700;">${l.user}</td><td>${l.action}</td></tr>`).join(''); }
