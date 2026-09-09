@@ -159,44 +159,88 @@
 
         // Session Listener (Saves login state across app restarts)
         auth.onAuthStateChanged(async (user) => {
-            try {
-                if (user) {
-                    // Try to load profile doc
-                    const docRef = db.collection('users').doc(user.uid);
-                    const doc = await docRef.get();
+  try {
+    if (!user) {
+      currentUserProfile = null;
+      document.getElementById('authModal').style.display = 'flex';
+      return;
+    }
 
-                    if (doc.exists) {
-                        currentUserProfile = doc.data();
-                    } else {
-                        // If profile missing create a minimal profile so admins can see accounts created by users
-                        const newProfile = {
-                            uid: user.uid,
-                            name: user.displayName || '',
-                            email: user.email || '',
-                            phone: '',
-                            isAdmin: false,
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        };
-                        await docRef.set(newProfile);
-                        currentUserProfile = newProfile;
-                        logAction('Auto-created profile for existing user: ' + user.uid);
-                    }
+    const docRef = db.collection('users').doc(user.uid);
+    let doc;
+    try {
+      doc = await docRef.get();
+    } catch (readErr) {
+      // Firestore read failed (likely offline). Allow the user in based on Auth,
+      // and try to persist a profile in the background / when online.
+      console.warn('Profile fetch failed (offline?):', readErr);
+      currentUserProfile = {
+        uid: user.uid,
+        name: user.displayName || user.email || '',
+        email: user.email || ''
+      };
 
-                    document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
-                    document.getElementById('authModal').style.display = 'none';
+      // Update UI so the user isn't stuck on the auth modal
+      document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
+      document.getElementById('authModal').style.display = 'none';
+      if (typeof renderEvents === 'function') renderEvents();
 
-                    // If you have a renderEvents function for the roster, it triggers here
-                    if (typeof renderEvents === 'function') renderEvents();
-                } else {
-                    currentUserProfile = null;
-                    document.getElementById('authModal').style.display = 'flex';
-                }
-            } catch (err) {
-                console.error('onAuthStateChanged error:', err);
-                // keep auth modal open if something goes wrong
-                document.getElementById('authModal').style.display = 'flex';
-            }
-        });
+      // Attempt to save profile in background, and retry when the browser is online
+      const profileData = {
+        uid: user.uid,
+        name: currentUserProfile.name,
+        email: currentUserProfile.email,
+        phone: '',
+        isAdmin: false,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      const trySave = async () => {
+        try {
+          await db.collection('users').doc(user.uid).set(profileData);
+          console.info('Deferred profile save successful for', user.uid);
+        } catch (saveErr) {
+          console.warn('Deferred profile save failed, will retry when online:', saveErr);
+        }
+      };
+
+      // immediate attempt
+      trySave();
+      // retry once when browser goes online
+      window.addEventListener('online', trySave, { once: true });
+
+      return;
+    }
+
+    // Normal path: doc read succeeded
+    if (doc.exists) {
+      currentUserProfile = doc.data();
+    } else {
+      // create a minimal profile and persist it (await)
+      const profileData = {
+        uid: user.uid,
+        name: user.displayName || '',
+        email: user.email || '',
+        phone: '',
+        isAdmin: false,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await db.collection('users').doc(user.uid).set(profileData);
+      currentUserProfile = profileData;
+      logAction('Auto-created profile for existing user: ' + user.uid);
+    }
+
+    document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
+    document.getElementById('authModal').style.display = 'none';
+    if (typeof renderEvents === 'function') renderEvents();
+
+  } catch (err) {
+    // Make sure any unexpected error doesn't leave the user stuck in the modal.
+    console.error('onAuthStateChanged fatal error:', err);
+    document.getElementById('authModal').style.display = 'none';
+    alert('Auth initialization error: ' + (err.message || err));
+  }
+});
 
         function toggleAuth() {
             isReg = !isReg;
