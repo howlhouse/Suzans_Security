@@ -1,29 +1,7 @@
-name=firestore.rules
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Each authenticated user may only read/write their own user profile document.
-    // Document path: /users/{userId}
-    match /users/{userId} {
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow read:   if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Admin-only collection (example). Set admin via custom claim `admin:true`.
-    match /staff/{staffId} {
-      allow read, write: if request.auth != null && request.auth.token.admin == true;
-    }
-
-    // Public read-only collection for authenticated users (if you need one)
-    match /public/{doc=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.admin == true;
-    }
-
-    // Default deny for everything else
     match /{document=**} {
       allow read, write: if false;
     }
