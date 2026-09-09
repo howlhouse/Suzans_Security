@@ -44,6 +44,7 @@
         header { position: sticky; top: 4px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(24px) saturate(180%); border-bottom: 1px solid var(--border-glass); }
         .brand-container { display: flex; align-items: center; gap: 10px; }
         .brand-icon { font-size: 1.5rem; filter: drop-shadow(0 0 10px rgba(0, 245, 212, 0.8)); animation: pulseGlow 3s ease-in-out infinite alternate; }
+        img.brand-icon { height: 34px; width: 34px; object-fit: contain; border-radius: 8px; }
         @keyframes pulseGlow { 0% { filter: drop-shadow(0 0 6px var(--neon-teal)); } 100% { filter: drop-shadow(0 0 16px var(--neon-pink)); } }
         .brand-text { font-family: 'Outfit', sans-serif; font-size: 1.18rem; font-weight: 800; background: linear-gradient(135deg, #ffffff 40%, var(--neon-teal) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .user-pill { display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--border-glass); padding: 6px 14px; border-radius: 20px; font-family: 'Outfit', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--neon-teal); }
@@ -57,6 +58,12 @@
         .event-img { width: 100%; height: auto; display: block; }
         .event-img-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 12, 0.1) 0%, rgba(8, 8, 12, 0.85) 100%); }
         .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); padding: 5px 12px; border-radius: 12px; font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--neon-teal); }
+        /* Purely decorative "CANCELLED" ribbon drawn over an archived/cancelled
+           event's tile image. Pure CSS, no layout impact on anything around it -
+           it's absolutely positioned inside .event-img-wrap (already position:relative)
+           and ignores pointer events, so it can never interfere with clicks or
+           break tile layout even if an image is missing/broken. */
+        .cancelled-stripe { position: absolute; top: 22%; left: -14%; width: 128%; transform: rotate(-16deg); background: rgba(217, 33, 33, 0.92); color: #fff; text-align: center; font-family: 'Outfit', sans-serif; font-weight: 800; letter-spacing: 3px; padding: 5px 0; font-size: 0.85rem; box-shadow: 0 2px 12px rgba(0,0,0,0.45); pointer-events: none; z-index: 2; }
         .event-body { padding: 18px 20px; }
         .event-title { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 700; margin-bottom: 8px; }
         .event-desc { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin-bottom: 14px; }
@@ -175,10 +182,10 @@
 
     <header>
         <div class="brand-container">
-            <span class="brand-icon">🌵</span>
+            <img src="Suzans_Security_Logo.png" alt="Suzan's Security" class="brand-icon" onerror="this.outerHTML='<span class=&quot;brand-icon&quot;>🌵</span>'">
             <div>
                 <h1 class="brand-text">SUZAN'S SECURITY</h1>
-                <p style="font-size: 0.63rem; font-family:'Outfit',sans-serif; font-weight: 600; letter-spacing: 0.8px; color: var(--neon-pink);">PHOENIX'S PREMIER QUEER SECURITY TEAM</p>
+                <p style="font-size: 0.63rem; font-family:'Outfit',sans-serif; font-weight: 600; letter-spacing: 0.8px; color: var(--neon-pink);">PHOENIX'S PREMIER LGBTQ+ SECURITY TEAM</p>
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -253,6 +260,7 @@
 
             <div class="segmented-control">
                 <button class="segment-btn active" onclick="switchAdmin('adminEvents')">Events</button>
+                <button class="segment-btn" onclick="switchAdmin('adminArchive')">Archive</button>
                 <button class="segment-btn" onclick="switchAdmin('adminChats')">Chat Management</button>
                 <button class="segment-btn" onclick="switchAdmin('adminTags')">Tags</button>
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
@@ -264,6 +272,11 @@
             <div id="adminEvents" class="admin-pane">
                 <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addBlankEvent()">+ New Shift Posting</button>
                 <div id="adminEventsList"></div>
+            </div>
+
+            <div id="adminArchive" class="admin-pane" style="display: none;">
+                <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Events auto-archive here 2 days after their date. You can also archive one manually from the Events tab (🚫 Archive / Cancel) - use that for cancellations. Archived events no longer show up in the guard-facing feed or calendar.</p>
+                <div id="adminArchiveList"></div>
             </div>
 
             <div id="adminChats" class="admin-pane" style="display: none;">
@@ -660,6 +673,17 @@
                 dropLoadingScreen();
             }
             attachRealtimeListeners(); // live updates going forward, regardless of outcome above
+
+            // Catch anything that's already 2+ days past its date the moment
+            // we have data to check, then keep checking hourly for events that
+            // cross that threshold while the app stays open. Guarded so a
+            // second initialLoad() call (there isn't one today, but just in
+            // case) can't stack up duplicate intervals.
+            try { runAutoArchiveSweep(); } catch (err) { console.error('Initial auto-archive sweep failed:', err); }
+            if (!window._archiveSweepIntervalStarted) {
+                window._archiveSweepIntervalStarted = true;
+                setInterval(() => { try { runAutoArchiveSweep(); } catch (err) { console.error('Auto-archive sweep failed:', err); } }, 60 * 60 * 1000);
+            }
         }
 
         function attachRealtimeListeners() {
@@ -709,6 +733,7 @@
             if (document.getElementById('banListView').style.display !== 'none') renderBanList();
             if (document.getElementById('adminConsoleView').style.display !== 'none') {
                 if (document.getElementById('adminEvents').style.display === 'block') renderAdminEv();
+                if (document.getElementById('adminArchive').style.display === 'block') renderArchive();
                 if (document.getElementById('adminChats').style.display === 'block') renderAdminChats();
                 if (document.getElementById('adminTags').style.display === 'block') renderAdminTags();
                 if (document.getElementById('adminLogs').style.display === 'block') renderLogs();
@@ -732,6 +757,103 @@
                 return e.positions.reduce((sum, p) => sum + Math.max(0, (p.slots || 0) - positionFilled(e, p.name)), 0);
             }
             return e.openSlots || 0;
+        }
+
+        // --- EVENT ARCHIVE ---
+        // Events auto-archive AUTO_ARCHIVE_DAYS after their date, and admins can
+        // also archive one manually at any time (intended for cancellations).
+        // Archived events drop out of the guard-facing feed/calendar and the
+        // active Events tab, and live on in a dedicated Archive tab instead.
+        // Older events simply won't have `archived`/`cancelled` set at all,
+        // which is falsy and treated the same as `false` everywhere below -
+        // no migration needed for existing data.
+        const AUTO_ARCHIVE_DAYS = 2;
+
+        // Compares calendar dates only (ignores time of day) so this behaves
+        // predictably regardless of what timezone/hour the sweep happens to
+        // run in. Malformed/missing dates never auto-archive (returns -Infinity)
+        // rather than risk silently archiving something unexpected.
+        function daysSinceEvent(e) {
+            const eventDate = new Date(e.date + 'T00:00:00');
+            if (isNaN(eventDate.getTime())) return -Infinity;
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            return Math.round((startOfToday - eventDate) / 86400000);
+        }
+
+        // Best-effort background sweep. Wrapped defensively end-to-end: nothing
+        // in here should ever be able to break the rest of the app, so any
+        // failure (a bad doc, an offline write, whatever) is just logged and
+        // skipped rather than thrown.
+        let _archiveSweepRunning = false;
+        function runAutoArchiveSweep() {
+            if (_archiveSweepRunning) return;
+            _archiveSweepRunning = true;
+            try {
+                getDB('events').forEach(e => {
+                    try {
+                        if (e.archived) return;
+                        if (daysSinceEvent(e) >= AUTO_ARCHIVE_DAYS) {
+                            saveDoc('events', e.id, { ...e, archived: true, archivedAt: Date.now(), archiveReason: 'auto' })
+                                .then(() => logAction('Auto-archived shift posting: ' + e.title))
+                                .catch(err => console.error('Auto-archive failed for', e.id, err));
+                        }
+                    } catch (err) { console.error('Auto-archive check failed for an event:', err); }
+                });
+            } catch (err) {
+                console.error('Auto-archive sweep failed:', err);
+            } finally {
+                _archiveSweepRunning = false;
+            }
+        }
+
+        // Small, self-contained decorative snippet - see the .cancelled-stripe
+        // CSS note for why this is safe to splice into any tile image markup.
+        function cancelledStripeHTML() {
+            try { return '<div class="cancelled-stripe">CANCELLED</div>'; }
+            catch (err) { return ''; } // never let a display flourish break a render
+        }
+
+        function archiveEvent(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            if (!confirm(`Archive "${e.title}"?\n\nThis is meant for cancellations - it will move the event to the Archive tab, mark it CANCELLED there, and take it off the active feed/calendar immediately. You can restore it later from the Archive tab if needed.`)) return;
+            delete window._eventDrafts[id]; // it's leaving the active list - drop any unsaved draft for it
+            saveDoc('events', id, { ...e, archived: true, cancelled: true, archivedAt: Date.now(), archiveReason: 'manual' })
+                .then(() => logAction('Archived (cancelled) shift posting: ' + e.title))
+                .catch(err => alert('Could not archive event: ' + err.message));
+        }
+        function restoreEvent(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            if (!confirm(`Restore "${e.title}" to the active Events list?`)) return;
+            saveDoc('events', id, { ...e, archived: false, cancelled: false, archivedAt: null, archiveReason: null })
+                .then(() => logAction('Restored shift posting from archive: ' + e.title))
+                .catch(err => alert('Could not restore event: ' + err.message));
+        }
+        function renderArchive() {
+            runAutoArchiveSweep();
+            const listEl = document.getElementById('adminArchiveList');
+            if (!listEl) return;
+            const evs = getDB('events').filter(e => e.archived).sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
+            listEl.innerHTML = evs.map(e => `
+                <div class="glass-card" style="padding:15px; display:flex; gap:14px; align-items:flex-start;">
+                    <div class="event-img-wrap" style="width:110px; flex-shrink:0; border-radius:12px;">
+                        <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                        ${e.cancelled ? cancelledStripeHTML() : ''}
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:700; color:var(--neon-teal);">${e.title}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
+                            🗓️ ${e.date} · ${e.archiveReason === 'manual' ? '🚫 Cancelled' : '📦 Auto-archived'}${e.archivedAt ? ' · ' + new Date(e.archivedAt).toLocaleDateString() : ''}
+                        </div>
+                        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn btn-sm btn-outline" onclick="restoreEvent('${e.id}')">↩️ Restore</button>
+                            <button class="btn btn-sm btn-magenta" onclick="delEv('${e.id}')">Delete Permanently</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">No archived events yet. Events auto-archive ${AUTO_ARCHIVE_DAYS} days after their date, or archive one manually from the Events tab for a cancellation.</p>`;
         }
 
         let isReg = false;
@@ -877,7 +999,7 @@
 
         /* EVENTS FEED */
         function renderEvents() {
-            const evs = getDB('events').sort((a, b) => new Date(a.date) - new Date(b.date));
+            const evs = getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date));
             const u = currUser();
             document.getElementById('userEventsFeedList').innerHTML = evs.map(e => {
                 const hasPositions = e.positions && e.positions.length;
@@ -1128,7 +1250,7 @@
         function renderCal() {
             document.getElementById('calMonthText').innerText = calD.toLocaleString('default', { month: 'long', year: 'numeric' });
             const grid = document.getElementById('calGrid'); grid.innerHTML = '';
-            const evs = getDB('events'), days = new Date(calD.getFullYear(), calD.getMonth() + 1, 0).getDate(), first = new Date(calD.getFullYear(), calD.getMonth(), 1).getDay();
+            const evs = getDB('events').filter(e => !e.archived), days = new Date(calD.getFullYear(), calD.getMonth() + 1, 0).getDate(), first = new Date(calD.getFullYear(), calD.getMonth(), 1).getDay();
             ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(d => grid.innerHTML += `<div class="cal-head">${d}</div>`);
             for (let i = 0; i < first; i++) grid.innerHTML += `<div class="cal-day" style="background:transparent; border-color:transparent; cursor:default;"></div>`;
             for (let i = 1; i <= days; i++) {
@@ -1149,7 +1271,7 @@
         function switchAdmin(t) {
             document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
             document.querySelectorAll('.admin-pane').forEach(el => el.style.display = 'none'); document.getElementById(t).style.display = 'block';
-            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') renderAdminTags(); if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
+            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') renderAdminTags(); if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
         }
 
         /* ADMIN EVENTS — staged draft + explicit Save button
@@ -1201,7 +1323,10 @@
             const html = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <span style="color:var(--neon-teal); font-weight:600;">Manage: ${draft.title}</span>
-                    <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="For cancellations - moves this to the Archive tab">🚫 Archive / Cancel</button>
+                        <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
+                    </div>
                 </div>
                 <div id="drag_${id}">
                     ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
@@ -1224,8 +1349,9 @@
         }
 
         function renderAdminEv() {
+            runAutoArchiveSweep();
             const listEl = document.getElementById('adminEventsList');
-            const evs = getDB('events').sort((a, b) => new Date(a.date) - new Date(b.date));
+            const evs = getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date));
             const currentIds = evs.map(e => e.id);
 
             // Remove tiles (and drafts) for events that no longer exist
@@ -1356,7 +1482,7 @@
         function genAdminSec(sec, e) {
             const promOpts = `<option value="">-- No Client/Promoter Linked --</option>` + getDB('promoters').map(p => `<option value="${p.id}" ${e.promoterId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
             if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="draftSet('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="draftSet('${e.id}','title',this.value)" data-1p-ignore></div>`;
-            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
+            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:8px;">Event Notes:</label><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
             if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">TAGS</label><div class="tags-container" style="margin-top:8px;">${getTagCatalog().map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>'}</div><p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Need a new tag option? Add or remove them under Command Center → Tags.</p></div>`;
             if (sec === 'logistics') return `<div class="draggable-section" draggable="true" data-id="logistics">
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">ADDRESS &amp; TIMELINE</label>
@@ -1502,7 +1628,8 @@
                 id: 'e' + Date.now(), title: 'New Shift Detail', date: new Date().toISOString().split('T')[0],
                 tags: [], desc: '', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '',
                 image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
-                layout: ['img', 'info', 'tags', 'logistics', 'roster'], ticketLink: ''
+                layout: ['img', 'info', 'tags', 'logistics', 'roster'], ticketLink: '',
+                archived: false, cancelled: false, archivedAt: null, archiveReason: null
             };
             saveDoc('events', newEv.id, newEv).then(() => {
                 // Newly created events land in ss_state via the live listener; give it a beat.
