@@ -568,8 +568,18 @@
         // that anonymous sign-in step is gone entirely. Instead, we wait to find
         // out whether anyone is already logged in (from a previous session) and
         // only load app data once we know who's asking for it.
+        // Set while handleAuth() is actively registering a brand-new account.
+        // createUserWithEmailAndPassword signs the new user in instantly, which
+        // fires onAuthStateChanged before handleAuth() has had a chance to write
+        // that user's Firestore profile doc. Without this guard, onAuthStateChanged
+        // reads the (not-yet-written) profile, wrongly concludes "no access," and
+        // signs the brand-new account back out mid-registration - even though the
+        // Auth account (and often the profile write too) went through fine. See
+        // handleAuth() for the registration side of this handshake.
+        let isRegistering = false;
         auth.onAuthStateChanged(async (user) => {
             if (user) {
+                if (isRegistering) return; // handleAuth() owns this sign-in; let it finish.
                 bumpProgress('Signed in...');
                 try {
                     const profileSnap = await db.collection('users').doc(user.uid).get({ source: 'server' });
@@ -793,22 +803,48 @@
                     const phone = document.getElementById('authPhone').value.trim();
                     if (!name) { showErr('Full name / callsign is required.'); return; }
 
-                    const cred = await auth.createUserWithEmailAndPassword(email, pass);
-                    // The very first person to ever register becomes admin, since
-                    // there's no other way to bootstrap Command Center access on a
-                    // brand new install (a Firestore doc alone isn't a real login).
-                    const existingSnap = await db.collection('users').limit(1).get({ source: 'server' });
-                    const isFirstEver = existingSnap.empty;
-                    const profile = { id: cred.user.uid, uid: cred.user.uid, name, email, phone, isAdmin: isFirstEver };
-                    await saveDoc('users', cred.user.uid, profile);
-                    logAction(isFirstEver ? 'Registered first account (auto-admin)' : 'Registered new guard');
+                    // isRegistering tells onAuthStateChanged to stand down for this
+                    // sign-in - see the listener above. We own the full transition
+                    // into the app ourselves below instead.
+                    isRegistering = true;
+                    let cred;
+                    try {
+                        cred = await auth.createUserWithEmailAndPassword(email, pass);
+                        // The very first person to ever register becomes admin, since
+                        // there's no other way to bootstrap Command Center access on a
+                        // brand new install (a Firestore doc alone isn't a real login).
+                        const existingSnap = await db.collection('users').limit(1).get({ source: 'server' });
+                        const isFirstEver = existingSnap.empty;
+                        const profile = { id: cred.user.uid, uid: cred.user.uid, name, email, phone, isAdmin: isFirstEver };
+                        await saveDoc('users', cred.user.uid, profile);
+                        logAction(isFirstEver ? 'Registered first account (auto-admin)' : 'Registered new guard');
+
+                        // onAuthStateChanged skipped this sign-in (isRegistering), so
+                        // finish what it would normally have done: load the profile
+                        // into memory and drop into the app.
+                        window._currentUserProfile = profile;
+                        document.getElementById('authModal').style.display = 'none';
+                        document.getElementById('userGreeting').innerText = profile.name;
+                        requestNotificationPermission();
+                        await initialLoad();
+                    } catch (err) {
+                        // The Auth account may have been created even though the
+                        // profile write failed (e.g. a Firestore rules/network
+                        // hiccup). Don't leave a signed-in-but-profile-less user
+                        // stuck behind the register screen - sign them back out so
+                        // the error is honest and they can retry cleanly.
+                        if (cred) await auth.signOut().catch(() => {});
+                        throw err;
+                    } finally {
+                        isRegistering = false;
+                    }
                 } else {
                     await auth.signInWithEmailAndPassword(email, pass);
                     logAction('Logged in');
+                    // onAuthStateChanged takes it from here: loads the profile,
+                    // hides this modal, and loads the rest of the app's data.
                 }
                 errEl.style.display = 'none';
-                // onAuthStateChanged takes it from here: loads the profile,
-                // hides this modal, and loads the rest of the app's data.
             } catch (err) {
                 console.error('Auth error:', err);
                 showErr(friendlyAuthError(err));
