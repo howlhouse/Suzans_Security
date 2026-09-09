@@ -627,7 +627,7 @@
                 saveDoc('promoters', 'p1', { id: 'p1', name: 'Dax', phone: '555-1234', email: 'dax@club.com', tags: ['VIP'], notes: [{ date: '2026-09-08', text: 'Great payer.' }] }),
                 saveDoc('events', 'e1', {
                     id: 'e1', title: 'Neon Circuit', date: '2026-09-15', tags: ['NSFW', 'Club', 'Kink'],
-                    desc: 'Main door watch.', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {},
+                    desc: 'Main door watch.', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [],
                     promoterId: 'p1', ticketLink: '',
                     image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                     layout: ['img', 'info', 'tags', 'logistics', 'roster']
@@ -653,6 +653,18 @@
 
         // --- 5. CORE LOGIC ---
         const PRESET_TAGS = ['SFW', 'NSFW', '18+', 'Bar', 'Club', 'Dungeon', 'Warehouse', 'Residential', 'Commercial', 'Kink', 'Sober', 'WatchDog', 'Themed'];
+        const LEGACY_POST_OPTIONS = ['Unassigned', 'Person/Bag Check', 'ID Check', 'Ticket', 'Float', 'Play Guard', 'Dancefloor', 'Bar', 'Parking Lot', 'Other'];
+
+        // Position-based slot tracking. Events created before this feature
+        // won't have `positions` defined, so everything here falls back to
+        // the old flat `openSlots` counter to stay backward-compatible.
+        function positionFilled(e, posName) { return (e.guards || []).filter(g => (e.guardPosts || {})[g] === posName).length; }
+        function eventOpenSlots(e) {
+            if (e.positions && e.positions.length) {
+                return e.positions.reduce((sum, p) => sum + Math.max(0, (p.slots || 0) - positionFilled(e, p.name)), 0);
+            }
+            return e.openSlots || 0;
+        }
 
         let isReg = false;
         const currUser = () => JSON.parse(localStorage.getItem('ss_session'));
@@ -749,7 +761,16 @@
         function renderEvents() {
             const evs = getDB('events').sort((a, b) => new Date(a.date) - new Date(b.date));
             const u = currUser();
-            document.getElementById('userEventsFeedList').innerHTML = evs.map(e => `
+            document.getElementById('userEventsFeedList').innerHTML = evs.map(e => {
+                const hasPositions = e.positions && e.positions.length;
+                const openSlots = eventOpenSlots(e);
+                const isSignedUp = (e.guards || []).includes(u?.name);
+                const actionBtn = hasPositions
+                    ? `<button class="btn" style="width:100%;" onclick="openEventDetail('${e.id}')">🎯 View Positions & Claim</button>`
+                    : `<button class="btn ${isSignedUp ? 'btn-magenta' : ''}" style="width:100%;" onclick="toggleSignUp('${e.id}', event)" ${openSlots === 0 && !isSignedUp ? 'disabled' : ''}>
+                            ${isSignedUp ? 'Cancel My Shift' : (openSlots === 0 ? 'Full' : 'Claim Shift')}
+                        </button>`;
+                return `
                 <div class="glass-card event-tile" onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'A' && event.target.tagName !== 'SELECT') openEventDetail('${e.id}')">
                     <div class="event-img-wrap">
                         <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
@@ -766,18 +787,20 @@
                         <div class="roster-card">
                             <div class="roster-header">
                                 <span>Assigned Team (${(e.guards || []).length})</span>
-                                <span>${e.openSlots} Open Slots</span>
+                                <span>${openSlots} Open Slots</span>
                             </div>
+                            ${hasPositions ? `
+                            <div class="tags-container" style="margin-top:6px;">
+                                ${e.positions.map(p => `<span class="neon-tag ${positionFilled(e, p.name) >= p.slots ? 'tag-inactive' : 'tag-active'}">${p.name} ${positionFilled(e, p.name)}/${p.slots}</span>`).join('')}
+                            </div>` : `
                             <div>
                                 ${(e.guards || []).map(g => `<span class="guard-chip">🛡️ ${g}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No officers assigned.</span>'}
-                            </div>
+                            </div>`}
                         </div>
-                        <button class="btn ${(e.guards || []).includes(u?.name) ? 'btn-magenta' : ''}" style="width:100%;" onclick="toggleSignUp('${e.id}', event)" ${e.openSlots === 0 && !(e.guards || []).includes(u?.name) ? 'disabled' : ''}>
-                            ${(e.guards || []).includes(u?.name) ? 'Cancel My Shift' : (e.openSlots === 0 ? 'Full' : 'Claim Shift')}
-                        </button>
+                        ${actionBtn}
                     </div>
                 </div>
-            `).join('');
+            `; }).join('');
         }
 
         function toggleSignUp(id, eEvent = null) {
@@ -798,6 +821,29 @@
             saveDoc('events', e.id, e);
         }
 
+        // Position-aware claim/cancel/reassign for events with defined position types.
+        function claimPosition(eventId, positionName) {
+            const e = getDB('events').find(x => x.id === eventId);
+            const u = currUser();
+            if (!e || !u) return;
+            e.guards = e.guards || []; e.guardPosts = e.guardPosts || {};
+            const currentlyOnThis = e.guardPosts[u.name] === positionName;
+            if (currentlyOnThis) {
+                // Cancel this position
+                e.guards = e.guards.filter(g => g !== u.name);
+                delete e.guardPosts[u.name];
+                logAction(`Dropped ${positionName} at ${e.title}`);
+            } else {
+                const pos = (e.positions || []).find(p => p.name === positionName);
+                const filled = positionFilled(e, positionName);
+                if (pos && filled >= pos.slots) { alert(`${positionName} is already full.`); return; }
+                if (!e.guards.includes(u.name)) e.guards.push(u.name);
+                e.guardPosts[u.name] = positionName;
+                logAction(`Claimed ${positionName} at ${e.title}`);
+            }
+            saveDoc('events', e.id, e);
+        }
+
         /* EVENT DETAIL */
         let activeDetailId = null;
         function openEventDetail(id) { activeDetailId = id; switchView('eventDetail'); renderEventDetail(id); }
@@ -808,24 +854,44 @@
             const u = currUser();
             const promoter = getDB('promoters').find(p => p.id === e.promoterId);
             const isSignedUp = u && (e.guards || []).includes(u.name);
+            const hasPositions = e.positions && e.positions.length;
+            const myNote = u && e.guardNotes && e.guardNotes[u.name];
 
             let rosterHtml = (e.guards || []).map(g => {
-                if (g === u.name) {
-                    return `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
-                        <span>🛡️ <strong>${g}</strong> (You)</span>
-                        <select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:700;" onchange="updateGuardPost('${e.id}', '${g}', this.value)">
-                            ${['Unassigned', 'Person/Bag Check', 'ID Check', 'Ticket', 'Float', 'Play Guard', 'Dancefloor', 'Bar', 'Parking Lot', 'Other'].map(p => `<option value="${p}" ${(e.guardPosts && e.guardPosts[g] || 'Unassigned') === p ? 'selected' : ''}>${p}</option>`).join('')}
-                        </select>
-                    </div>`;
-                } else {
-                    return `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
-                        <span>🛡️ ${g}</span>
-                        <span style="color:var(--neon-teal); font-weight:700; font-size:0.85rem;">${(e.guardPosts && e.guardPosts[g]) || 'Unassigned'}</span>
-                    </div>`;
-                }
-            }).join('') || '<p style="color:var(--text-muted); font-size:0.85rem;">No officers assigned yet.</p>';
+                const isMe = g === u?.name;
+                const posLabel = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
+                const positionCell = (!hasPositions && isMe)
+                    ? `<select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:700;" onchange="updateGuardPost('${e.id}', '${g}', this.value)">
+                            ${LEGACY_POST_OPTIONS.map(p => `<option value="${p}" ${posLabel === p ? 'selected' : ''}>${p}</option>`).join('')}
+                       </select>`
+                    : `<span style="color:var(--neon-teal); font-weight:700; font-size:0.85rem;">${posLabel}</span>`;
+                return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:10px 6px;">🛡️ ${g}${isMe ? ' <span style="color:var(--neon-pink); font-size:0.75rem;">(You)</span>' : ''}</td>
+                    <td style="padding:10px 6px; text-align:right;">${positionCell}</td>
+                </tr>`;
+            }).join('') || '';
+
+            const positionsHtml = hasPositions ? `
+                <div style="margin: 20px 0;">
+                    <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px;">Available Positions</h4>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        ${e.positions.map(p => {
+                            const filled = positionFilled(e, p.name);
+                            const full = filled >= p.slots;
+                            const onThis = u && (e.guardPosts || {})[u.name] === p.name;
+                            return `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
+                                <div>
+                                    <strong>${p.name}</strong>
+                                    <span style="color:var(--text-muted); font-size:0.82rem; margin-left:8px;">${filled}/${p.slots} filled</span>
+                                </div>
+                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${full && !onThis ? 'disabled' : ''}>
+                                    ${onThis ? 'Cancel' : (full ? 'Full' : 'Claim')}
+                                </button>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>` : '';
 
             const timelineSorted = [...(e.timeline || [])].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
@@ -842,6 +908,12 @@
                             ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
                         </div>
                         ${e.ticketLink ? `<a href="${e.ticketLink}" target="_blank" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
+
+                        ${myNote ? `
+                        <div style="background:rgba(255,42,133,0.1); border:1px solid rgba(255,42,133,0.4); border-radius:12px; padding:14px; margin: 16px 0;">
+                            <h4 style="color:var(--neon-pink); font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">📝 Note for you from Command</h4>
+                            <p style="font-size:0.9rem; color:var(--text-primary);">${myNote}</p>
+                        </div>` : ''}
 
                         <div style="margin: 16px 0;">
                             <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">Operational Brief</h4>
@@ -870,15 +942,17 @@
                             <p style="font-size:0.85rem; color:var(--text-muted);">📞 ${promoter.phone} • ✉️ ${promoter.email}</p>
                         </div>` : ''}
 
+                        ${positionsHtml}
+
                         <div style="margin: 20px 0;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px;">Assigned Team (${e.openSlots} Slots Open)</h4>
-                                <button class="btn btn-sm ${isSignedUp ? 'btn-magenta' : ''}" onclick="toggleSignUp('${e.id}')" ${e.openSlots === 0 && !isSignedUp ? 'disabled' : ''}>
-                                    ${isSignedUp ? 'Cancel Shift' : (e.openSlots === 0 ? 'Full' : 'Claim Shift')}
-                                </button>
+                                <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px;">Signed-Up Team (${eventOpenSlots(e)} Slots Open)</h4>
+                                ${!hasPositions ? `<button class="btn btn-sm ${isSignedUp ? 'btn-magenta' : ''}" onclick="toggleSignUp('${e.id}')" ${eventOpenSlots(e) === 0 && !isSignedUp ? 'disabled' : ''}>
+                                    ${isSignedUp ? 'Cancel Shift' : (eventOpenSlots(e) === 0 ? 'Full' : 'Claim Shift')}
+                                </button>` : ''}
                             </div>
-                            <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
-                                ${rosterHtml}
+                            <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:6px 16px;">
+                                ${rosterHtml ? `<table style="width:100%; border-collapse:collapse; font-size:0.9rem;"><tbody>${rosterHtml}</tbody></table>` : '<p style="color:var(--text-muted); font-size:0.85rem; padding:10px 0;">No officers assigned yet.</p>'}
                             </div>
                         </div>
 
@@ -1115,7 +1189,62 @@
                 </div>
                 <button class="btn btn-sm btn-outline" onclick="draftAddTimeline('${e.id}')">+ Add Timeline Item</button>
             </div>`;
-            if (sec === 'roster') return `<div class="draggable-section" draggable="true" data-id="roster"><label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">ROSTER & SLOTS</label><div style="margin-top:4px; font-size:0.8rem;">Open Slots: <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots}" onchange="draftSet('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore></div><div style="display:flex; gap:5px; margin-top:8px;"><input id="mg_${e.id}" class="input-field" placeholder="Manual Name" style="margin:0;" data-1p-ignore><button class="btn btn-sm" onclick="draftAddGuard('${e.id}')">Add</button></div><p style="font-size:0.8rem; margin-top:10px;">Guards: ${(e.guards || []).map((g, i) => `<span class="guard-chip">${g} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="draftRmGuard('${e.id}',${i})">×</b></span>`).join(' ')}</p></div>`;
+            if (sec === 'roster') return `<div class="draggable-section" draggable="true" data-id="roster">
+                <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700;">POSITION TYPES</label>
+                <p style="font-size:0.75rem; color:var(--text-muted); margin:2px 0 8px;">Define how many of each position you need. Leave empty to use simple Open Slots below instead.</p>
+                <div id="postypes_${e.id}">
+                    ${(e.positions || []).map((p, i) => `
+                    <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
+                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="Position name (e.g. Door)" value="${(p.name || '').replace(/"/g, '&quot;')}" onchange="draftUpdPosition('${e.id}',${i},'name',this.value)" data-1p-ignore>
+                        <input type="number" min="0" class="input-field" style="margin:0; width:70px;" value="${p.slots || 0}" onchange="draftUpdPosition('${e.id}',${i},'slots',parseInt(this.value)||0)" data-1p-ignore>
+                        <button class="btn btn-sm btn-magenta" onclick="draftRmPosition('${e.id}',${i})">×</button>
+                    </div>`).join('')}
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="draftAddPosition('${e.id}')">+ Add Position Type</button>
+
+                <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-glass); font-size:0.8rem;">
+                    Open Slots (legacy/simple mode - ignored once a position type exists above):
+                    <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots || 0}" onchange="draftSet('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore>
+                </div>
+
+                <label style="font-size:0.75rem; color:var(--neon-teal); font-weight:700; display:block; margin-top:14px;">SIGNED-UP TEAM</label>
+                <div style="overflow-x:auto; margin-top:6px;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                        <thead><tr style="text-align:left; color:var(--text-muted);"><th style="padding:4px;">Name</th><th style="padding:4px;">Position</th><th style="padding:4px;">Note to them</th><th></th></tr></thead>
+                        <tbody>
+                            ${(e.guards || []).map((g, i) => {
+                                const posOptions = (e.positions && e.positions.length) ? e.positions.map(p => p.name) : LEGACY_POST_OPTIONS.filter(p => p !== 'Unassigned');
+                                const currentPos = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
+                                return `<tr style="border-top:1px solid rgba(255,255,255,0.06);">
+                                    <td style="padding:6px 4px;">${g}</td>
+                                    <td style="padding:6px 4px;">
+                                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${e.id}','${g.replace(/'/g, "\\'")}',this.value)">
+                                            <option value="Unassigned" ${currentPos === 'Unassigned' ? 'selected' : ''}>Unassigned</option>
+                                            ${posOptions.map(p => `<option value="${p}" ${currentPos === p ? 'selected' : ''}>${p}</option>`).join('')}
+                                        </select>
+                                    </td>
+                                    <td style="padding:6px 4px;">
+                                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${((e.guardNotes && e.guardNotes[g]) || '').replace(/"/g, '&quot;')}" onchange="draftSetGuardNote('${e.id}','${g.replace(/'/g, "\\'")}',this.value)" data-1p-ignore>
+                                    </td>
+                                    <td style="padding:6px 4px;"><b style="color:var(--danger-glow);cursor:pointer;" onclick="draftRmGuard('${e.id}',${i})">✕</b></td>
+                                </tr>`;
+                            }).join('') || `<tr><td colspan="4" style="padding:10px 4px; color:var(--text-muted);">No one signed up yet.</td></tr>`}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display:flex; gap:5px; margin-top:12px; flex-wrap:wrap;">
+                    <select id="au_${e.id}" class="input-field" style="margin:0; flex:1; min-width:150px;">
+                        <option value="">-- Add existing user --</option>
+                        ${getDB('users').filter(u => !(e.guards || []).includes(u.name)).map(u => `<option value="${u.name.replace(/"/g, '&quot;')}">${u.name}</option>`).join('')}
+                    </select>
+                    <button class="btn btn-sm" onclick="draftAddExistingGuard('${e.id}')">Add</button>
+                </div>
+                <div style="display:flex; gap:5px; margin-top:8px;">
+                    <input id="mg_${e.id}" class="input-field" placeholder="Or add a manual name (not a system user)" style="margin:0;" data-1p-ignore>
+                    <button class="btn btn-sm btn-outline" onclick="draftAddGuard('${e.id}')">Add</button>
+                </div>
+            </div>`;
             return '';
         }
         function initDragDrop(cid, eid) {
@@ -1144,17 +1273,59 @@
             renderTile(id); markDirty(id);
         }
         function draftAddGuard(id) {
-            const d = getDraft(id), v = document.getElementById('mg_' + id).value; if (!d || !v) return;
-            d.guards = d.guards || []; d.guards.push(v);
+            const d = getDraft(id), input = document.getElementById('mg_' + id), v = input ? input.value.trim() : '';
+            if (!d || !v) return;
+            d.guards = d.guards || [];
+            if (d.guards.includes(v)) { alert(v + ' is already on this shift.'); return; }
+            d.guards.push(v);
             d.guardPosts = d.guardPosts || {}; d.guardPosts[v] = 'Unassigned';
-            if (d.openSlots > 0) d.openSlots--;
+            if (!(d.positions && d.positions.length) && d.openSlots > 0) d.openSlots--;
+            renderTile(id); markDirty(id);
+        }
+        function draftAddExistingGuard(id) {
+            const d = getDraft(id), sel = document.getElementById('au_' + id), v = sel ? sel.value : '';
+            if (!d || !v) return;
+            d.guards = d.guards || [];
+            if (d.guards.includes(v)) { alert(v + ' is already on this shift.'); return; }
+            d.guards.push(v);
+            d.guardPosts = d.guardPosts || {}; d.guardPosts[v] = 'Unassigned';
+            if (!(d.positions && d.positions.length) && d.openSlots > 0) d.openSlots--;
             renderTile(id); markDirty(id);
         }
         function draftRmGuard(id, i) {
             const d = getDraft(id); if (!d) return;
             const g = d.guards[i]; d.guards.splice(i, 1);
             if (d.guardPosts) delete d.guardPosts[g];
-            d.openSlots++;
+            if (d.guardNotes) delete d.guardNotes[g];
+            if (!(d.positions && d.positions.length)) d.openSlots++;
+            renderTile(id); markDirty(id);
+        }
+        function draftReassignGuard(id, guardName, newPosition) {
+            const d = getDraft(id); if (!d) return;
+            d.guardPosts = d.guardPosts || {};
+            d.guardPosts[guardName] = newPosition;
+            markDirty(id);
+        }
+        function draftSetGuardNote(id, guardName, noteText) {
+            const d = getDraft(id); if (!d) return;
+            d.guardNotes = d.guardNotes || {};
+            d.guardNotes[guardName] = noteText;
+            markDirty(id);
+        }
+        function draftAddPosition(id) {
+            const d = getDraft(id); if (!d) return;
+            d.positions = d.positions || [];
+            d.positions.push({ name: 'New Position', slots: 1 });
+            renderTile(id); markDirty(id);
+        }
+        function draftUpdPosition(id, i, field, value) {
+            const d = getDraft(id); if (!d || !d.positions || !d.positions[i]) return;
+            d.positions[i][field] = value;
+            markDirty(id);
+        }
+        function draftRmPosition(id, i) {
+            const d = getDraft(id); if (!d || !d.positions) return;
+            d.positions.splice(i, 1);
             renderTile(id); markDirty(id);
         }
         function draftAddTimeline(id) { const d = getDraft(id); if (!d) return; d.timeline = d.timeline || []; d.timeline.push({ time: '18:00', label: 'New item' }); renderTile(id); markDirty(id); }
@@ -1164,7 +1335,7 @@
         function addBlankEvent() {
             const newEv = {
                 id: 'e' + Date.now(), title: 'New Shift Detail', date: new Date().toISOString().split('T')[0],
-                tags: [], desc: '', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, promoterId: '',
+                tags: [], desc: '', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '',
                 image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                 layout: ['img', 'info', 'tags', 'logistics', 'roster'], ticketLink: ''
             };
