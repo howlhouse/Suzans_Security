@@ -285,7 +285,7 @@
             </div>
 
             <div id="adminEvents" class="admin-pane">
-                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addBlankEvent()">+ New Shift Posting</button>
+                <button class="btn btn-sm" style="margin-bottom:15px;" onclick="openNewEventModal()">+ New Shift Posting</button>
                 <div id="adminEventsList"></div>
             </div>
 
@@ -518,6 +518,46 @@
             <div id="termsFooterView" style="display: none;">
                 <button class="btn" style="width: 100%;" onclick="closeModal('termsModal')">Close</button>
             </div>
+        </div>
+    </div>
+
+    <div class="modal" id="newEventModal">
+        <div class="modal-sheet">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h3 style="font-family:'Outfit'; font-size:1.3rem; color:var(--neon-teal);">New Shift Posting</h3>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding: 4px 8px;" onclick="closeModal('newEventModal')">✕</button>
+            </div>
+            <p id="newEventErr" style="color:var(--danger-glow); font-size:0.85rem; margin-bottom:12px; display:none;"></p>
+
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Event Title *</label>
+            <input type="text" id="neTitle" class="input-field" placeholder="e.g. Saturday Night — Cactus Lounge" data-1p-ignore>
+
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Date *</label>
+            <input type="date" id="neDate" class="input-field">
+
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Venue / Address</label>
+            <input type="text" id="neAddress" class="input-field" placeholder="e.g. 123 Cactus Rd, Phoenix, AZ">
+
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Description</label>
+            <textarea id="neDesc" class="input-field" rows="3" placeholder="Briefing notes, dress code, anything guards should know upfront..."></textarea>
+
+            <div style="display:flex; gap:12px;">
+                <div style="flex:1;">
+                    <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Open Slots</label>
+                    <input type="number" id="neSlots" class="input-field" min="0" value="2">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Image URL</label>
+                    <input type="text" id="neImage" class="input-field" placeholder="https://...">
+                </div>
+            </div>
+
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Ticket Link (optional)</label>
+            <input type="text" id="neTicket" class="input-field" placeholder="https://...">
+
+            <p style="font-size: 0.74rem; color: var(--text-muted); margin: 4px 0 14px;">Tags, timeline, staffing positions, and roster details can be filled in from the shift's tile after it's created.</p>
+
+            <button class="btn" id="neCreateBtn" style="width: 100%;" onclick="createNewEvent()">Create Shift Posting</button>
         </div>
     </div>
 
@@ -1809,17 +1849,60 @@
         function draftUpdTimeline(id, i, f, v) { const d = getDraft(id); if (!d || !d.timeline || !d.timeline[i]) return; d.timeline[i][f] = v; markDirty(id); }
         function draftRmTimeline(id, i) { const d = getDraft(id); if (!d) return; d.timeline.splice(i, 1); renderTile(id); markDirty(id); }
 
-        function addBlankEvent() {
+        function openNewEventModal() {
+            document.getElementById('neTitle').value = '';
+            document.getElementById('neDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('neAddress').value = '';
+            document.getElementById('neImage').value = '';
+            document.getElementById('neDesc').value = '';
+            document.getElementById('neSlots').value = 2;
+            document.getElementById('neTicket').value = '';
+            document.getElementById('newEventErr').style.display = 'none';
+            document.getElementById('newEventModal').style.display = 'flex';
+        }
+        function createNewEvent() {
+            const title = document.getElementById('neTitle').value.trim();
+            const date = document.getElementById('neDate').value;
+            const errEl = document.getElementById('newEventErr');
+            const showErr = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
+
+            if (!title) { showErr('Event title is required.'); return; }
+            if (!date) { showErr('Event date is required.'); return; }
+            errEl.style.display = 'none';
+
             const newEv = {
-                id: 'e' + Date.now(), title: 'New Shift Detail', date: new Date().toISOString().split('T')[0],
-                tags: [], desc: '', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '',
-                image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
-                layout: ['img', 'info', 'tags', 'logistics', 'roster'], ticketLink: '',
+                id: 'e' + Date.now(), title, date,
+                tags: [],
+                desc: document.getElementById('neDesc').value.trim(),
+                address: document.getElementById('neAddress').value.trim(),
+                timeline: [],
+                openSlots: parseInt(document.getElementById('neSlots').value, 10) || 0,
+                guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '',
+                image: document.getElementById('neImage').value.trim() || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
+                layout: ['img', 'info', 'tags', 'logistics', 'roster'],
+                ticketLink: document.getElementById('neTicket').value.trim(),
                 archived: false, cancelled: false, archivedAt: null, archiveReason: null
             };
+
+            const btn = document.getElementById('neCreateBtn');
+            btn.disabled = true;
+            btn.innerText = 'Creating...';
             saveDoc('events', newEv.id, newEv).then(() => {
-                // Newly created events land in ss_state via the live listener; give it a beat.
-                setTimeout(renderAdminEv, 300);
+                logAction('Created shift posting: ' + title);
+                closeModal('newEventModal');
+                // Newly created events land in ss_state via the live listener; give it a beat,
+                // then scroll the admin straight to the new tile so it's not lost among
+                // whatever else is already in the list.
+                setTimeout(() => {
+                    renderAdminEv();
+                    const tile = document.getElementById('tile_' + newEv.id);
+                    if (tile) tile.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            }).catch(err => {
+                showErr('Failed to create event: ' + err.message);
+            }).finally(() => {
+                btn.disabled = false;
+                btn.innerText = 'Create Shift Posting';
             });
         }
         function delEv(id) {
