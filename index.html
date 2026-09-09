@@ -52,8 +52,8 @@
 
         .event-tile { cursor: pointer; position: relative; transition: transform 0.3s var(--apple-spring); }
         .event-tile:active { transform: scale(0.985); }
-        .event-img-wrap { position: relative; height: 190px; width: 100%; overflow: hidden; }
-        .event-img { width: 100%; height: 100%; object-fit: cover; }
+        .event-img-wrap { position: relative; width: 100%; overflow: hidden; }
+        .event-img { width: 100%; height: auto; display: block; }
         .event-img-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 12, 0.1) 0%, rgba(8, 8, 12, 0.85) 100%); }
         .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); padding: 5px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; color: var(--neon-teal); }
         .event-body { padding: 18px 20px; }
@@ -159,7 +159,7 @@
             </g>
         </svg>
 
-        <h2 style="color: var(--neon-teal); font-family: 'Outfit'; margin-top: 18px; font-weight: 800; letter-spacing: 2px;">SYNCING COMMS...</h2>
+        <h2 style="color: var(--neon-teal); font-family: 'Outfit'; margin-top: 18px; font-weight: 800; letter-spacing: 2px;">SECURING THE GAYS...</h2>
 
         <div class="load-progress-wrap">
             <div class="load-progress-track"><div class="load-progress-fill" id="loadProgressFill"></div></div>
@@ -231,6 +231,18 @@
             </div>
         </section>
 
+        <!-- VIEW: BAN LIST -->
+        <section id="banListView" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
+                <div>
+                    <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:800;">Ban List</h2>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">Known problem patrons &amp; incident history</p>
+                </div>
+            </div>
+            <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addBanEntry()">+ Add Person</button>
+            <div id="banListContainer"></div>
+        </section>
+
         <!-- VIEW 5: ADMIN COMMAND CENTER -->
         <section id="adminConsoleView" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -240,7 +252,7 @@
 
             <div class="segmented-control">
                 <button class="segment-btn active" onclick="switchAdmin('adminEvents')">Events</button>
-                <button class="segment-btn" onclick="switchAdmin('adminChats')">Chat Mgmt</button>
+                <button class="segment-btn" onclick="switchAdmin('adminChats')">Chat Management</button>
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
                 <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
                 <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
@@ -301,6 +313,7 @@
         <button class="dock-item active" onclick="switchView('eventsFeed')"><span>🪩</span><span>Events</span></button>
         <button class="dock-item" onclick="switchView('calendarView')"><span>📅</span><span>Calendar</span></button>
         <button class="dock-item" onclick="switchView('teamChatView')"><span>💬</span><span>Comms</span></button>
+        <button class="dock-item" onclick="switchView('banListView')"><span>🚫</span><span>Ban List</span></button>
         <button class="dock-item" onclick="promptAdminPin()"><span>🔒</span><span>Admin</span></button>
     </nav>
 
@@ -369,6 +382,25 @@
         </div>
     </div>
 
+    <div class="modal" id="banModal">
+        <div class="modal-sheet">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 id="banModalTitle" style="font-family:'Outfit'; font-size:1.35rem; color:var(--neon-pink);"></h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('banModal')">✕</button>
+            </div>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Full Name</label>
+            <div style="display:flex; gap:6px;">
+                <input type="text" id="banNameInput" class="input-field" style="margin:0;" data-1p-ignore>
+                <button class="btn btn-sm" onclick="saveBanName()">Save</button>
+            </div>
+            <h4 style="font-size: 0.95rem; margin: 16px 0 8px;">Incident Journal</h4>
+            <div id="banNotes" style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); padding:12px; border-radius:12px; margin-bottom:12px; max-height:200px; overflow-y:auto;"></div>
+            <textarea id="banNoteIn" class="input-field" rows="2" placeholder="Log an incident..." data-1p-ignore></textarea>
+            <button class="btn btn-sm" onclick="addBanNote()">Add Incident</button>
+            <button class="btn btn-sm btn-magenta" style="width:100%; margin-top:10px;" onclick="delBanFromModal()">Remove From List</button>
+        </div>
+    </div>
+
     <div class="modal" id="promoterModal">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -416,8 +448,8 @@
         }
 
         // --- 3. GLOBAL STATE ---
-        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [] };
-        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs'];
+        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [] };
+        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist'];
         const getDB = k => window.ss_state[k] || [];
 
         // --- 3b. SAFE WRITE HELPER (fixes silent-fail / undefined-field save bug) ---
@@ -443,11 +475,23 @@
         }
 
         function saveDoc(col, id, data) {
-            return withTimeout(db.collection(col).doc(id).set(cleanData(data)), 15000, `saving to ${col}`).catch(err => {
-                console.error(`Save failed [${col}/${id}]:`, err);
-                alert('⚠️ Save failed: ' + err.message);
-                throw err;
-            });
+            const payload = cleanData(data);
+            return withTimeout(db.collection(col).doc(id).set(payload), 15000, `saving to ${col}`)
+                // Same fix applied to events: don't trust the local optimistic
+                // write as proof of success. Explicitly re-read from the
+                // server to confirm it actually landed - this is what was
+                // missing here, and why a user/contact edit could report
+                // success and then vanish on refresh.
+                .then(() => withTimeout(db.collection(col).doc(id).get({ source: 'server' }), 15000, `confirming save to ${col}`))
+                .then(snap => {
+                    if (!snap.exists) throw new Error(`Document unexpectedly missing on the server right after saving to ${col}.`);
+                    return snap;
+                })
+                .catch(err => {
+                    console.error(`Save failed [${col}/${id}]:`, err);
+                    alert('⚠️ Save failed: ' + err.message);
+                    throw err;
+                });
         }
         function deleteDoc(col, id) {
             return withTimeout(db.collection(col).doc(id).delete(), 15000, `deleting from ${col}`).catch(err => {
@@ -597,6 +641,7 @@
             if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();
             if (document.getElementById('teamChatView').style.display !== 'none') renderChat();
+            if (document.getElementById('banListView').style.display !== 'none') renderBanList();
             if (document.getElementById('adminConsoleView').style.display !== 'none') {
                 if (document.getElementById('adminEvents').style.display === 'block') renderAdminEv();
                 if (document.getElementById('adminChats').style.display === 'block') renderAdminChats();
@@ -687,7 +732,7 @@
         function logout() { logAction('Logged out'); localStorage.removeItem('ss_session'); location.reload(); }
 
         function switchView(v) {
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'adminConsoleView'].forEach(id => {
+            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
             });
@@ -695,7 +740,8 @@
             if (v === 'eventsFeed') { document.querySelectorAll('.dock-item')[0].classList.add('active'); renderEvents(); }
             if (v === 'calendarView') { document.querySelectorAll('.dock-item')[1].classList.add('active'); renderCal(); }
             if (v === 'teamChatView') { document.querySelectorAll('.dock-item')[2].classList.add('active'); renderChat(); }
-            if (v === 'adminConsoleView') { document.querySelectorAll('.dock-item')[3].classList.add('active'); renderAdminEv(); }
+            if (v === 'banListView') { document.querySelectorAll('.dock-item')[3].classList.add('active'); renderBanList(); }
+            if (v === 'adminConsoleView') { document.querySelectorAll('.dock-item')[4].classList.add('active'); renderAdminEv(); }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -786,7 +832,7 @@
             document.getElementById('eventDetailContent').innerHTML = `
                 <div class="glass-card">
                     <div class="event-img-wrap" style="height:240px;">
-                        <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                        <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                         <div class="event-img-overlay"></div>
                         <div class="date-badge">🗓️ ${e.date}</div>
                     </div>
@@ -1241,6 +1287,74 @@
         function addPNote() { let pr = getDB('promoters').find(x => x.id === selP), v = document.getElementById('pNoteIn').value; if (v) { pr.notes = pr.notes || []; pr.notes.unshift({ date: new Date().toLocaleDateString(), text: v }); saveDoc('promoters', pr.id, pr); document.getElementById('pNoteIn').value = ''; } }
         function delPromoter(id) { if (confirm('Delete this contact permanently? This cannot be undone.')) deleteDoc('promoters', id); }
         function delPromoterFromModal() { if (selP && confirm('Delete this contact permanently? This cannot be undone.')) { deleteDoc('promoters', selP); closeModal('promoterModal'); } }
+
+        /* BAN LIST - open to every signed-in user, not just admins */
+        function renderBanList() {
+            const list = getDB('banlist').slice().sort((a, b) => a.name.localeCompare(b.name));
+            document.getElementById('banListContainer').innerHTML = list.map(b => `
+                <div class="glass-card event-tile" style="padding:16px;" onclick="openBanEntry('${b.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h4 style="color:var(--neon-pink); font-family:'Outfit'; font-size:1.15rem;">🚫 ${b.name}</h4>
+                        <span style="font-size:0.72rem; color:var(--text-muted); white-space:nowrap;">${(b.notes || []).length} incident${(b.notes || []).length === 1 ? '' : 's'}</span>
+                    </div>
+                    ${(b.notes && b.notes[0]) ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">Latest: ${b.notes[0].text}</p>` : '<p style="font-size:0.82rem; color:var(--text-muted); margin-top:8px;">No incidents logged yet.</p>'}
+                </div>
+            `).join('') || '<p style="color:var(--text-muted); text-align:center; margin-top:40px;">No one on the ban list yet.</p>';
+        }
+        function addBanEntry() {
+            const name = prompt('Name of the person to add to the ban list:');
+            if (!name || !name.trim()) return;
+            const id = 'b' + Date.now();
+            saveDoc('banlist', id, { id, name: name.trim(), notes: [] }).then(() => logAction('Added to ban list: ' + name.trim()));
+        }
+        let selBan = null;
+        function openBanEntry(id) {
+            selBan = id;
+            const b = getDB('banlist').find(x => x.id === id);
+            if (!b) return;
+            document.getElementById('banModalTitle').innerText = '🚫 ' + b.name;
+            document.getElementById('banNameInput').value = b.name;
+            renderBanNotes(b);
+            document.getElementById('banNoteIn').value = '';
+            document.getElementById('banModal').style.display = 'flex';
+        }
+        function renderBanNotes(b) {
+            document.getElementById('banNotes').innerHTML = (b.notes || []).map(n => `
+                <div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;">
+                    <span style="color:var(--neon-pink); font-size:0.75rem; font-weight:700;">${n.date}${n.by ? ' · ' + n.by : ''}</span>
+                    <p style="font-size:0.85rem;">${n.text}</p>
+                </div>
+            `).join('') || '<p style="color:var(--text-muted); font-size:0.85rem;">No incidents logged yet.</p>';
+        }
+        function saveBanName() {
+            const b = getDB('banlist').find(x => x.id === selBan);
+            if (!b) return;
+            const newName = document.getElementById('banNameInput').value.trim();
+            if (!newName) { alert('Name cannot be empty.'); return; }
+            const updated = { ...b, name: newName };
+            saveDoc('banlist', selBan, updated).then(() => {
+                document.getElementById('banModalTitle').innerText = '🚫 ' + newName;
+                logAction('Updated ban list entry: ' + newName);
+            });
+        }
+        function addBanNote() {
+            const b = getDB('banlist').find(x => x.id === selBan);
+            const v = document.getElementById('banNoteIn').value.trim();
+            if (!b || !v) return;
+            const updated = { ...b, notes: [{ date: new Date().toLocaleDateString(), by: currUser()?.name || '', text: v }, ...(b.notes || [])] };
+            saveDoc('banlist', selBan, updated).then(() => {
+                renderBanNotes(updated);
+                document.getElementById('banNoteIn').value = '';
+                logAction('Logged ban list incident for: ' + b.name);
+            });
+        }
+        function delBanFromModal() {
+            if (!selBan) return;
+            if (confirm('Remove this person from the ban list permanently? This cannot be undone.')) {
+                deleteDoc('banlist', selBan);
+                closeModal('banModal');
+            }
+        }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         function changePin() { let np = document.getElementById('newPinInput').value; if (np) { localStorage.setItem('ss_pin', np); alert('PIN Saved'); document.getElementById('newPinInput').value = ''; } }
 
