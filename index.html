@@ -120,7 +120,7 @@
             <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal); margin-bottom: 6px;">Suzan's Security App</h3>
             <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 20px;">Created & Managed in partnership with Howlhouse, LLC</p>
             
-            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.82rem; color: var(--text-muted); text-align: left;">
+            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.82rem; color: var(--text-muted); text-align: left; l[...]">
                 <p><strong>Version Date:</strong> September 2026</p>
                 <p><strong>Location:</strong> Phoenix, AZ 85012</p>
                 <hr style="border:0; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0;">
@@ -133,7 +133,7 @@
 
     <script>
         // --- 1. FIREBASE INITIALIZATION ---
-        // (Keep or replace these keys with your project's config)
+        // (Ensure you paste your actual project config keys here!)
         const firebaseConfig = {
             apiKey: "AIzaSyCeM8RGdRFEu8eEWvEOqEgjUAm3_mXOCWk",
             authDomain: "suzans-security.firebaseapp.com",
@@ -145,8 +145,8 @@
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
-        const auth = firebase.auth();
         const db = firebase.firestore();
+        const auth = firebase.auth();
 
         // --- 2. MODAL & UTILITY FUNCTIONS ---
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
@@ -157,90 +157,94 @@
         let isReg = false;
         let currentUserProfile = null;
 
+        // --- AUTH READY: gate initial Firestore reads until auth has settled ---
+        // Create a promise that resolves the first time auth state is known.
+        let _authReadyResolve;
+        const authReady = new Promise(resolve => { _authReadyResolve = resolve; });
+
         // Session Listener (Saves login state across app restarts)
         auth.onAuthStateChanged(async (user) => {
-  try {
-    if (!user) {
-      currentUserProfile = null;
-      document.getElementById('authModal').style.display = 'flex';
-      return;
-    }
+            try {
+                if (!user) {
+                    currentUserProfile = null;
+                    document.getElementById('authModal').style.display = 'flex';
+                    // Resolve authReady with null to allow initialLoad to proceed
+                    if (_authReadyResolve) { _authReadyResolve(null); _authReadyResolve = null; }
+                    return;
+                }
 
-    const docRef = db.collection('users').doc(user.uid);
-    let doc;
-    try {
-      doc = await docRef.get();
-    } catch (readErr) {
-      // Firestore read failed (likely offline). Allow the user in based on Auth,
-      // and try to persist a profile in the background / when online.
-      console.warn('Profile fetch failed (offline?):', readErr);
-      currentUserProfile = {
-        uid: user.uid,
-        name: user.displayName || user.email || '',
-        email: user.email || ''
-      };
+                const docRef = db.collection('users').doc(user.uid);
+                try {
+                    const doc = await docRef.get();
+                    if (doc.exists) {
+                        currentUserProfile = doc.data();
+                    } else {
+                        const profileData = {
+                            uid: user.uid,
+                            name: user.displayName || '',
+                            email: user.email || '',
+                            phone: '',
+                            isAdmin: false,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        await db.collection('users').doc(user.uid).set(profileData);
+                        currentUserProfile = profileData;
+                        logAction('Auto-created profile for existing user: ' + user.uid);
+                    }
 
-      // Update UI so the user isn't stuck on the auth modal
-      document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
-      document.getElementById('authModal').style.display = 'none';
-      if (typeof renderEvents === 'function') renderEvents();
+                    document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
+                    document.getElementById('authModal').style.display = 'none';
+                    if (typeof renderEvents === 'function') renderEvents();
 
-      // Attempt to save profile in background, and retry when the browser is online
-      const profileData = {
-        uid: user.uid,
-        name: currentUserProfile.name,
-        email: currentUserProfile.email,
-        phone: '',
-        isAdmin: false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
+                } catch (readErr) {
+                    // Firestore read failed (likely offline). Allow the user in based on Auth,
+                    // and try to persist a profile in the background / when online.
+                    console.warn('Profile fetch failed (offline?):', readErr);
+                    currentUserProfile = {
+                        uid: user.uid,
+                        name: user.displayName || user.email || '',
+                        email: user.email || ''
+                    };
 
-      const trySave = async () => {
-        try {
-          await db.collection('users').doc(user.uid).set(profileData);
-          console.info('Deferred profile save successful for', user.uid);
-        } catch (saveErr) {
-          console.warn('Deferred profile save failed, will retry when online:', saveErr);
-        }
-      };
+                    document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
+                    document.getElementById('authModal').style.display = 'none';
+                    if (typeof renderEvents === 'function') renderEvents();
 
-      // immediate attempt
-      trySave();
-      // retry once when browser goes online
-      window.addEventListener('online', trySave, { once: true });
+                    const profileData = {
+                        uid: user.uid,
+                        name: currentUserProfile.name,
+                        email: currentUserProfile.email,
+                        phone: '',
+                        isAdmin: false,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
 
-      return;
-    }
+                    const trySave = async () => {
+                        try {
+                            await db.collection('users').doc(user.uid).set(profileData);
+                            console.info('Deferred profile save successful for', user.uid);
+                        } catch (saveErr) {
+                            console.warn('Deferred profile save failed, will retry when online:', saveErr);
+                        }
+                    };
+                    trySave();
+                    window.addEventListener('online', trySave, { once: true });
+                }
 
-    // Normal path: doc read succeeded
-    if (doc.exists) {
-      currentUserProfile = doc.data();
-    } else {
-      // create a minimal profile and persist it (await)
-      const profileData = {
-        uid: user.uid,
-        name: user.displayName || '',
-        email: user.email || '',
-        phone: '',
-        isAdmin: false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      await db.collection('users').doc(user.uid).set(profileData);
-      currentUserProfile = profileData;
-      logAction('Auto-created profile for existing user: ' + user.uid);
-    }
+                if (_authReadyResolve) { _authReadyResolve(user); _authReadyResolve = null; }
 
-    document.getElementById('userGreeting').innerText = currentUserProfile.name || user.email || 'Welcome';
-    document.getElementById('authModal').style.display = 'none';
-    if (typeof renderEvents === 'function') renderEvents();
+            } catch (err) {
+                console.error('onAuthStateChanged fatal error:', err);
+                document.getElementById('authModal').style.display = 'none';
+                alert('Auth initialization error: ' + (err.message || err));
+                if (_authReadyResolve) { _authReadyResolve(null); _authReadyResolve = null; }
+            }
+        });
 
-  } catch (err) {
-    // Make sure any unexpected error doesn't leave the user stuck in the modal.
-    console.error('onAuthStateChanged fatal error:', err);
-    document.getElementById('authModal').style.display = 'none';
-    alert('Auth initialization error: ' + (err.message || err));
-  }
-});
+        // Defer any initial reads until auth is settled (placeholder in case other code needs it)
+        authReady.then(() => {
+            console.debug('Auth ready resolved.');
+        });
 
         function toggleAuth() {
             isReg = !isReg;
@@ -253,8 +257,7 @@
             const email = document.getElementById('authEmail').value.trim();
             const pass = document.getElementById('authPass').value;
             const errEl = document.getElementById('authErr');
-            const btn = document.getElementById('authBtn');
-
+            
             errEl.style.display = 'none';
 
             if (!email || !pass) {
@@ -262,9 +265,6 @@
                 errEl.style.display = 'block';
                 return;
             }
-
-            // disable button while working to avoid duplicate submits
-            btn.disabled = true;
 
             try {
                 if (isReg) {
@@ -274,53 +274,33 @@
                     if (!name) {
                         errEl.innerText = 'Please enter your full name/callsign.';
                         errEl.style.display = 'block';
-                        btn.disabled = false;
                         return;
                     }
 
-                    // Create user in Firebase Auth
+                    // Create account in Firebase Auth and then persist a user doc
                     const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
                     const user = userCredential.user;
 
-                    // Optional: set displayName on the Auth user record
-                    if (user && user.updateProfile) {
-                        try {
-                            await user.updateProfile({ displayName: name });
-                        } catch (e) {
-                            console.warn('updateProfile failed:', e);
-                        }
-                    }
-
-                    // Save profile to Firestore (await it so we know it was persisted)
                     const profileData = {
                         uid: user.uid,
                         name: name,
                         email: email,
-                        phone: phone || '',
+                        phone: phone,
                         isAdmin: false,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     };
 
+                    // Persist profile document
                     await db.collection('users').doc(user.uid).set(profileData);
-
-                    // Optional: send verification email (comment out if you don't want this)
-                    try { await user.sendEmailVerification(); } catch (e) { console.warn('sendEmailVerification failed:', e); }
-
                     logAction('Registered new guard: ' + name);
-                    // UI will update when onAuthStateChanged fires
+
                 } else {
-                    // Sign in existing user
                     await auth.signInWithEmailAndPassword(email, pass);
                     logAction('Logged in');
-                    // onAuthStateChanged will handle UI update
                 }
             } catch (error) {
-                console.error('handleAuth error:', error);
-                // Show friendly error text
-                errEl.innerText = error && error.message ? error.message : 'An error occurred during authentication.';
+                errEl.innerText = error.message;
                 errEl.style.display = 'block';
-            } finally {
-                btn.disabled = false;
             }
         }
 
@@ -328,9 +308,6 @@
             auth.signOut().then(() => {
                 logAction('Logged out');
                 location.reload();
-            }).catch(err => {
-                console.error('Sign-out failed:', err);
-                alert('Sign out failed: ' + (err.message || err));
             });
         }
     </script>
