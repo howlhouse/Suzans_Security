@@ -7,13 +7,13 @@
   "theme_color": "#08080c",
   "icons": [
     {
-      "src": "House_Black_Logo.png",
+      "src": "Suzans_Security_Icon_192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "House_Black_Logo.png",
+      "src": "Suzans_Security_Icon_512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

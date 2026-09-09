@@ -1,8 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Staff sign in with real Firebase Authentication (email/password) now -
+    // there's no separate anonymous handshake anymore. This rule requires
+    // that real sign-in to have happened before any read/write is allowed,
+    // which stops randoms with your public apiKey from reading/writing your
+    // data directly against the Firestore API, while still letting your app
+    // work normally for anyone actually logged in.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }
