@@ -47,8 +47,8 @@
         @keyframes armWiggleR { 0% { transform: rotate(8deg); } 100% { transform: rotate(-18deg); } }
         @keyframes hatBob { 0% { transform: translateY(0) rotate(-3deg); } 100% { transform: translateY(-4px) rotate(3deg); } }
 
-        .howlhouse-watermark { position: fixed; bottom: calc(85px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 600; color: rgba(255, 255, 255, 0.25); text-transform: uppercase; pointer-events: none; z-index: 500; }
-        .howlhouse-watermark img { height: 14px; width: auto; filter: invert(1) opacity(0.6); }
+        .loading-watermark { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); right: 18px; display: flex; align-items: center; gap: 6px; font-family: 'Outfit', sans-serif; font-size: 0.62rem; font-weight: 600; color: rgba(255, 255, 255, 0.3); text-transform: uppercase; pointer-events: none; }
+        .loading-watermark img { height: 16px; width: auto; filter: invert(1) opacity(0.65); }
 
         header { position: sticky; top: 4px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(24px) saturate(180%); border-bottom: 1px solid var(--border-glass); }
         .brand-container { display: flex; align-items: center; gap: 10px; }
@@ -67,6 +67,8 @@
         .event-img { width: 100%; height: auto; display: block; }
         .event-img-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 12, 0.1) 0%, rgba(8, 8, 12, 0.85) 100%); }
         .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); padding: 5px 12px; border-radius: 12px; font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--neon-teal); }
+        .new-msg-banner { background: linear-gradient(135deg, var(--neon-pink), #d81159); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 700; text-align: center; padding: 7px 10px; letter-spacing: 0.4px; }
+        .dock-badge { position: absolute; top: -6px; right: -10px; background: var(--neon-pink); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-shadow: 0 0 6px rgba(255, 42, 133, 0.6); }
         /* Purely decorative "CANCELLED" ribbon drawn over an archived/cancelled
            event's tile image. Pure CSS, no layout impact on anything around it -
            it's absolutely positioned inside .event-img-wrap (already position:relative)
@@ -199,6 +201,11 @@
             <div id="loadStepText">Connecting to server...</div>
             <div id="loadWarnText">Taking longer than usual — check your connection. Continuing to try...</div>
         </div>
+
+        <div class="loading-watermark">
+            <img src="House_Black_Logo.png" alt="HowlHouse Logo" onerror="this.style.display='none'">
+            <span>Created and Managed by HowlHouse</span>
+        </div>
     </div>
 
     <div class="watermark-pattern"></div>
@@ -275,6 +282,69 @@
             <div id="banListContainer"></div>
         </section>
 
+        <!-- VIEW: SETTINGS -->
+        <section id="settingsView" style="display: none;">
+            <div style="margin-bottom: 20px;">
+                <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">Settings</h2>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Your profile, notifications &amp; account</p>
+            </div>
+
+            <div class="glass-card" style="padding: 20px;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:14px;">Profile</h4>
+                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Full Name / Callsign</label>
+                <input type="text" id="setName" class="input-field" disabled data-1p-ignore>
+                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Nickname</label>
+                <input type="text" id="setNickname" class="input-field" placeholder="What should the team call you?" data-1p-ignore>
+                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Mobile Phone</label>
+                <input type="tel" id="setPhone" class="input-field" data-1p-ignore>
+                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Email (login)</label>
+                <input type="email" id="setEmail" class="input-field" disabled data-1p-ignore>
+                <button class="btn btn-sm" onclick="saveMyProfile()">💾 Save Profile</button>
+            </div>
+
+            <div class="glass-card" style="padding: 20px;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:14px;">Preferred Contact</h4>
+                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Best way to reach you</label>
+                <select id="setPreferredContact" class="input-field" data-1p-ignore>
+                    <option value="email">Email</option>
+                    <option value="phone">Phone Call</option>
+                    <option value="text">Text Message</option>
+                </select>
+                <button class="btn btn-sm" onclick="saveMyProfile()">💾 Save Preference</button>
+            </div>
+
+            <div class="glass-card" style="padding: 20px;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:14px;">Notifications</h4>
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; cursor:pointer;">
+                    <input type="checkbox" id="setNotifShifts" style="width:auto; margin:0;">
+                    <span style="font-size:0.85rem;">New shift postings</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; cursor:pointer;">
+                    <input type="checkbox" id="setNotifChat" style="width:auto; margin:0;">
+                    <span style="font-size:0.85rem;">Team chat messages</span>
+                </label>
+                <button class="btn btn-sm" onclick="saveMyProfile()">💾 Save Notification Settings</button>
+            </div>
+
+            <div class="glass-card" style="padding: 20px;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:14px;">Upcoming Shifts</h4>
+                <div style="overflow-x:auto;">
+                    <table class="data-table"><thead><tr><th>Date</th><th>Time</th><th>Event</th></tr></thead><tbody id="mySettingsShiftsBody"></tbody></table>
+                </div>
+            </div>
+
+            <div class="glass-card" style="padding: 20px;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:14px;">Password</h4>
+                <button class="btn btn-outline btn-sm" onclick="changeMyPassword()">✉️ Send Password Reset Email</button>
+            </div>
+
+            <div class="glass-card" style="padding: 20px; border: 1px solid var(--danger-glow);">
+                <h4 style="color:var(--danger-glow); font-family:'Outfit'; margin-bottom:14px;">Danger Zone</h4>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:14px;">Deleting your profile removes your access to this app immediately and cannot be undone.</p>
+                <button class="btn btn-magenta btn-sm" onclick="deleteMyAccount()">🗑️ Delete My Profile</button>
+            </div>
+        </section>
+
         <!-- VIEW 5: ADMIN COMMAND CENTER -->
         <section id="adminConsoleView" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -290,7 +360,7 @@
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
                 <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
                 <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
-                <button class="segment-btn" onclick="switchAdmin('adminSettings')">⚙️ PIN</button>
+                <button class="segment-btn" onclick="switchAdmin('adminSettings')">⚙️ My PIN</button>
             </div>
 
             <div id="adminEvents" class="admin-pane">
@@ -342,27 +412,23 @@
 
             <div id="adminSettings" class="admin-pane" style="display: none;">
                 <div class="glass-card" style="padding: 20px; max-width: 360px;">
-                    <label style="font-size: 0.8rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Change Admin PIN</label>
-                    <input type="password" id="newPinInput" class="input-field" placeholder="New PIN" data-1p-ignore>
+                    <label style="font-size: 0.8rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Change My Commander PIN</label>
+                    <input type="password" id="newPinInput" class="input-field" placeholder="New PIN (4+ digits)" data-1p-ignore>
                     <button class="btn btn-sm" onclick="changePin()">Save PIN</button>
+                    <p style="font-size:0.72rem; color:var(--text-muted); margin-top:10px;">This PIN is personal to your account and unlocks the admin console for you specifically. Every commander has their own.</p>
                 </div>
             </div>
         </section>
     </div>
 
-    <!-- HowlHouse Global Watermark -->
-    <div class="howlhouse-watermark">
-        <img src="House_Black_Logo.png" alt="HowlHouse Logo" onerror="this.style.display='none'">
-        <span>Created and Managed by HowlHouse</span>
-    </div>
-
     <!-- Apple Floating Dock Bar -->
     <nav class="dock-nav">
-        <button class="dock-item active" onclick="switchView('eventsFeed')"><span>🪩</span><span>Events</span></button>
-        <button class="dock-item" onclick="switchView('calendarView')"><span>📅</span><span>Calendar</span></button>
-        <button class="dock-item" onclick="switchView('teamChatView')"><span>💬</span><span>Comms</span></button>
-        <button class="dock-item" onclick="switchView('banListView')"><span>🚫</span><span>Ban List</span></button>
-        <button class="dock-item" onclick="promptAdminPin()"><span>🔒</span><span>Admin</span></button>
+        <button class="dock-item active" data-view="eventsFeed" onclick="switchView('eventsFeed')"><span>🪩</span><span>Events</span></button>
+        <button class="dock-item" data-view="calendarView" onclick="switchView('calendarView')"><span>📅</span><span>Calendar</span></button>
+        <button class="dock-item" data-view="teamChatView" onclick="switchView('teamChatView')"><span style="position:relative;">💬<span id="commsBadge" class="dock-badge" style="display:none;">0</span></span><span>Comms</span></button>
+        <button class="dock-item" data-view="banListView" onclick="switchView('banListView')"><span>🚫</span><span>Ban List</span></button>
+        <button class="dock-item" data-view="settingsView" onclick="switchView('settingsView')"><span>⚙️</span><span>Settings</span></button>
+        <button class="dock-item" data-view="adminConsoleView" id="dockAdminBtn" style="display:none;" onclick="promptAdminPin()"><span>🔒</span><span>Admin</span></button>
     </nav>
 
     <!-- MODALS -->
@@ -587,10 +653,15 @@
             <div id="umResetWrap" style="display:none; margin-bottom:14px;">
                 <button type="button" class="btn btn-outline btn-sm" style="width:100%;" onclick="sendResetFromModal()">✉️ Send Password Reset Email</button>
             </div>
-            <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 16px; cursor:pointer;">
-                <input type="checkbox" id="umIsAdmin" style="width:auto; margin:0;">
+            <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 12px; cursor:pointer;">
+                <input type="checkbox" id="umIsAdmin" style="width:auto; margin:0;" onchange="document.getElementById('umPinWrap').style.display=this.checked?'block':'none'">
                 <span style="font-size:0.85rem;">Commander (Admin) access</span>
             </label>
+            <div id="umPinWrap" style="display:none; margin: -4px 0 16px;">
+                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Commander PIN</label>
+                <input type="text" id="umPin" class="input-field" placeholder="4+ digit PIN" data-1p-ignore>
+                <p style="font-size:0.7rem; color:var(--text-muted); margin:-10px 0 0;">Unlocks the admin console for this commander specifically. Leave blank to keep their current PIN; they can also change it themselves under Settings once signed in.</p>
+            </div>
             <div style="display:flex; gap:8px;">
                 <button class="btn" style="flex:1;" onclick="saveUserModal()">💾 Save</button>
                 <button id="umDeleteBtn" class="btn btn-magenta btn-sm" onclick="deleteUserFromModal()">Delete</button>
@@ -657,7 +728,10 @@
                 Notification.requestPermission();
             }
         }
-        function notifyUser(title, body) {
+        function notifyUser(title, body, type) {
+            const prefs = currUser()?.notifPrefs;
+            if (type === 'shifts' && prefs && prefs.shifts === false) return;
+            if (type === 'chat' && prefs && prefs.chat === false) return;
             if ("Notification" in window && Notification.permission === "granted") {
                 new Notification(title, { body: body, icon: 'Suzans_Security_Icon_192.png' });
             }
@@ -792,6 +866,7 @@
                     window._currentUserProfile = profileSnap.data();
                     document.getElementById('authModal').style.display = 'none';
                     document.getElementById('userGreeting').innerText = window._currentUserProfile.name;
+                    updateDockForUser();
                     requestNotificationPermission();
                     await initialLoad();
                 } catch (err) {
@@ -877,10 +952,10 @@
                         snap.docChanges().forEach(change => {
                             if (change.type === 'added') {
                                 const data = change.doc.data();
-                                if (col === 'events') notifyUser("🚨 New Deployment Posted", data.title);
+                                if (col === 'events') notifyUser("🚨 New Deployment Posted", data.title, 'shifts');
                                 if (col === 'chats' && data.user !== currUser()?.name) {
                                     let chanClean = data.channel.replace('evt_', 'Event ');
-                                    notifyUser(`💬 ${data.user} in #${chanClean}`, data.text);
+                                    notifyUser(`💬 ${data.user} in #${chanClean}`, data.text, 'chat');
                                 }
                             }
                         });
@@ -909,12 +984,16 @@
 
         function refreshGlobalUI() {
             validateSession();
+            updateDockForUser();
+            updateCommsBadge();
             renderEvents();
             if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();
             if (document.getElementById('teamChatView').style.display !== 'none') renderChat();
             if (document.getElementById('banListView').style.display !== 'none') renderBanList();
+            if (document.getElementById('settingsView').style.display !== 'none') renderSettings();
             if (document.getElementById('adminConsoleView').style.display !== 'none') {
+                if (!currUser()?.isAdmin) { switchView('eventsFeed'); return; } // demoted mid-session - bounce out
                 if (document.getElementById('adminEvents').style.display === 'block') renderAdminEv();
                 if (document.getElementById('adminArchive').style.display === 'block') renderArchive();
                 if (document.getElementById('adminChats').style.display === 'block') renderAdminChats();
@@ -1042,6 +1121,46 @@
         let isReg = false;
         const currUser = () => window._currentUserProfile;
 
+        // --- UNREAD CHAT TRACKING ---
+        // Tracked per-device (localStorage) rather than in Firestore - this is
+        // read-position bookkeeping, not data worth syncing across devices, and
+        // keeping it local avoids a write on every single message view.
+        // Message ids are 'm' + Date.now(), so plain string comparison sorts
+        // them chronologically the same way the rest of the app already relies
+        // on for chat ordering.
+        function lastReadKey(channel) {
+            const u = currUser();
+            return `ss_lastRead::${u ? u.id : 'anon'}::${channel}`;
+        }
+        function getLastRead(channel) { return localStorage.getItem(lastReadKey(channel)) || ''; }
+        function markChannelRead(channel) {
+            const msgs = getDB('chats').filter(c => c.channel === channel);
+            if (!msgs.length) return;
+            const latestId = msgs.reduce((max, m) => (m.id > max ? m.id : max), '');
+            if (latestId) localStorage.setItem(lastReadKey(channel), latestId);
+        }
+        function unreadCount(channel) {
+            const u = currUser();
+            const lastRead = getLastRead(channel);
+            return getDB('chats').filter(c => c.channel === channel && c.id > lastRead && c.user !== u?.name).length;
+        }
+        function updateCommsBadge() {
+            const badge = document.getElementById('commsBadge');
+            if (!badge) return;
+            const total = getDB('channels').reduce((sum, c) => sum + unreadCount(c), 0);
+            badge.innerText = total > 99 ? '99+' : total;
+            badge.style.display = total > 0 ? 'flex' : 'none';
+        }
+
+        // Shows/hides the 🔒 Admin dock icon based on the signed-in user's
+        // commander status. Called after login and on every realtime refresh,
+        // so a commander demoted mid-session loses the icon immediately too.
+        function updateDockForUser() {
+            const u = currUser();
+            const btn = document.getElementById('dockAdminBtn');
+            if (btn) btn.style.display = (u && u.isAdmin) ? '' : 'none';
+        }
+
         // Secondary Firebase app instance, used ONLY for admin-created accounts.
         // Firebase's client SDK automatically signs in as whatever account
         // createUserWithEmailAndPassword just created - fine for self-registration,
@@ -1062,6 +1181,7 @@
         // delUser() - but they can no longer do anything useful in the app.
         let usersEverLoaded = false;
         function validateSession() {
+            if (window._selfDeleting) return; // deleteMyAccount() owns sign-out/messaging for this case
             const u = currUser();
             if (!u) return;
             const users = getDB('users');
@@ -1178,6 +1298,7 @@
                         window._currentUserProfile = profile;
                         document.getElementById('authModal').style.display = 'none';
                         document.getElementById('userGreeting').innerText = profile.name;
+                        updateDockForUser();
                         requestNotificationPermission();
                         await initialLoad();
                     } catch (err) {
@@ -1215,16 +1336,23 @@
         function logout() { logAction('Logged out'); auth.signOut().then(() => location.reload()); }
 
         function switchView(v) {
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'adminConsoleView'].forEach(id => {
+            // Belt-and-suspenders: even if something calls switchView('adminConsoleView')
+            // directly (bypassing promptAdminPin), never actually show it to a
+            // non-commander. The PIN prompt is the intended door in.
+            if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
+            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
             });
-            document.querySelectorAll('.dock-item').forEach(item => item.classList.remove('active'));
-            if (v === 'eventsFeed') { document.querySelectorAll('.dock-item')[0].classList.add('active'); renderEvents(); }
-            if (v === 'calendarView') { document.querySelectorAll('.dock-item')[1].classList.add('active'); renderCal(); }
-            if (v === 'teamChatView') { document.querySelectorAll('.dock-item')[2].classList.add('active'); renderChat(); }
-            if (v === 'banListView') { document.querySelectorAll('.dock-item')[3].classList.add('active'); renderBanList(); }
-            if (v === 'adminConsoleView') { document.querySelectorAll('.dock-item')[4].classList.add('active'); renderAdminEv(); }
+            document.querySelectorAll('.dock-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.view === v || item.dataset.view === v + 'View');
+            });
+            if (v === 'eventsFeed') renderEvents();
+            if (v === 'calendarView') renderCal();
+            if (v === 'teamChatView') renderChat();
+            if (v === 'banListView') renderBanList();
+            if (v === 'settingsView') renderSettings();
+            if (v === 'adminConsoleView') renderAdminEv();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -1236,13 +1364,16 @@
                 const hasPositions = e.positions && e.positions.length;
                 const openSlots = eventOpenSlots(e);
                 const isSignedUp = (e.guards || []).includes(u?.name);
+                const evtChan = 'evt_' + e.id;
+                const unreadChat = unreadCount(evtChan);
                 const actionBtn = hasPositions
-                    ? `<button class="btn" style="width:100%;" onclick="openEventDetail('${e.id}')">🎯 View Positions & Claim</button>`
+                    ? `<button class="btn ${openSlots === 0 ? 'btn-outline' : ''}" style="width:100%;" onclick="openEventDetail('${e.id}')">${openSlots === 0 ? '✅ Filled' : '🎯 View Positions & Claim'}</button>`
                     : `<button class="btn ${isSignedUp ? 'btn-magenta' : ''}" style="width:100%;" onclick="toggleSignUp('${e.id}', event)" ${openSlots === 0 && !isSignedUp ? 'disabled' : ''}>
                             ${isSignedUp ? 'Cancel My Shift' : (openSlots === 0 ? 'Full' : 'Claim Shift')}
                         </button>`;
                 return `
                 <div class="glass-card event-tile" onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'A' && event.target.tagName !== 'SELECT') openEventDetail('${e.id}')">
+                    ${unreadChat > 0 ? `<div class="new-msg-banner">💬 ${unreadChat} new message${unreadChat > 1 ? 's' : ''} in shift chat</div>` : ''}
                     <div class="event-img-wrap">
                         <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                         <div class="event-img-overlay"></div>
@@ -1463,6 +1594,7 @@
                 </div>
             `).join('') || '<p style="color:var(--text-muted); font-size:0.8rem; text-align:center; margin:auto;">No shift messages logged yet.</p>';
             box.scrollTop = box.scrollHeight;
+            markChannelRead(chanName);
         }
 
         function sendDetailChat(eventId) {
@@ -1496,8 +1628,21 @@
 
         /* ADMIN SECURE */
         function promptAdminPin() {
-            if (prompt('Enter Admin PIN:') === (localStorage.getItem('ss_pin') || '0000')) switchView('adminConsoleView');
-            else alert('Invalid PIN');
+            const u = currUser();
+            if (!u || !u.isAdmin) { alert('The admin console is only available to commanders.'); return; }
+            if (!u.pin) {
+                // First-time commander with no personal PIN set yet - let them
+                // straight into the console this once, and point them at where
+                // to set one so future visits are PIN-gated.
+                switchView('adminConsoleView');
+                switchAdmin('adminSettings');
+                alert("You don't have a Commander PIN set yet. Set one below to secure the console for next time.");
+                return;
+            }
+            const entered = prompt('Enter your Commander PIN:');
+            if (entered === null) return;
+            if (entered === u.pin) switchView('adminConsoleView');
+            else alert('Incorrect PIN.');
         }
         function switchAdmin(t) {
             document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
@@ -1968,7 +2113,20 @@
                 </td>
             </tr>`).join('');
         }
-        function togAdmin(id) { let usr = getDB('users').find(x => x.id === id); usr.isAdmin = !usr.isAdmin; saveDoc('users', usr.id, usr); }
+        function togAdmin(id) {
+            let usr = getDB('users').find(x => x.id === id);
+            if (!usr) return;
+            if (!usr.isAdmin) {
+                const pin = prompt(`Set a Commander PIN for ${usr.name} (4+ digits). They'll use this to unlock the admin console, and can change it themselves later under Settings.`);
+                if (pin === null) return;
+                if (pin.trim().length < 4) { alert('PIN must be at least 4 characters.'); return; }
+                usr.isAdmin = true;
+                usr.pin = pin.trim();
+            } else {
+                usr.isAdmin = false;
+            }
+            saveDoc('users', usr.id, usr);
+        }
         function adminSendPasswordReset(email, name) {
             auth.sendPasswordResetEmail(email).then(() => {
                 alert(`Password reset email sent to ${name} (${email}).`);
@@ -1998,6 +2156,8 @@
             document.getElementById('umEmailLockedNote').style.display = id ? 'block' : 'none';
             document.getElementById('umPhone').value = u ? (u.phone || '') : '';
             document.getElementById('umIsAdmin').checked = u ? !!u.isAdmin : false;
+            document.getElementById('umPinWrap').style.display = (u && u.isAdmin) ? 'block' : 'none';
+            document.getElementById('umPin').value = '';
             // Password field only makes sense when creating a brand new account.
             // Firebase's client SDK has no way to set another existing user's
             // password directly - only a reset email (see the button below).
@@ -2019,11 +2179,13 @@
             const phone = document.getElementById('umPhone').value.trim();
             const pw = document.getElementById('umPassword').value;
             const isAdmin = document.getElementById('umIsAdmin').checked;
+            const pinInput = document.getElementById('umPin').value.trim();
             const errEl = document.getElementById('umErr');
             const showErr = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
             errEl.style.display = 'none';
 
             if (!name || !email) { showErr('Name and email are required.'); return; }
+            if (isAdmin && pinInput && pinInput.length < 4) { showErr('Commander PIN must be at least 4 characters.'); return; }
             const users = getDB('users');
 
             if (editingUserId) {
@@ -2032,7 +2194,9 @@
                 // email flow instead (see openUserModal).
                 const existing = users.find(x => x.id === editingUserId);
                 if (!existing) return;
-                const updated = { ...existing, name, phone, isAdmin };
+                const pin = isAdmin ? (pinInput || existing.pin) : existing.pin;
+                if (isAdmin && !pin) { showErr('Set a Commander PIN (4+ digits) to grant admin access.'); return; }
+                const updated = { ...existing, name, phone, isAdmin, pin };
                 saveDoc('users', editingUserId, updated).then(() => {
                     logAction('Updated user profile: ' + name);
                     const me = currUser();
@@ -2046,6 +2210,7 @@
                 const dupe = users.find(x => x.email.toLowerCase() === email.toLowerCase());
                 if (dupe) { showErr('Another account already uses that email.'); return; }
                 if (!pw || pw.length < 6) { showErr('Please set an initial password of at least 6 characters.'); return; }
+                if (isAdmin && !pinInput) { showErr('Set a Commander PIN (4+ digits) to grant admin access.'); return; }
                 try {
                     // Created via a SECONDARY Firebase app instance so this doesn't
                     // sign the admin out of their own session (see getSecondaryAuth).
@@ -2053,7 +2218,7 @@
                     const cred = await secAuth.createUserWithEmailAndPassword(email, pw);
                     const newUid = cred.user.uid;
                     await secAuth.signOut();
-                    const nu = { id: newUid, uid: newUid, name, email, phone, isAdmin };
+                    const nu = { id: newUid, uid: newUid, name, email, phone, isAdmin, pin: isAdmin ? pinInput : undefined };
                     await saveDoc('users', newUid, nu);
                     logAction('Admin created new user: ' + name);
                     closeModal('userModal');
@@ -2074,7 +2239,88 @@
             }
         }
 
-        let selP = null;
+        /* SETTINGS - every signed-in user manages their own profile here */
+        function renderSettings() {
+            const u = currUser();
+            if (!u) return;
+            document.getElementById('setName').value = u.name || '';
+            document.getElementById('setNickname').value = u.nickname || '';
+            document.getElementById('setPhone').value = u.phone || '';
+            document.getElementById('setEmail').value = u.email || '';
+            document.getElementById('setPreferredContact').value = u.preferredContact || 'email';
+            document.getElementById('setNotifShifts').checked = !u.notifPrefs || u.notifPrefs.shifts !== false;
+            document.getElementById('setNotifChat').checked = !u.notifPrefs || u.notifPrefs.chat !== false;
+            renderMyShifts();
+        }
+        function renderMyShifts() {
+            const u = currUser();
+            const today = new Date().toISOString().slice(0, 10);
+            const mine = getDB('events')
+                .filter(e => !e.archived && e.date >= today && (e.guards || []).includes(u?.name))
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+            document.getElementById('mySettingsShiftsBody').innerHTML = mine.length ? mine.map(e => {
+                // Events don't carry a dedicated start-time field - fall back to
+                // the earliest day-of timeline entry, if one's been set.
+                const timeline = [...(e.timeline || [])].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+                const time = timeline[0]?.time || 'TBD';
+                return `<tr><td>${e.date}</td><td>${time}</td><td>${e.title}</td></tr>`;
+            }).join('') : '<tr><td colspan="3" style="color:var(--text-muted);">No upcoming shifts.</td></tr>';
+        }
+        function saveMyProfile() {
+            const u = currUser();
+            if (!u) return;
+            const nickname = document.getElementById('setNickname').value.trim();
+            const phone = document.getElementById('setPhone').value.trim();
+            const preferredContact = document.getElementById('setPreferredContact').value;
+            const notifPrefs = {
+                shifts: document.getElementById('setNotifShifts').checked,
+                chat: document.getElementById('setNotifChat').checked
+            };
+            const updated = { ...u, nickname, phone, preferredContact, notifPrefs };
+            saveDoc('users', u.id, updated).then(() => {
+                window._currentUserProfile = updated;
+                alert('Settings saved.');
+                logAction('Updated own profile settings');
+            });
+        }
+        function changeMyPassword() {
+            const u = currUser();
+            if (!u || !u.email) return;
+            if (!confirm(`Send a password reset link to ${u.email}?`)) return;
+            auth.sendPasswordResetEmail(u.email).then(() => {
+                alert(`Password reset email sent to ${u.email}. Check your inbox (and spam folder).`);
+                logAction('Requested own password reset');
+            }).catch(err => alert('Could not send reset email: ' + friendlyAuthError(err)));
+        }
+        async function deleteMyAccount() {
+            const u = currUser();
+            if (!u) return;
+            if (!confirm("This will permanently delete your profile and remove your access to Suzan's Security. This cannot be undone. Continue?")) return;
+            if (!confirm('Are you absolutely sure? This is your final confirmation.')) return;
+            window._selfDeleting = true; // tells validateSession() to stand down - we're handling sign-out ourselves
+            try {
+                logAction('Self-deleted account: ' + u.name);
+                await deleteDoc('users', u.id);
+                try {
+                    // Only works without re-authentication if the sign-in is recent;
+                    // if it fails, the profile is still gone and access is already
+                    // revoked - an admin can clean up the leftover login credential
+                    // from Firebase Console → Authentication → Users.
+                    await auth.currentUser.delete();
+                } catch (authErr) {
+                    console.warn('Could not remove login credential (may require a recent sign-in):', authErr);
+                }
+                window._currentUserProfile = null;
+                alert('Your profile has been deleted.');
+                await auth.signOut();
+                location.reload();
+            } catch (err) {
+                window._selfDeleting = false;
+                alert('Could not delete your profile: ' + err.message);
+            }
+        }
+
+
         function renderContacts() { document.getElementById('promoterList').innerHTML = getDB('promoters').map(p => `<div class="glass-card" style="padding:16px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;"><div style="cursor:pointer; flex:1;" onclick="openP('${p.id}')"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4><div class="tags-container" style="margin-top:8px;">${(p.tags || []).map(t => `<span class="neon-tag tag-active">${t}</span>`).join('')}</div></div><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); flex-shrink:0;" onclick="delPromoter('${p.id}')">Delete</button></div></div>`).join(''); }
         function addPromoter() { const id = 'p' + Date.now(); const name = prompt('Name:'); if (!name) return; saveDoc('promoters', id, { id, name, phone: prompt('Phone:') || '', email: prompt('Email:') || '', tags: [], notes: [] }); }
         function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').innerText = p.name; document.getElementById('pContact').innerText = `📞 ${p.phone} | ✉️ ${p.email}`; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
@@ -2152,11 +2398,23 @@
             }
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function changePin() { let np = document.getElementById('newPinInput').value; if (np) { localStorage.setItem('ss_pin', np); alert('PIN Saved'); document.getElementById('newPinInput').value = ''; } }
+        function changePin() {
+            const np = document.getElementById('newPinInput').value.trim();
+            if (!np || np.length < 4) { alert('PIN must be at least 4 characters.'); return; }
+            const u = currUser();
+            if (!u) return;
+            const updated = { ...u, pin: np };
+            saveDoc('users', u.id, updated).then(() => {
+                window._currentUserProfile = updated;
+                alert('PIN saved.');
+                document.getElementById('newPinInput').value = '';
+                logAction('Changed own commander PIN');
+            });
+        }
 
         /* CHAT */
         let actChan = 'general';
-        function renderChat() { document.getElementById('chatDropdown').innerHTML = getDB('channels').map(c => `<option value="${c}" ${c === actChan ? 'selected' : ''}>#${c}</option>`).join(''); document.getElementById('chatTitle').innerText = '# ' + actChan; document.getElementById('chatBox').innerHTML = getDB('chats').filter(c => c.channel === actChan).sort((a, b) => a.id.localeCompare(b.id)).map(c => `<div class="chat-bubble ${c.user === currUser()?.name ? 'mine' : ''}"><div style="font-size:0.72rem; font-weight:600; color:${c.user === currUser()?.name ? '#ff9ee2' : 'var(--neon-teal)'}; margin-bottom:3px;">${c.user}</div><div>${c.text}</div>${c.file ? `<div style="margin-top:6px;"><a href="${c.file}" style="color:var(--text-primary); font-size:0.75rem; font-weight:600;">📎 View File</a></div>` : ''}</div>`).join(''); document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; }
+        function renderChat() { document.getElementById('chatDropdown').innerHTML = getDB('channels').map(c => `<option value="${c}" ${c === actChan ? 'selected' : ''}>#${c}</option>`).join(''); document.getElementById('chatTitle').innerText = '# ' + actChan; document.getElementById('chatBox').innerHTML = getDB('chats').filter(c => c.channel === actChan).sort((a, b) => a.id.localeCompare(b.id)).map(c => `<div class="chat-bubble ${c.user === currUser()?.name ? 'mine' : ''}"><div style="font-size:0.72rem; font-weight:600; color:${c.user === currUser()?.name ? '#ff9ee2' : 'var(--neon-teal)'}; margin-bottom:3px;">${c.user}</div><div>${c.text}</div>${c.file ? `<div style="margin-top:6px;"><a href="${c.file}" style="color:var(--text-primary); font-size:0.75rem; font-weight:600;">📎 View File</a></div>` : ''}</div>`).join(''); document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; markChannelRead(actChan); updateCommsBadge(); }
         function switchChat(c) { actChan = c; renderChat(); }
         function sendChat(fUrl = null) { let v = document.getElementById('chatInput').value; if (v || fUrl) { let cm = { id: 'm' + Date.now(), channel: actChan, user: currUser().name, text: v || 'Sent file', file: fUrl }; saveDoc('chats', cm.id, cm); document.getElementById('chatInput').value = ''; } }
         function uploadFile(e) { if (e.target.files[0]) sendChat(URL.createObjectURL(e.target.files[0])); }
