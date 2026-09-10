@@ -232,6 +232,7 @@
             <div class="user-menu-wrap" id="userMenuWrap" style="position:relative;">
                 <div class="user-pill" id="userPill" onclick="toggleUserMenu(event)" style="cursor:pointer;" title="Tap for options"><span>🛡️</span><span id="userGreeting">Officer</span><span style="opacity:0.6; font-size:0.7rem; margin-left:4px;">▾</span></div>
                 <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none;">
+                    <button class="user-menu-item" onclick="closeUserMenu(); switchView('myShiftsView');"><span>📋</span><span>My Shifts &amp; Notes</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('settingsView');"><span>⚙️</span><span>Settings</span></button>
                     <button class="user-menu-item danger" onclick="closeUserMenu(); if(confirm('Sign out of Suzan\'s Security?')) logout();"><span>⏻</span><span>Sign Out</span></button>
                 </div>
@@ -295,6 +296,15 @@
             </div>
             <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addBanEntry()">+ Add Person</button>
             <div id="banListContainer"></div>
+        </section>
+
+                <!-- VIEW: MY SHIFTS & NOTES -->
+        <section id="myShiftsView" style="display: none;">
+            <div style="margin-bottom: 20px;">
+                <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">My Shifts &amp; Notes</h2>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Everything you're scheduled for, at a glance</p>
+            </div>
+            <div id="myShiftsList"></div>
         </section>
 
         <!-- VIEW: SETTINGS -->
@@ -1016,6 +1026,7 @@
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();
             if (document.getElementById('teamChatView').style.display !== 'none') renderChat();
             if (document.getElementById('banListView').style.display !== 'none') renderBanList();
+            if (document.getElementById('myShiftsView').style.display !== 'none') renderMyShiftsView();
             if (document.getElementById('settingsView').style.display !== 'none') renderSettings();
             if (document.getElementById('adminConsoleView').style.display !== 'none') {
                 if (!currUser()?.isAdmin) { switchView('eventsFeed'); return; } // demoted mid-session - bounce out
@@ -1377,7 +1388,7 @@
             // directly (bypassing promptAdminPin), never actually show it to a
             // non-commander. The PIN prompt is the intended door in.
             if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'settingsView', 'adminConsoleView'].forEach(id => {
+            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
             });
@@ -1388,6 +1399,7 @@
             if (v === 'calendarView') renderCal();
             if (v === 'teamChatView') renderChat();
             if (v === 'banListView') renderBanList();
+            if (v === 'myShiftsView') renderMyShiftsView();
             if (v === 'settingsView') renderSettings();
             if (v === 'adminConsoleView') renderAdminEv();
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2301,24 +2313,63 @@
             h = h % 12 || 12;
             return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
         }
-        function renderMyShifts() {
+        // Prefers the event's explicit Start/End Time; falls back to the
+        // earliest day-of timeline entry for older events that predate that
+        // field, then finally 'TBD'.
+        function shiftTimeLabel(e) {
+            if (e.startTime) return to12Hour(e.startTime) + (e.endTime ? ' – ' + to12Hour(e.endTime) : '');
+            const timeline = [...(e.timeline || [])].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+            return timeline[0]?.time ? to12Hour(timeline[0].time) : 'TBD';
+        }
+        function myUpcomingShifts() {
             const u = currUser();
             const today = new Date().toISOString().slice(0, 10);
-            const mine = getDB('events')
+            return getDB('events')
                 .filter(e => !e.archived && e.date >= today && (e.guards || []).includes(u?.name))
                 .sort((a, b) => new Date(a.date) - new Date(b.date));
-            document.getElementById('mySettingsShiftsBody').innerHTML = mine.length ? mine.map(e => {
-                let time;
-                if (e.startTime) {
-                    time = to12Hour(e.startTime) + (e.endTime ? ' – ' + to12Hour(e.endTime) : '');
-                } else {
-                    // Older events created before Start/End Time existed - fall
-                    // back to the earliest day-of timeline entry, if any.
-                    const timeline = [...(e.timeline || [])].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-                    time = timeline[0]?.time ? to12Hour(timeline[0].time) : 'TBD';
-                }
-                return `<tr><td>${e.date}</td><td>${time}</td><td>${e.title}</td></tr>`;
-            }).join('') : '<tr><td colspan="3" style="color:var(--text-muted);">No upcoming shifts.</td></tr>';
+        }
+        function renderMyShifts() {
+            const mine = myUpcomingShifts();
+            document.getElementById('mySettingsShiftsBody').innerHTML = mine.length ? mine.map(e =>
+                `<tr><td>${e.date}</td><td>${shiftTimeLabel(e)}</td><td>${e.title}</td></tr>`
+            ).join('') : '<tr><td colspan="3" style="color:var(--text-muted);">No upcoming shifts.</td></tr>';
+        }
+        // Full-detail card view for the "My Shifts & Notes" screen: event info,
+        // a directions link straight to the venue, and any personal note
+        // Command left for that shift.
+        function renderMyShiftsView() {
+            const u = currUser();
+            const mine = myUpcomingShifts();
+            const list = document.getElementById('myShiftsList');
+            if (!mine.length) {
+                list.innerHTML = '<div class="glass-card" style="padding:28px; text-align:center; color:var(--text-muted);">No upcoming shifts. Claim one from the Events tab!</div>';
+                return;
+            }
+            list.innerHTML = mine.map(e => {
+                const myPost = (e.guardPosts && e.guardPosts[u?.name]) || 'Unassigned';
+                const myNote = u && e.guardNotes && e.guardNotes[u.name];
+                const mapsUrl = e.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.address)}` : null;
+                return `
+                <div class="glass-card" style="padding:20px; cursor:pointer;" onclick="if(event.target.tagName !== 'A' && event.target.tagName !== 'BUTTON') openEventDetail('${e.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                        <div>
+                            <h3 style="font-family:'Outfit'; font-size:1.2rem; font-weight:700; margin-bottom:4px;">${e.title}</h3>
+                            <p style="font-size:0.85rem; color:var(--text-muted);">🗓️ ${e.date} &nbsp;•&nbsp; ⏰ ${shiftTimeLabel(e)}</p>
+                        </div>
+                        <span class="neon-tag tag-active" style="white-space:nowrap;">${myPost}</span>
+                    </div>
+                    ${e.address ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:10px;">📍 ${e.address}</p>` : ''}
+                    ${myNote ? `
+                    <div style="background:rgba(255,42,133,0.1); border:1px solid rgba(255,42,133,0.4); border-radius:12px; padding:12px; margin-top:12px;">
+                        <h4 style="color:var(--neon-pink); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">📝 Note for you from Command</h4>
+                        <p style="font-size:0.85rem; color:var(--text-primary);">${myNote}</p>
+                    </div>` : ''}
+                    <div style="display:flex; gap:8px; margin-top:14px;">
+                        ${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none; flex:1; text-align:center;">🧭 Directions</a>` : ''}
+                        <button class="btn btn-sm" style="flex:1;" onclick="event.stopPropagation(); openEventDetail('${e.id}')">View Shift</button>
+                    </div>
+                </div>`;
+            }).join('');
         }
         function saveMyProfile() {
             const u = currUser();
