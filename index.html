@@ -43,6 +43,7 @@
            frame wrapping the whole card. */
         #authModal .modal-sheet { border: 2px solid transparent; background-image: linear-gradient(var(--glass-sheet), var(--glass-sheet)), linear-gradient(90deg, #ff0055, #ff5500, #ffea00, #00ff87, #00f5d4, #7928ca, #ff0055); background-origin: border-box; background-clip: padding-box, border-box; background-size: auto, 300% 100%; animation: circuitLaser 8s linear infinite; }
         @keyframes cactusGroove { 0% { transform: translateY(0) rotate(-4deg) scale(1); filter: drop-shadow(0 0 10px var(--neon-saguaro)); } 100% { transform: translateY(-15px) rotate(4deg) scale(1.05); filter: drop-shadow(0 0 25px var(--neon-saguaro)); } }
+        @keyframes discoSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes armWiggleL { 0% { transform: rotate(-8deg); } 100% { transform: rotate(18deg); } }
         @keyframes armWiggleR { 0% { transform: rotate(8deg); } 100% { transform: rotate(-18deg); } }
         @keyframes hatBob { 0% { transform: translateY(0) rotate(-3deg); } 100% { transform: translateY(-4px) rotate(3deg); } }
@@ -164,6 +165,7 @@
 
     <!-- LOADING SCREEN: dancing cowboy-cactus mascot + real progress bar -->
     <div id="loadingOverlay">
+        <div id="loadingDiscoBall" style="font-size: 2.6rem; margin-bottom: 4px; animation: discoSpin 2.2s linear infinite; filter: drop-shadow(0 0 12px rgba(0,229,255,0.55));" aria-hidden="true">🪩</div>
         <svg width="190" height="250" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" style="animation: cactusGroove 0.6s infinite alternate ease-in-out;">
             <!-- legs / boots (behind torso) -->
             <path d="M 88 188 C 84 208 78 224 68 238" fill="none" stroke="var(--neon-saguaro)" stroke-width="10" stroke-linecap="round"/>
@@ -344,9 +346,13 @@
                     <input type="checkbox" id="setNotifShifts" style="width:auto; margin:0;">
                     <span style="font-size:0.85rem;">New shift postings</span>
                 </label>
-                <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; cursor:pointer;">
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; cursor:pointer;">
                     <input type="checkbox" id="setNotifChat" style="width:auto; margin:0;">
                     <span style="font-size:0.85rem;">Team chat messages</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; cursor:pointer;">
+                    <input type="checkbox" id="setNotifReminder90" style="width:auto; margin:0;">
+                    <span style="font-size:0.85rem;">Shift reminder (90 minutes before start)</span>
                 </label>
                 <button class="btn btn-sm" onclick="saveMyProfile()">💾 Save Notification Settings</button>
             </div>
@@ -486,21 +492,80 @@
             <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
                 <button class="btn btn-outline btn-sm" style="border-radius:50%; padding: 4px 8px;" onclick="closeModal('aboutModal')">✕</button>
             </div>
-            <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 12px;">
-                <img src="Suzans_Security_Logo.png" alt="Suzan's Security Logo" style="height: 64px; width: auto;" onerror="this.style.display='none'">
-                <img src="House_Black_Logo.png" alt="HowlHouse Logo" style="width: 55px; height: 55px; filter: invert(1);" onerror="this.style.display='none'">
+
+            <!-- PAGE 1: About / version / legal -->
+            <div id="aboutPage1">
+                <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 12px;">
+                    <img src="Suzans_Security_Logo.png" alt="Suzan's Security Logo" style="height: 64px; width: auto;" onerror="this.style.display='none'">
+                    <img src="House_Black_Logo.png" alt="HowlHouse Logo" style="width: 55px; height: 55px; filter: invert(1);" onerror="this.style.display='none'">
+                </div>
+                <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal); margin-bottom: 6px;">Suzan's Security App</h3>
+                <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 20px;">Created & Managed in partnership with Howlhouse, LLC</p>
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.82rem; color: var(--text-muted); text-align: left; line-height: 1.6; margin-bottom: 10px;">
+                    <p><strong>Version Date:</strong> September 2026</p>
+                    <p><strong>Location:</strong> Phoenix, AZ 85012</p>
+                    <p><strong>Powered by:</strong> GitHub &amp; Firebase</p>
+                    <hr style="border:0; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0;">
+                    <p style="margin-bottom: 8px;">Using this application constitutes default acceptance of the Terms &amp; Conditions of Use.</p>
+                    <p>Your personal data will never be sold, but may be shared with business partners as described in the Terms &amp; Conditions.</p>
+                </div>
+                <button class="terms-review-link" style="display:block; width:100%; text-align:center; margin-bottom: 10px; font-size:0.85rem;" onclick="viewTermsModal()">View full Terms &amp; Conditions</button>
+                <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="showAboutPage(2)">📖 How to Use This App</button>
+                <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal')">Close</button>
             </div>
-            <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal); margin-bottom: 6px;">Suzan's Security App</h3>
-            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 20px;">Created & Managed in partnership with Howlhouse, LLC</p>
-            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.82rem; color: var(--text-muted); text-align: left; line-height: 1.6; margin-bottom: 10px;">
-                <p><strong>Version Date:</strong> September 2026</p>
-                <p><strong>Location:</strong> Phoenix, AZ 85012</p>
-                <hr style="border:0; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0;">
-                <p style="margin-bottom: 8px;">Using this application constitutes default acceptance of the Terms &amp; Conditions of Use.</p>
-                <p>Your personal data will never be sold, but may be shared with business partners as described in the Terms &amp; Conditions.</p>
+
+            <!-- PAGE 2: How-to-use instructions -->
+            <div id="aboutPage2" style="display:none; text-align:left;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+                    <button class="btn btn-outline btn-sm" style="padding:6px 12px;" onclick="showAboutPage(1)">← Back</button>
+                    <h3 style="font-family:'Outfit'; font-size:1.25rem; font-weight:800; color:var(--neon-teal); margin:0;">How to Use This App</h3>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.65; max-height: 55vh; overflow-y: auto;">
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">👋 Getting Started</h4>
+                    <p style="margin-bottom:14px;">Sign in with the email and password an admin set up for you, or tap <strong>"New Officer? Register Account"</strong> if this is your very first time. New accounts need to read and accept the Terms &amp; Conditions before they can be created. Forgot your password? Tap the reset link on the sign-in screen and check your email.</p>
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">🎯 Finding &amp; Claiming Shifts</h4>
+                    <p style="margin-bottom:14px;">The <strong>Events</strong> tab is your main feed — every upcoming shift posting shows up here as a tile with the date, venue, and how many open slots are left. Tap a tile to see full details (positions, pay info, notes from Command), then tap <strong>"Claim Shift"</strong> to sign up. Changed your mind? Open the shift again and tap <strong>"Cancel My Shift"</strong> — just try to do this with as much notice as possible so someone else can cover it.</p>
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">🗓️ Calendar View</h4>
+                    <p style="margin-bottom:14px;">Prefer to see things laid out by date? The <strong>Calendar</strong> tab shows every posted shift on the day it happens — tap any day with an event to jump straight to it.</p>
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">📋 My Shifts &amp; Notes</h4>
+                    <p style="margin-bottom:14px;">This tab is your personal rundown of everything you're signed up for — dates, times, your assigned position, directions to the venue, and any personal notes Command has left just for you.</p>
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">💬 Team Chat</h4>
+                    <p style="margin-bottom:14px;">Use the <strong>Chat</strong> tab to talk with the rest of the team, either in the general channel or inside a specific event's channel. It updates in real time, so no need to refresh.</p>
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">⚙️ Settings &amp; Notifications</h4>
+                    <p style="margin-bottom:14px;">Head to <strong>Settings</strong> to update your nickname, phone number, and preferred contact method. You can also turn notifications on or off for new shift postings, team chat messages, and the automatic <strong>90-minute-before-shift reminder</strong>. Your first time in the app, your browser will ask for permission to send notifications — allow it so you don't miss anything important.</p>
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">🛡️ For Admins</h4>
+                    <p style="margin-bottom:14px;">Admins get extra tools: creating and editing shift postings, managing the team roster and promoter contacts, the ban list, and an activity log of who did what. If you think you should have admin access and don't, reach out to your existing admin.</p>
+
+                    <h4 style="color:var(--neon-pink); font-family:'Outfit'; margin-bottom:6px;">❓ Still Stuck?</h4>
+                    <p style="margin-bottom:0;">Reach out to your Suzan's Security point of contact — they can look up your account, adjust your access, or pass along anything technical to HowlHouse.</p>
+                </div>
+                <button class="btn" style="width: 100%; margin-top: 14px;" onclick="closeModal('aboutModal')">Close</button>
             </div>
-            <button class="terms-review-link" style="display:block; width:100%; text-align:center; margin-bottom: 10px; font-size:0.85rem;" onclick="viewTermsModal()">View full Terms &amp; Conditions</button>
-            <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal')">Close</button>
+        </div>
+    </div>
+
+    <!-- FIRST-OPEN WELCOME POPUP: fun one-time greeting, never shown again after dismissed -->
+    <div class="modal" id="welcomeModal">
+        <div class="modal-sheet" style="text-align: center; padding-top: 20px;">
+            <div style="font-size: 3rem; margin-bottom: 8px; animation: discoSpin 2.5s linear infinite; display:inline-block;">🪩</div>
+            <h3 style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal); margin-bottom: 10px;">Welcome to the Family! 🏳️‍🌈</h3>
+            <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.7; text-align:left; background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; margin-bottom: 18px;">
+                <p style="margin-bottom:10px;">Hey there, Officer! 👋 You've just clocked in to Suzan's Security HQ — command central for keeping Phoenix's LGBTQ+ nightlife safe, sparkly, and secure.</p>
+                <p style="margin-bottom:10px;">Here's the tea ☕:</p>
+                <p style="margin-bottom:6px;">🎯 Claim shifts from the <strong>Events</strong> tab</p>
+                <p style="margin-bottom:6px;">📋 Check your schedule anytime in <strong>My Shifts</strong></p>
+                <p style="margin-bottom:6px;">💬 Talk shop with the team in <strong>Chat</strong></p>
+                <p style="margin-bottom:0;">⚙️ Tune your notifications in <strong>Settings</strong></p>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:16px;">Tap the ℹ️ icon anytime for a full how-to guide. Now let's go keep the dance floor safe. 💃🕺</p>
+            <button class="btn" style="width: 100%;" onclick="dismissWelcome()">Let's Go! 🚀</button>
         </div>
     </div>
 
@@ -767,9 +832,45 @@
             const prefs = currUser()?.notifPrefs;
             if (type === 'shifts' && prefs && prefs.shifts === false) return;
             if (type === 'chat' && prefs && prefs.chat === false) return;
+            if (type === 'reminder' && prefs && prefs.reminder90 === false) return;
             if ("Notification" in window && Notification.permission === "granted") {
                 new Notification(title, { body: body, icon: 'Suzans_Security_Icon_192.png' });
             }
+        }
+
+        // --- 2b. 90-MINUTE-BEFORE-SHIFT REMINDERS ---
+        // Client-side scheduling: while the app stays open in a tab, this checks
+        // the signed-in user's upcoming shifts and arms a one-shot timer 90
+        // minutes ahead of each shift's start time. Guarded by a Set so repeat
+        // calls (every realtime update) never double-schedule the same shift.
+        // NOTE: like the rest of this app's notifications, this only fires while
+        // the browser tab is open - there's no server-side push (that would need
+        // a scheduled Cloud Function) - but it covers the common case of staff
+        // keeping the app open or checking in periodically.
+        window._scheduledReminders = window._scheduledReminders || new Set();
+        function scheduleShiftReminders() {
+            const u = currUser();
+            if (!u || !("Notification" in window)) return;
+            if (u.notifPrefs && u.notifPrefs.reminder90 === false) return;
+            const now = Date.now();
+            myUpcomingShifts().forEach(e => {
+                if (!e.startTime) return; // no start time on this shift yet - nothing to count down from
+                const key = e.id + '_' + e.date + '_' + e.startTime;
+                if (window._scheduledReminders.has(key)) return;
+                const startMs = new Date(e.date + 'T' + e.startTime + ':00').getTime();
+                if (isNaN(startMs)) return;
+                const msUntilReminder = (startMs - 90 * 60 * 1000) - now;
+                // Only arm timers for the near-term (next 48h) so we're never
+                // stacking up a long-lived setTimeout for a shift weeks away;
+                // this re-runs on every refresh so it'll get picked up as it
+                // gets closer.
+                if (msUntilReminder > 0 && msUntilReminder < 48 * 60 * 60 * 1000) {
+                    window._scheduledReminders.add(key);
+                    setTimeout(() => {
+                        notifyUser('⏰ Shift Starting Soon', `${e.title} starts at ${to12Hour(e.startTime)} — you're on the roster for this one.`, 'reminder');
+                    }, msUntilReminder);
+                }
+            });
         }
 
         // --- 3. GLOBAL STATE ---
@@ -856,6 +957,7 @@
                 overlay.style.opacity = '0';
                 setTimeout(() => { overlay.style.display = 'none'; }, 400);
                 refreshGlobalUI();
+                if (window._currentUserProfile) setTimeout(maybeShowWelcome, 600);
             }
         }
 
@@ -1021,6 +1123,7 @@
             validateSession();
             updateDockForUser();
             updateCommsBadge();
+            try { scheduleShiftReminders(); } catch (err) { console.error('Reminder scheduling failed:', err); }
             renderEvents();
             if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();
@@ -2303,6 +2406,7 @@
             document.getElementById('setPreferredContact').value = u.preferredContact || 'email';
             document.getElementById('setNotifShifts').checked = !u.notifPrefs || u.notifPrefs.shifts !== false;
             document.getElementById('setNotifChat').checked = !u.notifPrefs || u.notifPrefs.chat !== false;
+            document.getElementById('setNotifReminder90').checked = !u.notifPrefs || u.notifPrefs.reminder90 !== false;
             renderMyShifts();
         }
         // "14:30" -> "2:30 PM". Falsy/malformed input passes through unchanged.
@@ -2379,13 +2483,17 @@
             const preferredContact = document.getElementById('setPreferredContact').value;
             const notifPrefs = {
                 shifts: document.getElementById('setNotifShifts').checked,
-                chat: document.getElementById('setNotifChat').checked
+                chat: document.getElementById('setNotifChat').checked,
+                reminder90: document.getElementById('setNotifReminder90').checked
             };
             const updated = { ...u, nickname, phone, preferredContact, notifPrefs };
             saveDoc('users', u.id, updated).then(() => {
                 window._currentUserProfile = updated;
                 alert('Settings saved.');
                 logAction('Updated own profile settings');
+                // Reminder prefs may have just changed (e.g. re-enabled) - re-check
+                // right away instead of waiting for the next realtime refresh.
+                try { scheduleShiftReminders(); } catch (err) { console.error('Reminder scheduling failed:', err); }
             });
         }
         function changeMyPassword() {
@@ -2503,6 +2611,35 @@
             }
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        // About-window "How to Use" secondary page toggle.
+        function showAboutPage(n) {
+            document.getElementById('aboutPage1').style.display = n === 1 ? 'block' : 'none';
+            document.getElementById('aboutPage2').style.display = n === 2 ? 'block' : 'none';
+            const sheet = document.getElementById('aboutModal').querySelector('.modal-sheet');
+            if (sheet) sheet.scrollTop = 0;
+        }
+        // FIRST-OPEN WELCOME POPUP: shown once per browser via localStorage, never
+        // again after the user dismisses it. Falls back to sessionStorage (still
+        // one-time per tab) if localStorage is unavailable (private browsing, etc.)
+        // so the app never breaks just because storage is blocked.
+        function maybeShowWelcome() {
+            try {
+                const store = (typeof localStorage !== 'undefined') ? localStorage : sessionStorage;
+                if (!store.getItem('ss_welcomeSeen')) {
+                    document.getElementById('welcomeModal').style.display = 'flex';
+                }
+            } catch (err) {
+                // Storage blocked entirely - just show it once for this load and move on.
+                document.getElementById('welcomeModal').style.display = 'flex';
+            }
+        }
+        function dismissWelcome() {
+            try {
+                const store = (typeof localStorage !== 'undefined') ? localStorage : sessionStorage;
+                store.setItem('ss_welcomeSeen', '1');
+            } catch (err) { /* no persistent storage available - nothing more we can do */ }
+            closeModal('welcomeModal');
+        }
         function changePin() {
             const np = document.getElementById('newPinInput').value.trim();
             if (!np || np.length < 4) { alert('PIN must be at least 4 characters.'); return; }
