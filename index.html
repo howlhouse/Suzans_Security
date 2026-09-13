@@ -1108,7 +1108,7 @@
                         snap.docChanges().forEach(change => {
                             if (change.type === 'added') {
                                 const data = change.doc.data();
-                                if (col === 'events') notifyUser("🚨 New Deployment Posted", data.title, 'shifts');
+                                if (col === 'events' && !data.hidden) notifyUser("🚨 New Deployment Posted", data.title, 'shifts');
                                 if (col === 'chats' && data.user !== currUser()?.name) {
                                     let chanClean = data.channel.replace('evt_', 'Event ');
                                     notifyUser(`💬 ${data.user} in #${chanClean}`, data.text, 'chat');
@@ -1249,6 +1249,23 @@
             saveDoc('events', id, { ...e, archived: true, cancelled: true, archivedAt: Date.now(), archiveReason: 'manual' })
                 .then(() => logAction('Archived (cancelled) shift posting: ' + e.title))
                 .catch(err => alert('Could not archive event: ' + err.message));
+        }
+        // Hides a posting from the guard-facing Events feed and Calendar tab
+        // without archiving it - for tentative gigs that aren't confirmed
+        // yet. Unlike the draft fields edited via "Save Changes", this saves
+        // immediately (same pattern as archiveEvent) since it's a one-tap
+        // status flip, not something an admin drafts and reviews.
+        function toggleEventVisibility(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            const hidden = !e.hidden;
+            saveDoc('events', id, { ...e, hidden }).then(() => {
+                logAction(`${hidden ? 'Hid' : 'Unhid'} shift posting from feed: ${e.title}`);
+                // Reflect it right away even if this tile has other unsaved
+                // edits pending (renderAdminEv skips dirty tiles on its own).
+                if (window._eventDrafts[id]) window._eventDrafts[id].hidden = hidden;
+                renderTile(id);
+            }).catch(err => alert('Could not update visibility: ' + err.message));
         }
         function restoreEvent(id) {
             const e = getDB('events').find(x => x.id === id);
@@ -1552,7 +1569,7 @@
 
         /* EVENTS FEED */
         function renderEvents() {
-            const evs = getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date));
+            const evs = getDB('events').filter(e => !e.archived && !e.hidden).sort((a, b) => new Date(a.date) - new Date(b.date));
             const u = currUser();
             document.getElementById('userEventsFeedList').innerHTML = evs.map(e => {
                 const hasPositions = e.positions && e.positions.length;
@@ -1839,7 +1856,7 @@
         function renderCal() {
             document.getElementById('calMonthText').innerText = calD.toLocaleString('default', { month: 'long', year: 'numeric' });
             const grid = document.getElementById('calGrid'); grid.innerHTML = '';
-            const evs = getDB('events').filter(e => !e.archived), days = new Date(calD.getFullYear(), calD.getMonth() + 1, 0).getDate(), first = new Date(calD.getFullYear(), calD.getMonth(), 1).getDay();
+            const evs = getDB('events').filter(e => !e.archived && !e.hidden), days = new Date(calD.getFullYear(), calD.getMonth() + 1, 0).getDate(), first = new Date(calD.getFullYear(), calD.getMonth(), 1).getDay();
             ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(d => grid.innerHTML += `<div class="cal-head">${d}</div>`);
             for (let i = 0; i < first; i++) grid.innerHTML += `<div class="cal-day" style="background:transparent; border-color:transparent; cursor:default;"></div>`;
             for (let i = 1; i <= days; i++) {
@@ -1923,9 +1940,12 @@
             const listEl = document.getElementById('adminEventsList');
             let tile = document.getElementById('tile_' + id);
             const html = `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <span style="color:var(--neon-teal); font-weight:600;">Manage: ${draft.title}</span>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                    <span style="color:var(--neon-teal); font-weight:600;">Manage: ${draft.title}
+                        ${draft.hidden ? '<span style="color:var(--text-muted); font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-left:8px; border:1px solid var(--border-glass); border-radius:6px; padding:2px 6px;">🙈 Hidden from Feed</span>' : ''}
+                    </span>
                     <div style="display:flex; gap:8px;">
+                        <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${id}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? '👁️ Show on Feed' : '🙈 Hide from Feed'}</button>
                         <button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="For cancellations - moves this to the Archive tab">🚫 Archive / Cancel</button>
                         <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
                     </div>
@@ -2275,7 +2295,8 @@
                 image: document.getElementById('neImage').value.trim() || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                 layout: ['img', 'info', 'tags', 'logistics', 'roster'],
                 ticketLink: document.getElementById('neTicket').value.trim(),
-                archived: false, cancelled: false, archivedAt: null, archiveReason: null
+                archived: false, cancelled: false, archivedAt: null, archiveReason: null,
+                hidden: false
             };
 
             const btn = document.getElementById('neCreateBtn');
