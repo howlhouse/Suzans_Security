@@ -45,7 +45,7 @@ The app is designed to be installed as a Progressive Web App (PWA) on officers' 
 |---|---|
 | Frontend | Single-page vanilla HTML/CSS/JavaScript (no build step, no framework) |
 | Backend / Database | Google Firebase — **Cloud Firestore** (real-time NoSQL database) |
-| Auth | Firebase Authentication (Anonymous provider) + a custom in-app username/password system layered on top |
+| Auth | Firebase Authentication (Email/Password provider) — staff register and sign in with real Firebase Auth accounts |
 | Hosting | Static hosting (e.g., Firebase Hosting, GitHub Pages, or any static file host) |
 | Offline / Install | Web App Manifest + Service Worker (installable PWA) |
 | Fonts | Google Fonts (Outfit, Plus Jakarta Sans) |
@@ -85,9 +85,10 @@ Gated behind a PIN, with the following management tabs:
 - **PIN** — change the admin PIN
 
 ### Accounts
-- Self-service registration and login (no external email verification — accounts are local to the app)
-- Duplicate-email protection at registration
-- Admin-driven password resets (no outbound email required)
+- Self-service registration and login via real Firebase Authentication (email/password)
+- The first person to ever register is automatically made an admin, which is how Command Center access gets bootstrapped on a fresh database
+- Duplicate-email protection at registration (enforced by Firebase Authentication itself)
+- Self-service password resets via a Firebase-sent reset email, which an admin can also trigger on a staff member's behalf
 - Session validated against the live user roster — if an account is deleted or the app data is reset, that session is automatically signed out rather than remaining active indefinitely
 
 ---
@@ -130,7 +131,7 @@ There is intentionally no build step or bundler — `index.html` is deployable a
 ### 1. Firebase project setup
 1. Create (or use the existing) Firebase project.
 2. Enable **Cloud Firestore** in Native mode.
-3. Enable **Firebase Authentication → Sign-in method → Anonymous**. This is required — see [Security Notes](#security-notes) for why.
+3. Enable **Firebase Authentication → Sign-in method → Email/Password**. This is required — see [Security Notes](#security-notes) for why.
 4. Publish the contents of `firestore.rules` under **Firestore Database → Rules**.
 5. Copy your project's Firebase config object into the `firebaseConfig` constant near the top of the `<script>` block in `index.html` (already populated for the current project).
 
@@ -144,10 +145,11 @@ No server-side runtime, database credentials file, or build process is required.
 
 ### 3. First run
 On first load with an empty database, the app automatically seeds:
-- One admin account (`admin@suzan.com` / `admin`) — **change this password immediately after first login**
 - A `general` chat channel
 - One sample promoter contact
 - One sample shift posting
+
+There is no pre-seeded admin account — **register the first account through the app itself**. The very first person to ever register is automatically made an admin, which is how Command Center access gets bootstrapped on a fresh database.
 
 This seeding is permanently guarded by a flag document (`_meta/seedStatus`) and will not run again once it has completed once, even across reloads or database resets of individual collections.
 
@@ -172,7 +174,7 @@ This seeding is permanently guarded by a flag document (`_meta/seedStatus`) and 
 3. Open a shift's detail page to see the venue address, operational timeline, client contact, and full roster, and to set your specific post assignment.
 4. Use **Comms** for general team chat, or the chat thread inside a specific shift for shift-specific coordination.
 5. Check the **Calendar** tab for a month-at-a-glance view of all postings.
-6. Forgot your password? There is no self-service reset — ask an administrator to reset it for you in Command Center → Users.
+6. Forgot your password? Tap the reset link on the sign-in screen to get a password reset email sent to your address — no need to wait on an administrator.
 
 ---
 
@@ -183,7 +185,7 @@ Tap the 🔒 **Admin** icon in the bottom dock and enter the PIN (default `0000`
 - **Events tab:** Click **+ New Shift Posting** to create a shift. Edit any field, then click **Save Changes** on that event to commit — nothing is written until you explicitly save. Drag section blocks (image, info, tags, logistics, roster) to reorder how they display. Use **Delete Tile** to permanently remove a posting.
 - **Chat Mgmt:** Add/remove channels, clear a channel's history, or delete individual messages.
 - **Logs:** Read-only audit trail of login/claim/registration activity.
-- **Users:** Toggle a user between Guard and Commander (admin) status, reset a forgotten password, or delete an account.
+- **Users:** Toggle a user between Guard and Commander (admin) status, send a user a password reset email, or delete an account.
 - **Contacts:** Add promoters/clients, tag them, and log debrief notes after events. Delete contacts that are no longer active.
 
 ---
@@ -192,14 +194,10 @@ Tap the 🔒 **Admin** icon in the bottom dock and enter the PIN (default `0000`
 
 This is an internal tool built for a small, trusted staff team, with tradeoffs made accordingly:
 
-- **Custom authentication, not Firebase Auth (for staff accounts).** Staff login/registration is handled entirely by the app against the `users` collection in Firestore — it is *not* Firebase's built-in user authentication system. This is what makes fully self-service, no-email password resets possible, but it also means:
-  - Passwords are stored in plaintext in Firestore. Staff should be advised not to reuse a password they use elsewhere.
-  - There is no email verification or account recovery flow — recovery is entirely admin-driven, by design.
-- **Firebase Authentication (Anonymous provider)** is used separately, purely to satisfy Firestore security rules requiring `request.auth != null`. Every browser session signs in anonymously to Firebase on load; this is invisible to staff and unrelated to their in-app username/password.
-- **Firestore rules** (see `firestore.rules`) require that anonymous auth handshake to succeed before any read or write is allowed, which prevents drive-by access to the database via the public Firebase config.
+- **Real Firebase Authentication (Email/Password provider)** gates staff sign-in and registration. Passwords are never handled or stored by the app itself — Firebase owns credential storage, and password resets go out as real emails via Firebase, not through the app or Firestore.
+- **Firestore rules** (see `firestore.rules`) require a real, signed-in Firebase Auth user (`request.auth != null`) before any read or write is allowed, which prevents drive-by access to the database via the public Firebase config.
+- **Removing a user's access** deletes their profile document from Firestore immediately, but their underlying Firebase Auth credential has to be removed separately from the Firebase Console (Authentication → Users) — the app's delete action can't do that part for you (the delete confirmation prompt in Command Center → Users includes this reminder).
 - **Session validation:** the app periodically checks that the locally stored session still corresponds to an account that exists in the live `users` collection, and force-logs-out automatically if not (e.g., if an admin deletes that account, or if app data has been reset).
-
-If this app is ever opened up beyond a small trusted internal team, moving staff authentication onto real Firebase Authentication (email/password or similar) and hashing credentials would be the natural next step.
 
 ---
 
