@@ -453,10 +453,10 @@
 
             <div id="adminSettings" class="admin-pane" style="display: none;">
                 <div class="glass-card" style="padding: 20px; max-width: 360px;">
-                    <label style="font-size: 0.8rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Change My Commander PIN</label>
+                    <label style="font-size: 0.8rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Change My Admin PIN</label>
                     <input type="password" id="newPinInput" class="input-field" placeholder="New PIN (4+ digits)" data-1p-ignore>
                     <button class="btn btn-sm" onclick="changePin()">Save PIN</button>
-                    <p style="font-size:0.72rem; color:var(--text-muted); margin-top:10px;">This PIN is personal to your account and unlocks the admin console for you specifically. Every commander has their own.</p>
+                    <p style="font-size:0.72rem; color:var(--text-muted); margin-top:10px;">This PIN is personal to your account and unlocks the admin console for you specifically. Every admin has their own.</p>
                 </div>
             </div>
         </section>
@@ -767,12 +767,12 @@
             </div>
             <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 12px; cursor:pointer;">
                 <input type="checkbox" id="umIsAdmin" style="width:auto; margin:0;" onchange="document.getElementById('umPinWrap').style.display=this.checked?'block':'none'">
-                <span style="font-size:0.85rem;">Commander (Admin) access</span>
+                <span style="font-size:0.85rem;">Admin (Admin Console access)</span>
             </label>
             <div id="umPinWrap" style="display:none; margin: -4px 0 16px;">
-                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Commander PIN</label>
-                <input type="text" id="umPin" class="input-field" placeholder="4+ digit PIN" data-1p-ignore>
-                <p style="font-size:0.7rem; color:var(--text-muted); margin:-10px 0 0;">Unlocks the admin console for this commander specifically. Leave blank to keep their current PIN; they can also change it themselves under Settings once signed in.</p>
+                <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Admin PIN</label>
+                <input type="text" id="umPin" class="input-field" placeholder="Leave blank to set on first login" data-1p-ignore>
+                <p style="font-size:0.7rem; color:var(--text-muted); margin:-10px 0 0;">Optional here - if left blank, they'll be prompted to set their own PIN the next time they open the admin console. Leave blank to keep their current PIN unchanged if they already have one.</p>
             </div>
             <div style="display:flex; gap:8px;">
                 <button class="btn" style="flex:1;" onclick="saveUserModal()">💾 Save</button>
@@ -1330,8 +1330,8 @@
         }
 
         // Shows/hides the 🔒 Admin dock icon based on the signed-in user's
-        // commander status. Called after login and on every realtime refresh,
-        // so a commander demoted mid-session loses the icon immediately too.
+        // admin status. Called after login and on every realtime refresh,
+        // so an admin demoted mid-session loses the icon immediately too.
         function updateDockForUser() {
             const u = currUser();
             const btn = document.getElementById('dockAdminBtn');
@@ -1515,7 +1515,7 @@
         function switchView(v) {
             // Belt-and-suspenders: even if something calls switchView('adminConsoleView')
             // directly (bypassing promptAdminPin), never actually show it to a
-            // non-commander. The PIN prompt is the intended door in.
+            // non-admin. The PIN prompt is the intended door in.
             if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
             ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
@@ -1830,17 +1830,17 @@
         /* ADMIN SECURE */
         function promptAdminPin() {
             const u = currUser();
-            if (!u || !u.isAdmin) { alert('The admin console is only available to commanders.'); return; }
+            if (!u || !u.isAdmin) { alert('The admin console is only available to admins.'); return; }
             if (!u.pin) {
-                // First-time commander with no personal PIN set yet - let them
+                // First-time admin with no personal PIN set yet - let them
                 // straight into the console this once, and point them at where
                 // to set one so future visits are PIN-gated.
                 switchView('adminConsoleView');
                 switchAdmin('adminSettings');
-                alert("You don't have a Commander PIN set yet. Set one below to secure the console for next time.");
+                alert("You don't have an Admin PIN set yet. Set one below to secure the console for next time.");
                 return;
             }
-            const entered = prompt('Enter your Commander PIN:');
+            const entered = prompt('Enter your Admin PIN:');
             if (entered === null) return;
             if (entered === u.pin) switchView('adminConsoleView');
             else alert('Incorrect PIN.');
@@ -2361,7 +2361,7 @@
                 <td style="font-size:0.8rem;">${u.email}<br>${u.phone || ''}</td>
                 <td style="font-size:0.8rem; color:var(--neon-teal); font-weight:600;">${u.role || '<span style="color:var(--text-muted); font-weight:400;">—</span>'}</td>
                 <td style="white-space:nowrap;">
-                    <button class="btn btn-sm ${u.isAdmin ? 'btn-magenta' : 'btn-outline'}" onclick="togAdmin('${u.id}')">${u.isAdmin ? 'Commander' : 'Guard'}</button>
+                    <button class="btn btn-sm ${u.isAdmin ? 'btn-magenta' : 'btn-outline'}" onclick="togAdmin('${u.id}')">${u.isAdmin ? 'Admin' : 'Guard'}</button>
                     <button class="btn btn-sm btn-outline" onclick="openUserModal('${u.id}')">Edit</button>
                     <button class="btn btn-sm btn-outline" style="color:var(--danger-glow);" onclick="delUser('${u.id}')" ${me && me.id === u.id ? 'disabled title="Cannot delete your own active session"' : ''}>Delete</button>
                 </td>
@@ -2371,11 +2371,11 @@
             let usr = getDB('users').find(x => x.id === id);
             if (!usr) return;
             if (!usr.isAdmin) {
-                const pin = prompt(`Set a Commander PIN for ${usr.name} (4+ digits). They'll use this to unlock the admin console, and can change it themselves later under Settings.`);
-                if (pin === null) return;
-                if (pin.trim().length < 4) { alert('PIN must be at least 4 characters.'); return; }
+                // No PIN prompt here anymore - granting admin access just
+                // flips the flag. They'll be walked through setting their
+                // own personal PIN the first time they actually open the
+                // admin console (see promptAdminPin's no-PIN-yet branch).
                 usr.isAdmin = true;
-                usr.pin = pin.trim();
             } else {
                 usr.isAdmin = false;
             }
@@ -2442,7 +2442,7 @@
             errEl.style.display = 'none';
 
             if (!name || !email) { showErr('Name and email are required.'); return; }
-            if (isAdmin && pinInput && pinInput.length < 4) { showErr('Commander PIN must be at least 4 characters.'); return; }
+            if (pinInput && pinInput.length < 4) { showErr('Admin PIN must be at least 4 characters.'); return; }
             const users = getDB('users');
 
             if (editingUserId) {
@@ -2451,8 +2451,10 @@
                 // email flow instead (see openUserModal).
                 const existing = users.find(x => x.id === editingUserId);
                 if (!existing) return;
+                // PIN is optional here - if granting admin access with no PIN
+                // entered, they'll be prompted to set their own the first time
+                // they open the admin console (see promptAdminPin).
                 const pin = isAdmin ? (pinInput || existing.pin) : existing.pin;
-                if (isAdmin && !pin) { showErr('Set a Commander PIN (4+ digits) to grant admin access.'); return; }
                 const updated = { ...existing, name, phone, role, isAdmin, pin };
                 saveDoc('users', editingUserId, updated).then(() => {
                     logAction('Updated user profile: ' + name);
@@ -2467,7 +2469,6 @@
                 const dupe = users.find(x => x.email.toLowerCase() === email.toLowerCase());
                 if (dupe) { showErr('Another account already uses that email.'); return; }
                 if (!pw || pw.length < 6) { showErr('Please set an initial password of at least 6 characters.'); return; }
-                if (isAdmin && !pinInput) { showErr('Set a Commander PIN (4+ digits) to grant admin access.'); return; }
                 try {
                     // Created via a SECONDARY Firebase app instance so this doesn't
                     // sign the admin out of their own session (see getSecondaryAuth).
@@ -2751,7 +2752,7 @@
                 window._currentUserProfile = updated;
                 alert('PIN saved.');
                 document.getElementById('newPinInput').value = '';
-                logAction('Changed own commander PIN');
+                logAction('Changed own admin PIN');
             });
         }
 
