@@ -1746,18 +1746,25 @@
                             const onThis = u && (e.guardPosts || {})[u.name] === p.name;
                             const restricted = p.allowedRoles && p.allowedRoles.length;
                             const eligible = !restricted || onThis || (u && p.allowedRoles.includes(u.role));
+                            // Rank-restricted positions are simply left off the
+                            // list for anyone not eligible, rather than shown
+                            // with a "Requires rank" notice - guards should only
+                            // ever see postings that are actually theirs to
+                            // claim. Admins still see everything, for oversight.
+                            const visible = eligible || (u && u.isAdmin);
+                            if (!visible) return '';
                             let btnLabel = onThis ? 'Cancel' : (full ? 'Full' : (eligible ? 'Claim' : 'Restricted'));
                             return `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
                                 <div>
                                     <strong>${p.name}</strong>
                                     <span style="color:var(--text-muted); font-size:0.82rem; margin-left:8px;">${filled}/${p.slots} filled</span>
-                                    ${restricted ? `<div style="font-size:0.72rem; color:var(--neon-pink); margin-top:3px;">🔒 Requires rank: ${p.allowedRoles.join(', ')}</div>` : ''}
+                                    ${restricted && u && u.isAdmin ? `<div style="font-size:0.72rem; color:var(--neon-pink); margin-top:3px;">🔒 Requires rank: ${p.allowedRoles.join(', ')}</div>` : ''}
                                 </div>
                                 <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''} ${!eligible && !onThis ? 'btn-outline' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${(full || !eligible) && !onThis ? 'disabled' : ''}>
                                     ${btnLabel}
                                 </button>
                             </div>`;
-                        }).join('')}
+                        }).join('') || '<p style="color:var(--text-muted); font-size:0.85rem;">No positions available to your rank for this shift yet.</p>'}
                     </div>
                 </div>` : '';
 
