@@ -1711,6 +1711,7 @@
                             ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
                         </div>
                         ${e.ticketLink ? `<a href="${e.ticketLink}" target="_blank" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
+                        <button class="btn btn-outline" style="width:100%; margin:10px 0 16px;" onclick="addToDeviceCalendar('${e.id}')">📅 Add to Calendar</button>
 
                         ${myNote ? `
                         <div style="background:rgba(255,42,133,0.1); border:1px solid rgba(255,42,133,0.4); border-radius:12px; padding:14px; margin: 16px 0;">
@@ -2512,6 +2513,76 @@
             renderMyShifts();
         }
         // "14:30" -> "2:30 PM". Falsy/malformed input passes through unchanged.
+        // --- ADD TO DEVICE CALENDAR ---
+        // Builds a standard .ics file for the event and hands it to the OS via
+        // a Blob download. This is the universal way to get an event into a
+        // user's native calendar app (Apple Calendar, Google Calendar, Outlook,
+        // etc.) from a web app - no native APIs or permissions required.
+        function icsEscape(str) {
+            return String(str || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+        }
+        function icsDateStamp(d) {
+            // Compact UTC form required for DTSTAMP/UID: YYYYMMDDTHHMMSSZ
+            return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        }
+        function addToDeviceCalendar(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            const dateDigits = (e.date || '').replace(/-/g, '');
+            if (!/^\d{8}$/.test(dateDigits)) { alert('This event has no valid date to add to a calendar.'); return; }
+
+            let dtLines;
+            if (e.startTime) {
+                // Timed event - floating local time (no TZID) so it displays
+                // at the same wall-clock time on whatever device imports it.
+                const startDigits = e.startTime.replace(':', '') + '00';
+                let endDigits;
+                if (e.endTime) {
+                    endDigits = e.endTime.replace(':', '') + '00';
+                } else {
+                    // No end time specified - default to a 4-hour shift.
+                    const [h, m] = e.startTime.split(':').map(Number);
+                    const end = new Date(2000, 0, 1, h, m);
+                    end.setHours(end.getHours() + 4);
+                    endDigits = String(end.getHours()).padStart(2, '0') + String(end.getMinutes()).padStart(2, '0') + '00';
+                }
+                dtLines = `DTSTART:${dateDigits}T${startDigits}\r\nDTEND:${dateDigits}T${endDigits}`;
+            } else {
+                // No start time on record - fall back to an all-day event.
+                const endDate = new Date(e.date + 'T00:00:00');
+                endDate.setDate(endDate.getDate() + 1);
+                const endDigits = endDate.toISOString().slice(0, 10).replace(/-/g, '');
+                dtLines = `DTSTART;VALUE=DATE:${dateDigits}\r\nDTEND;VALUE=DATE:${endDigits}`;
+            }
+
+            const descParts = [e.desc || ''];
+            if (e.ticketLink) descParts.push('Tickets/Portal: ' + e.ticketLink);
+            const ics = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//Suzans Security//Event Calendar//EN',
+                'CALSCALE:GREGORIAN',
+                'BEGIN:VEVENT',
+                `UID:${e.id}@suzans-security`,
+                `DTSTAMP:${icsDateStamp(new Date())}`,
+                dtLines,
+                `SUMMARY:${icsEscape(e.title)}`,
+                `DESCRIPTION:${icsEscape(descParts.join('\\n\\n'))}`,
+                e.address ? `LOCATION:${icsEscape(e.address)}` : '',
+                'END:VEVENT',
+                'END:VCALENDAR'
+            ].filter(Boolean).join('\r\n');
+
+            const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${(e.title || 'event').replace(/[^\w\-]+/g, '_')}.ics`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 2000);
+        }
         function to12Hour(t) {
             if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return t;
             let [h, m] = t.split(':').map(Number);
