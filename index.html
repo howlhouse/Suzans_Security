@@ -1298,6 +1298,22 @@
             if (wrap && !wrap.contains(evt.target)) closeUserMenu();
         });
 
+        // Same pattern as the user menu above, for the small "Add to Calendar"
+        // dropdown on the event detail view (Google Calendar vs. .ics).
+        function toggleCalMenu(evt) {
+            evt.stopPropagation();
+            const dd = document.getElementById('calMenuDropdown');
+            if (dd) dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+        }
+        function closeCalMenu() {
+            const dd = document.getElementById('calMenuDropdown');
+            if (dd) dd.style.display = 'none';
+        }
+        document.addEventListener('click', evt => {
+            const wrap = document.getElementById('calMenuWrap');
+            if (wrap && !wrap.contains(evt.target)) closeCalMenu();
+        });
+
         // --- UNREAD CHAT TRACKING ---
         // Tracked per-device (localStorage) rather than in Firestore - this is
         // read-position bookkeeping, not data worth syncing across devices, and
@@ -1706,12 +1722,20 @@
                         <div class="date-badge">🗓️ ${e.date}</div>
                     </div>
                     <div class="event-body">
-                        <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700; margin-bottom:8px;">${e.title}</h2>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
+                            <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700; margin:0;">${e.title}</h2>
+                            <div class="cal-menu-wrap" id="calMenuWrap" style="position:relative; flex-shrink:0;">
+                                <button class="btn btn-outline btn-sm" style="white-space:nowrap;" onclick="toggleCalMenu(event)">📅 Add to Calendar</button>
+                                <div class="user-menu-dropdown" id="calMenuDropdown" style="display:none; right:0;">
+                                    <button class="user-menu-item" onclick="closeCalMenu(); addToGoogleCalendar('${e.id}')"><span>🟢</span><span>Google Calendar</span></button>
+                                    <button class="user-menu-item" onclick="closeCalMenu(); addToAppleOutlookCalendar('${e.id}')"><span>🍎</span><span>Apple / Outlook (.ics)</span></button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="tags-container">
                             ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
                         </div>
                         ${e.ticketLink ? `<a href="${e.ticketLink}" target="_blank" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
-                        <button class="btn btn-outline" style="width:100%; margin:10px 0 16px;" onclick="addToDeviceCalendar('${e.id}')">📅 Add to Calendar</button>
 
                         ${myNote ? `
                         <div style="background:rgba(255,42,133,0.1); border:1px solid rgba(255,42,133,0.4); border-radius:12px; padding:14px; margin: 16px 0;">
@@ -2513,11 +2537,15 @@
             renderMyShifts();
         }
         // "14:30" -> "2:30 PM". Falsy/malformed input passes through unchanged.
-        // --- ADD TO DEVICE CALENDAR ---
-        // Builds a standard .ics file for the event and hands it to the OS via
-        // a Blob download. This is the universal way to get an event into a
-        // user's native calendar app (Apple Calendar, Google Calendar, Outlook,
-        // etc.) from a web app - no native APIs or permissions required.
+        // --- ADD TO CALENDAR ---
+        // Two options, since there's no single method that reliably lands an
+        // event in every device's default calendar app from a plain web page:
+        //   - Google Calendar: a prefilled "render" URL - opens the Google
+        //     Calendar app on Android (or the web UI on desktop) with the
+        //     event ready to save. Best for Android, since that's almost
+        //     always the default calendar there.
+        //   - Apple / Outlook: a standard .ics file, which is what iOS/macOS
+        //     Calendar and Outlook understand natively.
         function icsEscape(str) {
             return String(str || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
         }
@@ -2525,38 +2553,63 @@
             // Compact UTC form required for DTSTAMP/UID: YYYYMMDDTHHMMSSZ
             return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
         }
-        function addToDeviceCalendar(id) {
-            const e = getDB('events').find(x => x.id === id);
-            if (!e) return;
+        // Shared start/end computation for both calendar options, so the two
+        // never disagree about when the shift actually is. Times are kept as
+        // floating local time (no timezone conversion) so they show up at the
+        // same wall-clock time regardless of the device's own timezone.
+        function eventCalendarRange(e) {
             const dateDigits = (e.date || '').replace(/-/g, '');
-            if (!/^\d{8}$/.test(dateDigits)) { alert('This event has no valid date to add to a calendar.'); return; }
+            if (!/^\d{8}$/.test(dateDigits)) return null;
 
-            let dtLines;
-            if (e.startTime) {
-                // Timed event - floating local time (no TZID) so it displays
-                // at the same wall-clock time on whatever device imports it.
-                const startDigits = e.startTime.replace(':', '') + '00';
-                let endDigits;
-                if (e.endTime) {
-                    endDigits = e.endTime.replace(':', '') + '00';
-                } else {
-                    // No end time specified - default to a 4-hour shift.
-                    const [h, m] = e.startTime.split(':').map(Number);
-                    const end = new Date(2000, 0, 1, h, m);
-                    end.setHours(end.getHours() + 4);
-                    endDigits = String(end.getHours()).padStart(2, '0') + String(end.getMinutes()).padStart(2, '0') + '00';
-                }
-                dtLines = `DTSTART:${dateDigits}T${startDigits}\r\nDTEND:${dateDigits}T${endDigits}`;
-            } else {
+            if (!e.startTime) {
                 // No start time on record - fall back to an all-day event.
                 const endDate = new Date(e.date + 'T00:00:00');
                 endDate.setDate(endDate.getDate() + 1);
                 const endDigits = endDate.toISOString().slice(0, 10).replace(/-/g, '');
-                dtLines = `DTSTART;VALUE=DATE:${dateDigits}\r\nDTEND;VALUE=DATE:${endDigits}`;
+                return { allDay: true, start: dateDigits, end: endDigits };
             }
 
+            const startDigits = e.startTime.replace(':', '') + '00';
+            let endDigits;
+            if (e.endTime) {
+                endDigits = e.endTime.replace(':', '') + '00';
+            } else {
+                // No end time specified - default to a 4-hour shift.
+                const [h, m] = e.startTime.split(':').map(Number);
+                const end = new Date(2000, 0, 1, h, m);
+                end.setHours(end.getHours() + 4);
+                endDigits = String(end.getHours()).padStart(2, '0') + String(end.getMinutes()).padStart(2, '0') + '00';
+            }
+            return { allDay: false, start: `${dateDigits}T${startDigits}`, end: `${dateDigits}T${endDigits}` };
+        }
+        function eventCalendarDetails(e) {
             const descParts = [e.desc || ''];
             if (e.ticketLink) descParts.push('Tickets/Portal: ' + e.ticketLink);
+            return descParts.join('\n\n');
+        }
+        function addToGoogleCalendar(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            const range = eventCalendarRange(e);
+            if (!range) { alert('This event has no valid date to add to a calendar.'); return; }
+            const params = new URLSearchParams({
+                action: 'TEMPLATE',
+                text: e.title || 'Event',
+                dates: `${range.start}/${range.end}`,
+                details: eventCalendarDetails(e)
+            });
+            if (e.address) params.set('location', e.address);
+            window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
+        }
+        function addToAppleOutlookCalendar(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            const range = eventCalendarRange(e);
+            if (!range) { alert('This event has no valid date to add to a calendar.'); return; }
+
+            const dtLines = range.allDay
+                ? `DTSTART;VALUE=DATE:${range.start}\r\nDTEND;VALUE=DATE:${range.end}`
+                : `DTSTART:${range.start}\r\nDTEND:${range.end}`;
             const ics = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
@@ -2567,21 +2620,30 @@
                 `DTSTAMP:${icsDateStamp(new Date())}`,
                 dtLines,
                 `SUMMARY:${icsEscape(e.title)}`,
-                `DESCRIPTION:${icsEscape(descParts.join('\\n\\n'))}`,
+                `DESCRIPTION:${icsEscape(eventCalendarDetails(e))}`,
                 e.address ? `LOCATION:${icsEscape(e.address)}` : '',
                 'END:VEVENT',
                 'END:VCALENDAR'
             ].filter(Boolean).join('\r\n');
 
-            const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${(e.title || 'event').replace(/[^\w\-]+/g, '_')}.ics`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 2000);
+            // iOS Safari (including installed home-screen PWAs) throws
+            // "Safari cannot download this file" for a Blob URL triggered via
+            // a synthetic <a download> click - it has no download manager to
+            // hand the file to. Navigating straight to a text/calendar data:
+            // URI instead makes Safari recognize the MIME type and open its
+            // native "Add Event" sheet directly, no download involved.
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+            if (isIOS) {
+                window.location.href = dataUri;
+            } else {
+                const a = document.createElement('a');
+                a.href = dataUri;
+                a.download = `${(e.title || 'event').replace(/[^\w\-]+/g, '_')}.ics`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
         }
         function to12Hour(t) {
             if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return t;
