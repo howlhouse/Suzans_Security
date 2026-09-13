@@ -75,6 +75,7 @@
         .event-img-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 12, 0.1) 0%, rgba(8, 8, 12, 0.85) 100%); }
         .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); padding: 5px 12px; border-radius: 12px; font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--neon-teal); }
         .new-msg-banner { background: linear-gradient(135deg, var(--neon-pink), #d81159); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 700; text-align: center; padding: 7px 10px; letter-spacing: 0.4px; }
+        .community-banner { background: linear-gradient(135deg, #d4a017, #a86f00); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 700; text-align: center; padding: 7px 10px; letter-spacing: 0.4px; }
         .dock-badge { position: absolute; top: -6px; right: -10px; background: var(--neon-pink); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-shadow: 0 0 6px rgba(255, 42, 133, 0.6); }
         /* Purely decorative "CANCELLED" ribbon drawn over an archived/cancelled
            event's tile image. Pure CSS, no layout impact on anything around it -
@@ -387,7 +388,7 @@
                 <button class="segment-btn active" onclick="switchAdmin('adminEvents')">Events</button>
                 <button class="segment-btn" onclick="switchAdmin('adminArchive')">Archive</button>
                 <button class="segment-btn" onclick="switchAdmin('adminChats')">Chat Management</button>
-                <button class="segment-btn" onclick="switchAdmin('adminTags')">Tags</button>
+                <button class="segment-btn" onclick="switchAdmin('adminTags')">Tags &amp; Roles</button>
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
                 <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
                 <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
@@ -415,12 +416,21 @@
             </div>
 
             <div id="adminTags" class="admin-pane" style="display: none;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">🏷️ Tag Manager</h4>
                 <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Tags added here become available to pick from on every event. Deleting a tag removes it from this list going forward, but won't strip it off events that already have it.</p>
                 <div style="display:flex; gap:8px; margin-bottom:15px;">
                     <input type="text" id="newTagInput" class="input-field" placeholder="New tag name (e.g. Rooftop)" style="margin:0;" data-1p-ignore>
                     <button class="btn btn-sm" onclick="addCatalogTag()">Add Tag</button>
                 </div>
                 <div id="adminTagsList" class="tags-container"></div>
+
+                <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin: 28px 0 6px; padding-top:20px; border-top:1px solid var(--border-glass);">🎖️ Role / Rank Manager</h4>
+                <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Ranks assigned here can be used to restrict specific shift positions so only guards holding that rank can see or claim them. Renaming or removing a rank won't automatically update it on users or positions that already reference it.</p>
+                <div style="display:flex; gap:8px; margin-bottom:15px;">
+                    <input type="text" id="newRoleInput" class="input-field" placeholder="New rank name (e.g. Sergeant)" style="margin:0;" data-1p-ignore>
+                    <button class="btn btn-sm" onclick="addCatalogRole()">Add Rank</button>
+                </div>
+                <div id="adminRolesList" class="tags-container"></div>
             </div>
 
             <div id="adminLogs" class="admin-pane" style="display: none;">
@@ -432,7 +442,7 @@
             <div id="adminUsers" class="admin-pane" style="display: none;">
                 <button class="btn btn-sm" style="margin-bottom:15px;" onclick="openUserModal(null)">+ Add User</button>
                 <div class="glass-card" style="padding:12px; overflow-x:auto;">
-                    <table class="data-table"><thead><tr><th>Name</th><th>Contact</th><th>Role/Reset</th></tr></thead><tbody id="usersBody"></tbody></table>
+                    <table class="data-table"><thead><tr><th>Name</th><th>Contact</th><th>Rank</th><th>Role/Reset</th></tr></thead><tbody id="usersBody"></tbody></table>
                 </div>
             </div>
 
@@ -745,6 +755,9 @@
             <p id="umEmailLockedNote" style="font-size:0.7rem; color:var(--text-muted); margin:-10px 0 14px;">Login email can't be changed here once an account exists - see the reset option below for password changes.</p>
             <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Mobile Phone</label>
             <input type="tel" id="umPhone" class="input-field" data-1p-ignore>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Rank / Role</label>
+            <select id="umRole" class="input-field" data-1p-ignore></select>
+            <p style="font-size:0.7rem; color:var(--text-muted); margin:-10px 0 14px;">Used to gate which shift positions this guard can see or claim, if the event restricts one to specific ranks.</p>
             <div id="umPasswordWrap">
                 <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Initial Password</label>
                 <input type="text" id="umPassword" class="input-field" placeholder="At least 6 characters" data-1p-ignore>
@@ -874,7 +887,7 @@
 
         // --- 3. GLOBAL STATE ---
         window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [], tags: [] };
-        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist', 'tags'];
+        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist', 'tags', 'roles'];
         const getDB = k => window.ss_state[k] || [];
 
         // --- 3b. SAFE WRITE HELPER (fixes silent-fail / undefined-field save bug) ---
@@ -1059,6 +1072,13 @@
                     window.ss_state.tags = DEFAULT_TAGS.map(name => ({ id: tagToId(name), name }));
                 }
 
+                // Same backfill for the roles/ranks catalog - a brand new
+                // collection for existing installations that predate ranks.
+                if (window.ss_state.roles.length === 0) {
+                    await Promise.all(DEFAULT_ROLES.map(name => saveDoc('roles', roleToId(name), { id: roleToId(name), name })));
+                    window.ss_state.roles = DEFAULT_ROLES.map(name => ({ id: roleToId(name), name }));
+                }
+
                 dropLoadingScreen();
             } catch (err) {
                 console.error('Initial load failed:', err);
@@ -1110,11 +1130,12 @@
                 saveDoc('events', 'e1', {
                     id: 'e1', title: 'Neon Circuit', date: '2026-09-15', tags: ['NSFW', 'Club', 'Kink'],
                     desc: 'Main door watch.', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [],
-                    promoterId: 'p1', ticketLink: '',
+                    promoterId: 'p1', ticketLink: '', communityOnly: false,
                     image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                     layout: ['img', 'info', 'tags', 'logistics', 'roster']
                 }),
-                ...DEFAULT_TAGS.map(name => saveDoc('tags', tagToId(name), { id: tagToId(name), name }))
+                ...DEFAULT_TAGS.map(name => saveDoc('tags', tagToId(name), { id: tagToId(name), name })),
+                ...DEFAULT_ROLES.map(name => saveDoc('roles', roleToId(name), { id: roleToId(name), name }))
             ]);
         }
 
@@ -1135,7 +1156,7 @@
                 if (document.getElementById('adminEvents').style.display === 'block') renderAdminEv();
                 if (document.getElementById('adminArchive').style.display === 'block') renderArchive();
                 if (document.getElementById('adminChats').style.display === 'block') renderAdminChats();
-                if (document.getElementById('adminTags').style.display === 'block') renderAdminTags();
+                if (document.getElementById('adminTags').style.display === 'block') { renderAdminTags(); renderAdminRoles(); }
                 if (document.getElementById('adminLogs').style.display === 'block') renderLogs();
                 if (document.getElementById('adminUsers').style.display === 'block') renderUsers();
                 if (document.getElementById('adminContacts').style.display === 'block') renderContacts();
@@ -1146,6 +1167,12 @@
         const DEFAULT_TAGS = ['SFW', 'NSFW', '18+', 'Bar', 'Club', 'Dungeon', 'Warehouse', 'Residential', 'Commercial', 'Kink', 'Sober', 'WatchDog', 'Themed'];
         function tagToId(name) { return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 't' + Date.now(); }
         function getTagCatalog() { return getDB('tags').map(t => t.name).sort((a, b) => a.localeCompare(b)); }
+
+        // Roles/ranks catalog - same pattern as tags above, but used to gate
+        // who is allowed to see/claim specific posted positions.
+        const DEFAULT_ROLES = ['Commander', 'Sergeant', 'Lieutenant', 'Private'];
+        function roleToId(name) { return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'r' + Date.now(); }
+        function getRoleCatalog() { return getDB('roles').map(r => r.name).sort((a, b) => a.localeCompare(b)); }
         const LEGACY_POST_OPTIONS = ['Unassigned', 'Person/Bag Check', 'ID Check', 'Ticket', 'Float', 'Play Guard', 'Dancefloor', 'Bar', 'Parking Lot', 'Other'];
 
         // Position-based slot tracking. Events created before this feature
@@ -1524,6 +1551,7 @@
                         </button>`;
                 return `
                 <div class="glass-card event-tile" onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'A' && event.target.tagName !== 'SELECT') openEventDetail('${e.id}')">
+                    ${e.communityOnly ? `<div class="community-banner">📋 Community Listing Only — Not a Contracted Event</div>` : ''}
                     ${unreadChat > 0 ? `<div class="new-msg-banner">💬 ${unreadChat} new message${unreadChat > 1 ? 's' : ''} in shift chat</div>` : ''}
                     <div class="event-img-wrap">
                         <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
@@ -1588,6 +1616,10 @@
                 logAction(`Dropped ${positionName} at ${e.title}`);
             } else {
                 const pos = (e.positions || []).find(p => p.name === positionName);
+                if (pos && pos.allowedRoles && pos.allowedRoles.length && !pos.allowedRoles.includes(u.role)) {
+                    alert(`${positionName} is restricted to: ${pos.allowedRoles.join(', ')}. Your rank (${u.role || 'none set'}) isn't eligible - check with Command if this needs updating.`);
+                    return;
+                }
                 const filled = positionFilled(e, positionName);
                 if (pos && filled >= pos.slots) { alert(`${positionName} is already full.`); return; }
                 if (!e.guards.includes(u.name)) e.guards.push(u.name);
@@ -1613,11 +1645,24 @@
             let rosterHtml = (e.guards || []).map(g => {
                 const isMe = g === u?.name;
                 const posLabel = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
+                const posDef = hasPositions ? (e.positions || []).find(p => p.name === posLabel) : null;
+                // Rank-restricted positions hide WHO filled them from everyone
+                // except the guard themselves and admins - guards without the
+                // required rank should only ever see that the slot is filled.
+                const isRestricted = posDef && posDef.allowedRoles && posDef.allowedRoles.length;
+                const canSeeIdentity = !isRestricted || isMe || (u && u.isAdmin);
                 const positionCell = (!hasPositions && isMe)
                     ? `<select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:600;" onchange="updateGuardPost('${e.id}', '${g}', this.value)">
                             ${LEGACY_POST_OPTIONS.map(p => `<option value="${p}" ${posLabel === p ? 'selected' : ''}>${p}</option>`).join('')}
                        </select>`
                     : `<span style="color:var(--neon-teal); font-weight:600; font-size:0.85rem;">${posLabel}</span>`;
+                if (!canSeeIdentity) {
+                    return `
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <td style="padding:10px 6px; color:var(--text-muted);">🔒 Restricted position filled</td>
+                        <td style="padding:10px 6px; text-align:right;">${positionCell}</td>
+                    </tr>`;
+                }
                 return `
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                     <td style="padding:10px 6px;">🛡️ ${g}${isMe ? ' <span style="color:var(--neon-pink); font-size:0.75rem;">(You)</span>' : ''}</td>
@@ -1633,13 +1678,17 @@
                             const filled = positionFilled(e, p.name);
                             const full = filled >= p.slots;
                             const onThis = u && (e.guardPosts || {})[u.name] === p.name;
+                            const restricted = p.allowedRoles && p.allowedRoles.length;
+                            const eligible = !restricted || onThis || (u && p.allowedRoles.includes(u.role));
+                            let btnLabel = onThis ? 'Cancel' : (full ? 'Full' : (eligible ? 'Claim' : 'Restricted'));
                             return `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
                                 <div>
                                     <strong>${p.name}</strong>
                                     <span style="color:var(--text-muted); font-size:0.82rem; margin-left:8px;">${filled}/${p.slots} filled</span>
+                                    ${restricted ? `<div style="font-size:0.72rem; color:var(--neon-pink); margin-top:3px;">🔒 Requires rank: ${p.allowedRoles.join(', ')}</div>` : ''}
                                 </div>
-                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${full && !onThis ? 'disabled' : ''}>
-                                    ${onThis ? 'Cancel' : (full ? 'Full' : 'Claim')}
+                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''} ${!eligible && !onThis ? 'btn-outline' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${(full || !eligible) && !onThis ? 'disabled' : ''}>
+                                    ${btnLabel}
                                 </button>
                             </div>`;
                         }).join('')}
@@ -1650,6 +1699,7 @@
 
             document.getElementById('eventDetailContent').innerHTML = `
                 <div class="glass-card">
+                    ${e.communityOnly ? `<div class="community-banner" style="border-radius:16px 16px 0 0;">📋 Community Listing Only — Not a Contracted Event</div>` : ''}
                     <div class="event-img-wrap" style="height:240px;">
                         <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                         <div class="event-img-overlay"></div>
@@ -1798,7 +1848,7 @@
         function switchAdmin(t) {
             document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
             document.querySelectorAll('.admin-pane').forEach(el => el.style.display = 'none'); document.getElementById(t).style.display = 'block';
-            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') renderAdminTags(); if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
+            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') { renderAdminTags(); renderAdminRoles(); } if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
         }
 
         /* ADMIN EVENTS — staged draft + explicit Save button
@@ -2009,8 +2059,8 @@
         function genAdminSec(sec, e) {
             const promOpts = `<option value="">-- No Client/Promoter Linked --</option>` + getDB('promoters').map(p => `<option value="${p.id}" ${e.promoterId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
             if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="draftSet('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="draftSet('${e.id}','title',this.value)" data-1p-ignore></div>`;
-            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TIME, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><div style="display:flex; gap:8px;"><input type="time" class="input-field" style="flex:1;" value="${e.startTime || ''}" onchange="draftSet('${e.id}','startTime',this.value)" data-1p-ignore><input type="time" class="input-field" style="flex:1;" value="${e.endTime || ''}" onchange="draftSet('${e.id}','endTime',this.value)" data-1p-ignore></div><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:8px;">Event Notes:</label><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea></div>`;
-            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">TAGS</label><div class="tags-container" style="margin-top:8px;">${getTagCatalog().map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>'}</div><p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Need a new tag option? Add or remove them under Command Center → Tags.</p></div>`;
+            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TIME, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><div style="display:flex; gap:8px;"><input type="time" class="input-field" style="flex:1;" value="${e.startTime || ''}" onchange="draftSet('${e.id}','startTime',this.value)" data-1p-ignore><input type="time" class="input-field" style="flex:1;" value="${e.endTime || ''}" onchange="draftSet('${e.id}','endTime',this.value)" data-1p-ignore></div><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:8px;">Event Notes:</label><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea><label style="display:flex; align-items:center; gap:8px; margin:12px 0 2px; cursor:pointer;"><input type="checkbox" ${e.communityOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="draftSet('${e.id}','communityOnly', this.checked)"><span style="font-size:0.82rem;">📋 Community Listing Only <span style="color:var(--text-muted); font-weight:400;">(not a contracted event)</span></span></label></div>`;
+            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">TAGS</label><div class="tags-container" style="margin-top:8px;">${getTagCatalog().map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>'}</div><p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Need a new tag option? Add or remove them under Command Center → Tags &amp; Roles.</p></div>`;
             if (sec === 'logistics') return `<div class="draggable-section" draggable="true" data-id="logistics">
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">ADDRESS &amp; TIMELINE</label>
                 <input class="input-field" placeholder="Venue address (e.g. 123 Main St, Phoenix, AZ)" value="${e.address || ''}" onchange="draftSet('${e.id}','address',this.value)" data-1p-ignore>
@@ -2029,11 +2079,18 @@
                 <p style="font-size:0.75rem; color:var(--text-muted); margin:2px 0 8px;">Define how many of each position you need. Leave empty to use simple Open Slots below instead.</p>
                 <div id="postypes_${e.id}">
                     ${(e.positions || []).map((p, i) => `
-                    <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
-                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="Position name (e.g. Door)" value="${(p.name || '').replace(/"/g, '&quot;')}" onchange="draftUpdPosition('${e.id}',${i},'name',this.value)" data-1p-ignore>
-                        <input type="number" min="0" class="input-field" style="margin:0; width:70px;" value="${p.slots || 0}" onchange="draftUpdPosition('${e.id}',${i},'slots',parseInt(this.value)||0)" data-1p-ignore>
-                        <span id="posfill_${e.id}_${i}" style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">(${positionFilled(e, p.name)} filled)</span>
-                        <button class="btn btn-sm btn-magenta" onclick="draftRmPosition('${e.id}',${i})">×</button>
+                    <div style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="Position name (e.g. Door)" value="${(p.name || '').replace(/"/g, '&quot;')}" onchange="draftUpdPosition('${e.id}',${i},'name',this.value)" data-1p-ignore>
+                            <input type="number" min="0" class="input-field" style="margin:0; width:70px;" value="${p.slots || 0}" onchange="draftUpdPosition('${e.id}',${i},'slots',parseInt(this.value)||0)" data-1p-ignore>
+                            <span id="posfill_${e.id}_${i}" style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">(${positionFilled(e, p.name)} filled)</span>
+                            <button class="btn btn-sm btn-magenta" onclick="draftRmPosition('${e.id}',${i})">×</button>
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:6px;">
+                            <span style="font-size:0.68rem; color:var(--text-muted); margin-right:2px;">Restrict to ranks:</span>
+                            ${getRoleCatalog().map(r => `<span class="neon-tag ${(p.allowedRoles || []).includes(r) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer; font-size:0.68rem; padding:3px 8px;" onclick="draftTogglePositionRole('${e.id}',${i},'${r.replace(/'/g, "\\'")}')">${(p.allowedRoles || []).includes(r) ? '✓ ' : ''}${r}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.7rem;">No ranks in the catalog - add some under Command Center → Tags &amp; Roles.</span>'}
+                            <span style="font-size:0.65rem; color:${(p.allowedRoles || []).length ? 'var(--neon-pink)' : 'var(--text-muted)'}; display:block; width:100%; margin-top:3px;">${(p.allowedRoles || []).length ? 'Only guards holding one of the checked ranks can see or claim this position. Everyone else just sees it as filled/open.' : 'Open to guards of any rank.'}</span>
+                        </div>
                     </div>`).join('')}
                 </div>
                 <button class="btn btn-sm btn-outline" onclick="draftAddPosition('${e.id}')">+ Add Position Type</button>
@@ -2146,6 +2203,13 @@
             d.positions.splice(i, 1);
             renderTile(id); markDirty(id);
         }
+        function draftTogglePositionRole(id, i, role) {
+            const d = getDraft(id); if (!d || !d.positions || !d.positions[i]) return;
+            const p = d.positions[i];
+            p.allowedRoles = p.allowedRoles || [];
+            p.allowedRoles.includes(role) ? p.allowedRoles = p.allowedRoles.filter(r => r !== role) : p.allowedRoles.push(role);
+            renderTile(id); markDirty(id);
+        }
         function draftAddTimeline(id) { const d = getDraft(id); if (!d) return; d.timeline = d.timeline || []; d.timeline.push({ time: '18:00', label: 'New item' }); renderTile(id); markDirty(id); }
         function draftUpdTimeline(id, i, f, v) { const d = getDraft(id); if (!d || !d.timeline || !d.timeline[i]) return; d.timeline[i][f] = v; markDirty(id); }
         function draftRmTimeline(id, i) { const d = getDraft(id); if (!d) return; d.timeline.splice(i, 1); renderTile(id); markDirty(id); }
@@ -2182,7 +2246,7 @@
                 endTime: document.getElementById('neEndTime').value,
                 timeline: [],
                 openSlots: parseInt(document.getElementById('neSlots').value, 10) || 0,
-                guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '',
+                guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '', communityOnly: false,
                 image: document.getElementById('neImage').value.trim() || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                 layout: ['img', 'info', 'tags', 'logistics', 'roster'],
                 ticketLink: document.getElementById('neTicket').value.trim(),
@@ -2253,6 +2317,40 @@
             }
         }
 
+        /* ROLE / RANK MANAGER - shares the adminTags pane with the tag catalog above */
+        function renderAdminRoles() {
+            const roles = getDB('roles').slice().sort((a, b) => a.name.localeCompare(b.name));
+            document.getElementById('adminRolesList').innerHTML = roles.map(r => `
+                <span class="neon-tag tag-active">${r.name} <b style="color:var(--neon-teal);cursor:pointer;margin-left:6px;" title="Rename" onclick="editCatalogRole('${r.id}','${r.name.replace(/'/g, "\\'")}')">✎</b><b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" title="Delete" onclick="delCatalogRole('${r.id}','${r.name.replace(/'/g, "\\'")}')">×</b></span>
+            `).join('') || '<span style="color:var(--text-muted); font-size:0.85rem;">No ranks yet - add one above.</span>';
+        }
+        function addCatalogRole() {
+            const input = document.getElementById('newRoleInput');
+            const name = input.value.trim();
+            if (!name) return;
+            const id = roleToId(name);
+            if (getDB('roles').some(r => r.id === id)) { alert('That rank already exists.'); return; }
+            saveDoc('roles', id, { id, name }).then(() => {
+                logAction('Added rank to catalog: ' + name);
+                input.value = '';
+            });
+        }
+        function editCatalogRole(id, oldName) {
+            const newName = prompt('Rename rank:', oldName);
+            if (newName === null) return;
+            const trimmed = newName.trim();
+            if (!trimmed || trimmed === oldName) return;
+            saveDoc('roles', id, { id, name: trimmed }).then(() => {
+                logAction(`Renamed rank "${oldName}" to "${trimmed}"`);
+                alert(`Renamed. Note: this won't automatically update "${oldName}" already saved on users or on position rank restrictions - re-select the new name on those individually if needed.`);
+            });
+        }
+        function delCatalogRole(id, name) {
+            if (confirm(`Remove "${name}" from the rank catalog? Users and position restrictions that already reference it keep the name until edited.`)) {
+                deleteDoc('roles', id).then(() => logAction('Removed rank from catalog: ' + name));
+            }
+        }
+
         /* LOGS, USERS, CONTACTS */
         function renderLogs() { document.getElementById('logsBody').innerHTML = getDB('logs').sort((a, b) => b.id.localeCompare(a.id)).map(l => `<tr><td style="color:var(--text-muted);">${l.time}</td><td style="color:var(--neon-teal); font-weight:600;">${l.user}</td><td>${l.action}</td></tr>`).join(''); }
 
@@ -2261,6 +2359,7 @@
             document.getElementById('usersBody').innerHTML = getDB('users').map(u => `<tr>
                 <td><strong>${u.name}</strong></td>
                 <td style="font-size:0.8rem;">${u.email}<br>${u.phone || ''}</td>
+                <td style="font-size:0.8rem; color:var(--neon-teal); font-weight:600;">${u.role || '<span style="color:var(--text-muted); font-weight:400;">—</span>'}</td>
                 <td style="white-space:nowrap;">
                     <button class="btn btn-sm ${u.isAdmin ? 'btn-magenta' : 'btn-outline'}" onclick="togAdmin('${u.id}')">${u.isAdmin ? 'Commander' : 'Guard'}</button>
                     <button class="btn btn-sm btn-outline" onclick="openUserModal('${u.id}')">Edit</button>
@@ -2310,6 +2409,8 @@
             document.getElementById('umEmail').disabled = !!id; // can't change another user's login email client-side
             document.getElementById('umEmailLockedNote').style.display = id ? 'block' : 'none';
             document.getElementById('umPhone').value = u ? (u.phone || '') : '';
+            document.getElementById('umRole').innerHTML = '<option value="">-- No rank assigned --</option>' + getRoleCatalog().map(r => `<option value="${r}">${r}</option>`).join('');
+            document.getElementById('umRole').value = u ? (u.role || '') : '';
             document.getElementById('umIsAdmin').checked = u ? !!u.isAdmin : false;
             document.getElementById('umPinWrap').style.display = (u && u.isAdmin) ? 'block' : 'none';
             document.getElementById('umPin').value = '';
@@ -2332,6 +2433,7 @@
             const name = document.getElementById('umName').value.trim();
             const email = document.getElementById('umEmail').value.trim();
             const phone = document.getElementById('umPhone').value.trim();
+            const role = document.getElementById('umRole').value;
             const pw = document.getElementById('umPassword').value;
             const isAdmin = document.getElementById('umIsAdmin').checked;
             const pinInput = document.getElementById('umPin').value.trim();
@@ -2351,7 +2453,7 @@
                 if (!existing) return;
                 const pin = isAdmin ? (pinInput || existing.pin) : existing.pin;
                 if (isAdmin && !pin) { showErr('Set a Commander PIN (4+ digits) to grant admin access.'); return; }
-                const updated = { ...existing, name, phone, isAdmin, pin };
+                const updated = { ...existing, name, phone, role, isAdmin, pin };
                 saveDoc('users', editingUserId, updated).then(() => {
                     logAction('Updated user profile: ' + name);
                     const me = currUser();
@@ -2373,7 +2475,7 @@
                     const cred = await secAuth.createUserWithEmailAndPassword(email, pw);
                     const newUid = cred.user.uid;
                     await secAuth.signOut();
-                    const nu = { id: newUid, uid: newUid, name, email, phone, isAdmin, pin: isAdmin ? pinInput : undefined };
+                    const nu = { id: newUid, uid: newUid, name, email, phone, role, isAdmin, pin: isAdmin ? pinInput : undefined };
                     await saveDoc('users', newUid, nu);
                     logAction('Admin created new user: ' + name);
                     closeModal('userModal');
