@@ -379,7 +379,7 @@
             </div>
 
             <div id="adminTags" class="admin-pane" style="display: none;">
-                <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">🏷️ Tag Manager</h4>
+                <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">Tag Manager</h4>
                 <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Tags added here become available to pick from on every event. Deleting a tag removes it from this list going forward, but won't strip it off events that already have it.</p>
                 <div style="display:flex; gap:8px; margin-bottom:15px;">
                     <input type="text" id="newTagInput" class="input-field" placeholder="New tag name (e.g. Rooftop)" style="margin:0;" data-1p-ignore>
@@ -387,7 +387,7 @@
                 </div>
                 <div id="adminTagsList" class="tags-container"></div>
 
-                <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin: 28px 0 6px; padding-top:20px; border-top:1px solid var(--border-glass);">🎖️ Role / Rank Manager</h4>
+                <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin: 28px 0 6px; padding-top:20px; border-top:1px solid var(--border-glass);">Role / Rank Manager</h4>
                 <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Ranks assigned here can be used to restrict specific shift positions so only guards holding that rank can see or claim them. Renaming or removing a rank won't automatically update it on users or positions that already reference it.</p>
                 <div style="display:flex; gap:8px; margin-bottom:15px;">
                     <input type="text" id="newRoleInput" class="input-field" placeholder="New rank name (e.g. Sergeant)" style="margin:0;" data-1p-ignore>
@@ -1988,10 +1988,10 @@
             const html = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
                     <span style="color:var(--neon-teal); font-weight:600;">Manage: ${draft.title}
-                        ${draft.hidden ? '<span style="color:var(--text-muted); font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-left:8px; border:1px solid var(--border-glass); border-radius:6px; padding:2px 6px;">🙈 Hidden from Feed</span>' : ''}
+                        ${draft.hidden ? '<span style="color:var(--text-muted); font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-left:8px; border:1px solid var(--border-glass); border-radius:6px; padding:2px 6px;">Hidden from Feed</span>' : ''}
                     </span>
                     <div style="display:flex; gap:8px;">
-                        <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${id}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? '👁️ Show on Feed' : '🙈 Hide from Feed'}</button>
+                        <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${id}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? 'Show on Feed' : 'Hide from Feed'}</button>
                         <button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="For cancellations - moves this to the Archive tab">🚫 Archive / Cancel</button>
                         <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
                     </div>
