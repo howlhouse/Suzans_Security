@@ -771,10 +771,15 @@
     <div class="modal" id="promoterModal">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 id="pName" style="font-family:'Outfit'; font-size:1.35rem; color:var(--neon-teal);"></h3>
+                <h3 style="font-family:'Outfit'; font-size:1.1rem; color:var(--neon-teal);">Contact Details</h3>
                 <button class="btn btn-outline btn-sm" onclick="closeModal('promoterModal')">✕</button>
             </div>
-            <p id="pContact" style="font-size:0.86rem; color:var(--text-secondary); margin-bottom:14px;"></p>
+            <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Contact Name</label>
+            <input type="text" id="pName" class="input-field" onchange="updatePromoterField('name', this.value)" data-1p-ignore>
+            <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Phone Number</label>
+            <input type="text" id="pPhone" class="input-field" onchange="updatePromoterField('phone', this.value)" data-1p-ignore>
+            <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Email</label>
+            <input type="email" id="pEmail" class="input-field" style="margin-bottom:14px;" onchange="updatePromoterField('email', this.value)" data-1p-ignore>
             <div id="pTags" class="tags-container" style="margin: 8px 0;"></div>
             <div style="display: flex; gap: 6px; margin-bottom: 18px;">
                 <input type="text" id="pTagIn" class="input-field" placeholder="Add custom tag..." style="margin:0;" data-1p-ignore>
@@ -2842,7 +2847,14 @@
 
         function renderContacts() { document.getElementById('promoterList').innerHTML = getDB('promoters').map(p => `<div class="glass-card" style="padding:16px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;"><div style="cursor:pointer; flex:1;" onclick="openP('${p.id}')"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4><div class="tags-container" style="margin-top:8px;">${(p.tags || []).map(t => `<span class="neon-tag tag-active">${t}</span>`).join('')}</div></div><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); flex-shrink:0;" onclick="delPromoter('${p.id}')">Delete</button></div></div>`).join(''); }
         function addPromoter() { const id = 'p' + Date.now(); const name = prompt('Name:'); if (!name) return; saveDoc('promoters', id, { id, name, phone: prompt('Phone:') || '', email: prompt('Email:') || '', tags: [], notes: [] }); }
-        function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').innerText = p.name; document.getElementById('pContact').innerText = `📞 ${p.phone} | ✉️ ${p.email}`; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
+        function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').value = p.name || ''; document.getElementById('pPhone').value = p.phone || ''; document.getElementById('pEmail').value = p.email || ''; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
+        function updatePromoterField(field, value) {
+            const pr = getDB('promoters').find(x => x.id === selP);
+            if (!pr) return;
+            if (field === 'name' && !value.trim()) { alert('Contact name is required.'); document.getElementById('pName').value = pr.name; return; }
+            pr[field] = value.trim();
+            saveDoc('promoters', pr.id, pr).catch(err => alert('Could not save contact: ' + err.message));
+        }
         function addPTag() { let pr = getDB('promoters').find(x => x.id === selP), v = document.getElementById('pTagIn').value; if (v) { pr.tags = pr.tags || []; pr.tags.push(v); saveDoc('promoters', pr.id, pr); document.getElementById('pTagIn').value = ''; } }
         function rmPTag(i) { let pr = getDB('promoters').find(x => x.id === selP); pr.tags.splice(i, 1); saveDoc('promoters', pr.id, pr); }
         function addPNote() { let pr = getDB('promoters').find(x => x.id === selP), v = document.getElementById('pNoteIn').value; if (v) { pr.notes = pr.notes || []; pr.notes.unshift({ date: new Date().toLocaleDateString(), text: v }); saveDoc('promoters', pr.id, pr); document.getElementById('pNoteIn').value = ''; } }
