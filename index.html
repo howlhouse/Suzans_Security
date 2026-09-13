@@ -43,9 +43,7 @@
            frame wrapping the whole card. */
         #authModal .modal-sheet { border: 2px solid transparent; background-image: linear-gradient(var(--glass-sheet), var(--glass-sheet)), linear-gradient(90deg, #ff0055, #ff5500, #ffea00, #00ff87, #00f5d4, #7928ca, #ff0055); background-origin: border-box; background-clip: padding-box, border-box; background-size: auto, 300% 100%; animation: circuitLaser 8s linear infinite; }
         @keyframes discoSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .loading-logo { width: 96px; height: auto; margin-bottom: 2px; filter: drop-shadow(0 0 14px rgba(0,245,212,0.25)); }
-        .loading-mascot-wrap { width: 190px; }
-        .loading-mascot-wrap canvas { width: 100%; height: auto; display: block; filter: drop-shadow(0 0 18px rgba(0,245,212,0.3)); }
+        .loading-logo { height: auto; filter: drop-shadow(0 0 14px rgba(0,245,212,0.25)); }
 
         .loading-watermark { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); right: 18px; display: flex; align-items: center; gap: 6px; font-family: 'Outfit', sans-serif; font-size: 0.62rem; font-weight: 600; color: rgba(255, 255, 255, 0.3); text-transform: uppercase; pointer-events: none; }
         .loading-watermark img { height: 16px; width: auto; filter: invert(1) opacity(0.65); }
@@ -163,14 +161,12 @@
 </head>
 <body>
 
-    <!-- LOADING SCREEN: dancing cowboy video (chroma-keyed onto a canvas so
-         its white studio background disappears) + real progress bar -->
+    <!-- LOADING SCREEN: logo + real progress bar.
+         The dancing-mascot video was pulled pending a better source clip -
+         see initLoadingMascot() below, left in place but unused, for when
+         a replacement is ready. -->
     <div id="loadingOverlay">
-        <img class="loading-logo" src="Suzans_Security_Logo.png" alt="Suzan's Security" onerror="this.style.display='none'">
-        <div class="loading-mascot-wrap">
-            <canvas id="loadingMascotCanvas"></canvas>
-        </div>
-        <video id="loadingMascotVideo" style="display:none" src="dancing_cowboy_video.mp4" autoplay muted loop playsinline></video>
+        <img class="loading-logo" src="Suzans_Security_Logo.png" alt="Suzan's Security" style="width:150px; margin-bottom:8px;" onerror="this.style.display='none'">
 
         <h2 style="color: var(--neon-teal); font-family: 'Outfit'; margin-top: 18px; font-weight: 800; letter-spacing: 2px;">Loading....</h2>
 
@@ -795,6 +791,11 @@
 
     <script>
         // --- 0. LOADING SCREEN MASCOT (chroma-keyed video) ---
+        // CURRENTLY UNUSED: the #loadingMascotVideo/#loadingMascotCanvas
+        // elements were pulled from the loading screen pending a better
+        // source clip, so this no-ops via the null check below. Left in
+        // place, ready to reconnect once a replacement video is dropped in -
+        // see the HTML comment near #loadingOverlay.
         // The mascot clip has a plain white studio background baked in. Rather
         // than re-export/re-encode it, we draw each frame to a canvas and key
         // out that background live: a pixel counts as background (and gets
