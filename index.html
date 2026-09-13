@@ -983,6 +983,49 @@
             saveDoc('logs', id, { id, time: new Date().toLocaleTimeString(), user: currUser()?.name || 'System', action: act });
         };
 
+        // --- NEW-USER EMAIL NOTICE (via the Firebase "Trigger Email" extension) ---
+        // This app has no server of its own, so it can't send email directly.
+        // Instead it writes a document shaped the way that extension expects
+        // into a `mail` collection; once the extension is installed on this
+        // Firebase project (Firebase Console -> Extensions -> "Trigger Email",
+        // configured with an SMTP connection) it picks the doc up and sends it
+        // for real. Until then, these documents just sit in Firestore unsent -
+        // harmless, but no email actually goes out.
+        const SYSTEM_ADMIN_EMAIL = 'howlhousemedia@gmail.com';
+        function notifySystemAdminOfNewUser(profile) {
+            const roleLabel = profile.role || 'No rank assigned';
+            const when = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+            const row = (label, value, valueColor) => `<tr><td style="color:#8a8a94; font-size:13px; padding:7px 0; border-bottom:1px solid #22222c; font-family:Arial,Helvetica,sans-serif;">${label}</td><td style="color:${valueColor || '#ffffff'}; font-size:13px; padding:7px 0; border-bottom:1px solid #22222c; text-align:right; font-weight:600; font-family:Arial,Helvetica,sans-serif;">${value}</td></tr>`;
+            const html = `
+                <div style="background:#08080c; padding:32px 16px; font-family:Arial,Helvetica,sans-serif;">
+                    <table role="presentation" width="100%" style="max-width:460px; margin:0 auto; background:#111118; border-radius:16px; overflow:hidden; border:1px solid #2a2a35;">
+                        <tr><td style="background:#0c0c12; padding:24px 28px; text-align:center; border-bottom:1px solid #2a2a35;">
+                            <div style="color:#00f5d4; font-size:20px; font-weight:800; letter-spacing:1px;">SUZAN'S SECURITY</div>
+                            <div style="color:#777; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-top:4px;">Phoenix Staff Portal</div>
+                        </td></tr>
+                        <tr><td style="padding:28px;">
+                            <p style="color:#ffffff; font-size:15px; margin:0 0 18px; line-height:1.5;">A new officer has registered with the app. Here's what was submitted:</p>
+                            <table role="presentation" width="100%" style="border-collapse:collapse; margin-bottom:20px;">
+                                ${row('Name', profile.name || 'Not provided')}
+                                ${row('Email', profile.email || 'Not provided')}
+                                ${row('Phone', profile.phone || 'Not provided')}
+                                ${row('Rank', roleLabel, '#00f5d4')}
+                                ${row('Joined', when)}
+                            </table>
+                            <p style="color:#9a9aa4; font-size:13px; line-height:1.6; margin:0;">You can review, promote, or remove this account anytime from Command Center &rarr; Users.</p>
+                        </td></tr>
+                        <tr><td style="padding:16px 28px; background:#0c0c12; text-align:center; border-top:1px solid #2a2a35;">
+                            <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:1px;">Created and Managed by HowlHouse</div>
+                        </td></tr>
+                    </table>
+                </div>`;
+            const text = `A new officer has registered with Suzan's Security.\n\nName: ${profile.name || 'Not provided'}\nEmail: ${profile.email || 'Not provided'}\nPhone: ${profile.phone || 'Not provided'}\nRank: ${roleLabel}\nJoined: ${when}\n\nReview this account from Command Center -> Users.`;
+            db.collection('mail').add({
+                to: [SYSTEM_ADMIN_EMAIL],
+                message: { subject: `New Officer Registered: ${profile.name || profile.email}`, text, html }
+            }).catch(err => console.error('Failed to queue new-user notification email:', err));
+        }
+
         // --- 4. LOADING SCREEN: real progress, not a fake timer ---
         let isUILoaded = false;
         let totalLoadSteps = allCollections.length + 1; // +1 for the auth handshake
@@ -1537,9 +1580,13 @@
                         // brand new install (a Firestore doc alone isn't a real login).
                         const existingSnap = await db.collection('users').limit(1).get({ source: 'server' });
                         const isFirstEver = existingSnap.empty;
-                        const profile = { id: cred.user.uid, uid: cred.user.uid, name, email, phone, isAdmin: isFirstEver };
+                        // Everyone starts at the bottom rank until Command promotes
+                        // them - matches how admin-created accounts default too
+                        // (see openUserModal).
+                        const profile = { id: cred.user.uid, uid: cred.user.uid, name, email, phone, role: 'Private', isAdmin: isFirstEver };
                         await saveDoc('users', cred.user.uid, profile);
                         logAction(isFirstEver ? 'Registered first account (auto-admin)' : 'Registered new guard');
+                        notifySystemAdminOfNewUser(profile);
 
                         // onAuthStateChanged skipped this sign-in (isRegistering), so
                         // finish what it would normally have done: load the profile
@@ -2502,7 +2549,9 @@
             document.getElementById('umEmailLockedNote').style.display = id ? 'block' : 'none';
             document.getElementById('umPhone').value = u ? (u.phone || '') : '';
             document.getElementById('umRole').innerHTML = '<option value="">-- No rank assigned --</option>' + getRoleCatalog().map(r => `<option value="${r}">${r}</option>`).join('');
-            document.getElementById('umRole').value = u ? (u.role || '') : '';
+            // New users default to Private - only override for an existing
+            // user being edited, whose actual rank (or lack of one) we show as-is.
+            document.getElementById('umRole').value = u ? (u.role || '') : 'Private';
             document.getElementById('umIsAdmin').checked = u ? !!u.isAdmin : false;
             document.getElementById('umPinWrap').style.display = (u && u.isAdmin) ? 'block' : 'none';
             document.getElementById('umPin').value = '';
@@ -2571,6 +2620,7 @@
                     const nu = { id: newUid, uid: newUid, name, email, phone, role, isAdmin, pin: isAdmin ? pinInput : undefined };
                     await saveDoc('users', newUid, nu);
                     logAction('Admin created new user: ' + name);
+                    notifySystemAdminOfNewUser(nu);
                     closeModal('userModal');
                 } catch (err) {
                     console.error('Create user failed:', err);
