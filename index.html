@@ -724,7 +724,8 @@
             <div style="display:flex; gap:12px;">
                 <div style="flex:1;">
                     <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Open Slots</label>
-                    <input type="number" id="neSlots" class="input-field" min="0" value="2">
+                    <input type="number" id="neSlots" class="input-field" min="0" value="0">
+                    <p style="font-size: 0.68rem; color: var(--text-muted); margin: 4px 0 0;">Defaults to 0 - raise it once roles are confirmed, so guards aren't offered slots that aren't real yet.</p>
                 </div>
                 <div style="flex:1;">
                     <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Image URL</label>
@@ -2267,7 +2268,7 @@
             document.getElementById('neAddress').value = '';
             document.getElementById('neImage').value = '';
             document.getElementById('neDesc').value = '';
-            document.getElementById('neSlots').value = 2;
+            document.getElementById('neSlots').value = 0;
             document.getElementById('neTicket').value = '';
             document.getElementById('newEventErr').style.display = 'none';
             document.getElementById('newEventModal').style.display = 'flex';
