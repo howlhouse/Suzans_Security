@@ -1195,6 +1195,15 @@
                                     let chanClean = data.channel.replace('evt_', 'Event ');
                                     notifyUser(`💬 ${data.user} in #${chanClean}`, data.text, 'chat');
                                 }
+                                // New-user notice, restricted to Commanders. This fires
+                                // independently on every open client - each one just
+                                // checks its own signed-in user's rank before showing
+                                // anything, so only Commanders actually see it, and only
+                                // while they have the app open (same as every other
+                                // notification here - there's no server-side push).
+                                if (col === 'users' && data.id !== currUser()?.id && currUser()?.role === 'Commander') {
+                                    notifyUser('New User Added', `${data.name || data.email} joined as ${data.role || 'no rank assigned'}.`, 'admin');
+                                }
                             }
                         });
                     }
