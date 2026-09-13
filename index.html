@@ -2561,21 +2561,31 @@
             const dateDigits = (e.date || '').replace(/-/g, '');
             if (!/^\d{8}$/.test(dateDigits)) return null;
 
-            if (!e.startTime) {
-                // No start time on record - fall back to an all-day event.
+            // Mirrors shiftTimeLabel(): prefer the explicit Start/End Time
+            // fields, falling back to the earliest day-of timeline entry for
+            // older events that predate those fields.
+            let startTime = e.startTime;
+            const endTimeRaw = e.endTime;
+            if (!startTime) {
+                const timeline = [...(e.timeline || [])].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+                startTime = timeline[0]?.time || '';
+            }
+
+            if (!startTime) {
+                // Still nothing to go on - fall back to an all-day event.
                 const endDate = new Date(e.date + 'T00:00:00');
                 endDate.setDate(endDate.getDate() + 1);
                 const endDigits = endDate.toISOString().slice(0, 10).replace(/-/g, '');
                 return { allDay: true, start: dateDigits, end: endDigits };
             }
 
-            const startDigits = e.startTime.replace(':', '') + '00';
+            const startDigits = startTime.replace(':', '') + '00';
             let endDigits;
-            if (e.endTime) {
-                endDigits = e.endTime.replace(':', '') + '00';
+            if (endTimeRaw) {
+                endDigits = endTimeRaw.replace(':', '') + '00';
             } else {
                 // No end time specified - default to a 4-hour shift.
-                const [h, m] = e.startTime.split(':').map(Number);
+                const [h, m] = startTime.split(':').map(Number);
                 const end = new Date(2000, 0, 1, h, m);
                 end.setHours(end.getHours() + 4);
                 endDigits = String(end.getHours()).padStart(2, '0') + String(end.getMinutes()).padStart(2, '0') + '00';
