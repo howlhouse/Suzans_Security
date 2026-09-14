@@ -81,18 +81,12 @@
            break tile layout even if an image is missing/broken. */
         .cancelled-stripe { position: absolute; top: 22%; left: -14%; width: 128%; transform: rotate(-16deg); background: rgba(217, 33, 33, 0.92); color: #fff; text-align: center; font-family: 'Outfit', sans-serif; font-weight: 800; letter-spacing: 3px; padding: 5px 0; font-size: 0.85rem; box-shadow: 0 2px 12px rgba(0,0,0,0.45); pointer-events: none; z-index: 2; }
         .event-body { padding: 18px 20px; }
-        .event-title { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 700; margin-bottom: 8px; }
-        .event-desc { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin-bottom: 14px; }
 
         .tags-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
         .neon-tag { font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; display: inline-flex; }
         .tag-active { background: rgba(0, 245, 212, 0.15); color: var(--neon-teal); border: 1px solid rgba(0, 245, 212, 0.4); }
         .tag-nsfw { background: rgba(255, 42, 133, 0.15); color: var(--neon-pink); border: 1px solid rgba(255, 42, 133, 0.4); }
         .tag-inactive { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid var(--border-glass); }
-
-        .roster-card { background: rgba(14, 14, 20, 0.6); border: 1px solid var(--border-glass); border-radius: 14px; padding: 12px 16px; margin: 14px 0; }
-        .roster-header { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; color: var(--neon-teal); margin-bottom: 8px; }
-        .guard-chip { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); padding: 4px 10px; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 0.8rem; display: inline-flex; gap: 5px; margin: 3px; }
 
         .btn { border: none; background: linear-gradient(135deg, var(--neon-teal) 0%, #00c4a7 100%); color: #08080c; font-family: 'Outfit', sans-serif; font-weight: 600; padding: 12px 20px; border-radius: 14px; cursor: pointer; transition: transform 0.25s var(--apple-spring); }
         .btn:active { transform: scale(0.97); }
@@ -1672,54 +1666,41 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        /* EVENTS FEED */
+        /* EVENTS FEED — compact, glanceable tiles. Tapping one opens the full
+           detail view (renderEventDetail) for briefing, roster, positions,
+           chat, etc. - keeping this primary list short and easy to scan was
+           the whole point, so nothing actionable (claiming a shift, reading
+           the brief) lives here anymore; it's all one tap away. */
         function renderEvents() {
             const evs = getDB('events').filter(e => !e.archived && !e.hidden).sort((a, b) => new Date(a.date) - new Date(b.date));
             const u = currUser();
             document.getElementById('userEventsFeedList').innerHTML = evs.map(e => {
-                const hasPositions = e.positions && e.positions.length;
                 const openSlots = eventOpenSlots(e);
                 const isSignedUp = (e.guards || []).includes(u?.name);
                 const evtChan = 'evt_' + e.id;
                 const unreadChat = unreadCount(evtChan);
-                const actionBtn = hasPositions
-                    ? `<button class="btn ${openSlots === 0 ? 'btn-outline' : ''}" style="width:100%;" onclick="openEventDetail('${e.id}')">${openSlots === 0 ? '✅ Filled' : '🎯 View Positions & Claim'}</button>`
-                    : `<button class="btn ${isSignedUp ? 'btn-magenta' : ''}" style="width:100%;" onclick="toggleSignUp('${e.id}', event)" ${openSlots === 0 && !isSignedUp ? 'disabled' : ''}>
-                            ${isSignedUp ? 'Cancel My Shift' : (openSlots === 0 ? 'Full' : 'Claim Shift')}
-                        </button>`;
+                const statusText = isSignedUp
+                    ? `<span style="color:var(--neon-saguaro); font-weight:600;">✓ You're In</span>`
+                    : (openSlots === 0 ? 'Filled' : `${openSlots} Open`);
                 return `
-                <div class="glass-card event-tile" onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'A' && event.target.tagName !== 'SELECT') openEventDetail('${e.id}')">
+                <div class="glass-card event-tile" onclick="openEventDetail('${e.id}')">
                     ${e.communityOnly ? `<div class="community-banner">📋 Community Listing Only — Not a Contracted Event</div>` : ''}
                     ${unreadChat > 0 ? `<div class="new-msg-banner">💬 ${unreadChat} new message${unreadChat > 1 ? 's' : ''} in shift chat</div>` : ''}
-                    <div class="event-img-wrap">
-                        <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
-                        <div class="event-img-overlay"></div>
-                        <div class="date-badge">🗓️ ${e.date}</div>
-                    </div>
-                    <div class="event-body">
-                        <h3 class="event-title">${e.title}</h3>
-                        <div class="tags-container">
-                            ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
+                    <div style="display:flex; gap:14px; align-items:center; padding:14px 16px;">
+                        <div class="event-img-wrap" style="width:68px; height:68px; flex-shrink:0; border-radius:14px;">
+                            <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                         </div>
-                        <p class="event-desc">${e.desc}</p>
-                        ${e.address ? `<p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">📍 ${e.address}</p>` : ''}
-                        <div class="roster-card">
-                            <div class="roster-header">
-                                <span>Assigned Team (${(e.guards || []).length})</span>
-                                <span>${openSlots} Open Slots</span>
+                        <div style="flex:1; min-width:0;">
+                            <h3 style="font-family:'Outfit',sans-serif; font-size:1.05rem; font-weight:700; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.title}</h3>
+                            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🗓️ ${e.date}${e.startTime ? ' · ' + e.startTime : ''} · ${statusText}</div>
+                            <div class="tags-container" style="margin:0;">
+                                ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
                             </div>
-                            ${hasPositions ? `
-                            <div class="tags-container" style="margin-top:6px;">
-                                ${e.positions.map(p => `<span class="neon-tag ${positionFilled(e, p.name) >= p.slots ? 'tag-inactive' : 'tag-active'}">${p.name} ${positionFilled(e, p.name)}/${p.slots}</span>`).join('')}
-                            </div>` : `
-                            <div>
-                                ${(e.guards || []).map(g => `<span class="guard-chip">🛡️ ${g}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No officers assigned.</span>'}
-                            </div>`}
                         </div>
-                        ${actionBtn}
+                        <span style="color:var(--text-muted); font-size:1.3rem; flex-shrink:0;">›</span>
                     </div>
                 </div>
-            `; }).join('');
+            `; }).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">No shift postings right now — check back soon.</p>`;
         }
 
         function toggleSignUp(id, eEvent = null) {
