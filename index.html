@@ -193,6 +193,7 @@
                 <div class="user-pill" id="userPill" onclick="toggleUserMenu(event)" style="cursor:pointer;" title="Tap for options"><span>🛡️</span><span id="userGreeting">Officer</span><span style="opacity:0.6; font-size:0.7rem; margin-left:4px;">▾</span></div>
                 <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none;">
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('myShiftsView');"><span>📋</span><span>My Shifts &amp; Notes</span></button>
+                    <button class="user-menu-item" onclick="closeUserMenu(); switchView('contactsDirectoryView');"><span>📇</span><span>Promoter Directory</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('settingsView');"><span>⚙️</span><span>Settings</span></button>
                     <button class="user-menu-item danger" onclick="closeUserMenu(); if(confirm('Sign out of Suzan\'s Security?')) logout();"><span>⏻</span><span>Sign Out</span></button>
                 </div>
@@ -265,6 +266,15 @@
                 <p style="color:var(--text-muted); font-size:0.85rem;">Everything you're scheduled for, at a glance</p>
             </div>
             <div id="myShiftsList"></div>
+        </section>
+
+        <!-- VIEW: PROMOTER DIRECTORY -->
+        <section id="contactsDirectoryView" style="display: none;">
+            <div style="margin-bottom: 20px;">
+                <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">Promoter Directory</h2>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Client &amp; promoter contacts, their links, and the shifts they're tied to</p>
+            </div>
+            <div id="contactsDirectoryList"></div>
         </section>
 
         <!-- VIEW: SETTINGS -->
@@ -778,7 +788,13 @@
             <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Phone Number</label>
             <input type="text" id="pPhone" class="input-field" onchange="updatePromoterField('phone', this.value)" data-1p-ignore>
             <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Email</label>
-            <input type="email" id="pEmail" class="input-field" style="margin-bottom:14px;" onchange="updatePromoterField('email', this.value)" data-1p-ignore>
+            <input type="email" id="pEmail" class="input-field" onchange="updatePromoterField('email', this.value)" data-1p-ignore>
+            <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Instagram Link (optional)</label>
+            <input type="url" id="pInstagram" class="input-field" placeholder="https://instagram.com/..." onchange="updatePromoterField('instagram', this.value)" data-1p-ignore>
+            <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Website Link (optional)</label>
+            <input type="url" id="pWebsite" class="input-field" placeholder="https://..." onchange="updatePromoterField('website', this.value)" data-1p-ignore>
+            <label style="font-size: 0.72rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Venue Link (optional)</label>
+            <input type="url" id="pVenueLink" class="input-field" style="margin-bottom:14px;" placeholder="https://..." onchange="updatePromoterField('venueLink', this.value)" data-1p-ignore>
             <div id="pTags" class="tags-container" style="margin: 8px 0;"></div>
             <div style="display: flex; gap: 6px; margin-bottom: 18px;">
                 <input type="text" id="pTagIn" class="input-field" placeholder="Add custom tag..." style="margin:0;" data-1p-ignore>
@@ -1220,11 +1236,11 @@
         function seedDatabase() {
             return Promise.all([
                 saveDoc('channels', 'general', { name: 'general' }),
-                saveDoc('promoters', 'p1', { id: 'p1', name: 'Dax', phone: '555-1234', email: 'dax@club.com', tags: ['VIP'], notes: [{ date: '2026-09-08', text: 'Great payer.' }] }),
+                saveDoc('promoters', 'p1', { id: 'p1', name: 'Dax', phone: '555-1234', email: 'dax@club.com', instagram: '', website: '', venueLink: '', tags: ['VIP'], notes: [{ date: '2026-09-08', text: 'Great payer.' }] }),
                 saveDoc('events', 'e1', {
                     id: 'e1', title: 'Neon Circuit', date: '2026-09-15', tags: ['NSFW', 'Club', 'Kink'],
                     desc: 'Main door watch.', address: '', timeline: [], openSlots: 2, guards: [], guardPosts: {}, guardNotes: {}, positions: [],
-                    promoterId: 'p1', ticketLink: '', communityOnly: false,
+                    promoterIds: ['p1'], ticketLink: '', communityOnly: false,
                     image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                     layout: ['img', 'info', 'tags', 'logistics', 'roster']
                 }),
@@ -1272,6 +1288,14 @@
         // Position-based slot tracking. Events created before this feature
         // won't have `positions` defined, so everything here falls back to
         // the old flat `openSlots` counter to stay backward-compatible.
+        // Events can carry multiple promoter/client contacts. Older events (and
+        // any code path that hasn't been touched yet) may still only have the
+        // legacy single `promoterId` field, so this is the one place that
+        // reconciles both shapes into an array everything else can rely on.
+        function getEventPromoterIds(e) {
+            if (Array.isArray(e.promoterIds)) return e.promoterIds;
+            return e.promoterId ? [e.promoterId] : [];
+        }
         function positionFilled(e, posName) { return (e.guards || []).filter(g => (e.guardPosts || {})[g] === posName).length; }
         function eventOpenSlots(e) {
             if (e.positions && e.positions.length) {
@@ -1649,7 +1673,7 @@
             // directly (bypassing promptAdminPin), never actually show it to a
             // non-admin. The PIN prompt is the intended door in.
             if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'settingsView', 'adminConsoleView'].forEach(id => {
+            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
             });
@@ -1661,6 +1685,7 @@
             if (v === 'teamChatView') renderChat();
             if (v === 'banListView') renderBanList();
             if (v === 'myShiftsView') renderMyShiftsView();
+            if (v === 'contactsDirectoryView') renderContactsDirectory();
             if (v === 'settingsView') renderSettings();
             if (v === 'adminConsoleView') renderAdminEv();
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1756,7 +1781,7 @@
             const e = getDB('events').find(x => x.id === id);
             if (!e) { switchView('eventsFeed'); return; }
             const u = currUser();
-            const promoter = getDB('promoters').find(p => p.id === e.promoterId);
+            const linkedPromoters = getEventPromoterIds(e).map(id => getDB('promoters').find(p => p.id === id)).filter(Boolean);
             const isSignedUp = u && (e.guards || []).includes(u.name);
             const hasPositions = e.positions && e.positions.length;
             const myNote = u && e.guardNotes && e.guardNotes[u.name];
@@ -1873,11 +1898,14 @@
                             </div>
                         </div>` : ''}
 
-                        ${promoter ? `
+                        ${linkedPromoters.length ? `
                         <div style="background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:12px; padding:14px; margin: 16px 0;">
-                            <h4 style="color:var(--neon-teal); font-size:0.8rem; font-weight:600; text-transform:uppercase; margin-bottom:4px;">Client / Producer Detail</h4>
-                            <p style="font-weight:600;">${promoter.name}</p>
-                            <p style="font-size:0.85rem; color:var(--text-muted);">📞 ${promoter.phone} • ✉️ ${promoter.email}</p>
+                            <h4 style="color:var(--neon-teal); font-size:0.8rem; font-weight:600; text-transform:uppercase; margin-bottom:8px;">Client / Producer Detail</h4>
+                            ${linkedPromoters.map((promoter, i) => `
+                            <div style="${i > 0 ? 'margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);' : ''}">
+                                <p style="font-weight:600;">${promoter.name}</p>
+                                <p style="font-size:0.85rem; color:var(--text-muted);">📞 ${promoter.phone} • ✉️ ${promoter.email}</p>
+                            </div>`).join('')}
                         </div>` : ''}
 
                         ${positionsHtml}
@@ -2238,9 +2266,12 @@
         }
 
         function genAdminSec(sec, e) {
-            const promOpts = `<option value="">-- No Client/Promoter Linked --</option>` + getDB('promoters').map(p => `<option value="${p.id}" ${e.promoterId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+            const linkedPromoterIds = getEventPromoterIds(e);
+            const promoterPicker = getDB('promoters').length
+                ? `<div class="tags-container" style="margin:6px 0 4px;">${getDB('promoters').map(p => `<span class="neon-tag ${linkedPromoterIds.includes(p.id) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftTogglePromoter('${e.id}','${p.id}')">${linkedPromoterIds.includes(p.id) ? '✓ ' : ''}${p.name}</span>`).join('')}</div>`
+                : `<p style="color:var(--text-muted); font-size:0.8rem; margin:6px 0;">No promoter contacts yet — add some under Command Center → Contacts.</p>`;
             if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="draftSet('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="draftSet('${e.id}','title',this.value)" data-1p-ignore></div>`;
-            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TIME, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><div style="display:flex; gap:8px;"><input type="time" class="input-field" style="flex:1;" value="${e.startTime || ''}" onchange="draftSet('${e.id}','startTime',this.value)" data-1p-ignore><input type="time" class="input-field" style="flex:1;" value="${e.endTime || ''}" onchange="draftSet('${e.id}','endTime',this.value)" data-1p-ignore></div><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><select class="input-field" onchange="draftSet('${e.id}','promoterId',this.value)" data-1p-ignore>${promOpts}</select><label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:8px;">Event Notes:</label><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea><label style="display:flex; align-items:center; gap:8px; margin:12px 0 2px; cursor:pointer;"><input type="checkbox" ${e.communityOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="draftSet('${e.id}','communityOnly', this.checked)"><span style="font-size:0.82rem;">📋 Community Listing Only <span style="color:var(--text-muted); font-weight:400;">(not a contracted event)</span></span></label></div>`;
+            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TIME, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><div style="display:flex; gap:8px;"><input type="time" class="input-field" style="flex:1;" value="${e.startTime || ''}" onchange="draftSet('${e.id}','startTime',this.value)" data-1p-ignore><input type="time" class="input-field" style="flex:1;" value="${e.endTime || ''}" onchange="draftSet('${e.id}','endTime',this.value)" data-1p-ignore></div><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:4px;">Client(s) / Promoter(s) <span style="color:var(--text-muted); font-weight:400; text-transform:none;">(optional, pick as many as apply)</span></label>${promoterPicker}<label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:8px;">Event Notes:</label><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea><label style="display:flex; align-items:center; gap:8px; margin:12px 0 2px; cursor:pointer;"><input type="checkbox" ${e.communityOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="draftSet('${e.id}','communityOnly', this.checked)"><span style="font-size:0.82rem;">📋 Community Listing Only <span style="color:var(--text-muted); font-weight:400;">(not a contracted event)</span></span></label></div>`;
             if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">TAGS</label><div class="tags-container" style="margin-top:8px;">${getTagCatalog().map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>'}</div><p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Need a new tag option? Add or remove them under Command Center → Tags &amp; Roles.</p></div>`;
             if (sec === 'logistics') return `<div class="draggable-section" draggable="true" data-id="logistics">
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">ADDRESS &amp; TIMELINE</label>
@@ -2326,6 +2357,13 @@
             const d = getDraft(id); if (!d) return;
             d.tags = d.tags || [];
             d.tags.includes(t) ? d.tags = d.tags.filter(x => x !== t) : d.tags.push(t);
+            renderTile(id); markDirty(id);
+        }
+        function draftTogglePromoter(id, promoterId) {
+            const d = getDraft(id); if (!d) return;
+            d.promoterIds = getEventPromoterIds(d);
+            d.promoterIds = d.promoterIds.includes(promoterId) ? d.promoterIds.filter(x => x !== promoterId) : [...d.promoterIds, promoterId];
+            delete d.promoterId; // fully migrated to the array field once edited here
             renderTile(id); markDirty(id);
         }
         function draftAddGuard(id) {
@@ -2427,7 +2465,7 @@
                 endTime: document.getElementById('neEndTime').value,
                 timeline: [],
                 openSlots: parseInt(document.getElementById('neSlots').value, 10) || 0,
-                guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterId: '', communityOnly: false,
+                guards: [], guardPosts: {}, guardNotes: {}, positions: [], promoterIds: [], communityOnly: false,
                 image: document.getElementById('neImage').value.trim() || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700',
                 layout: ['img', 'info', 'tags', 'logistics', 'roster'],
                 ticketLink: document.getElementById('neTicket').value.trim(),
@@ -2940,9 +2978,43 @@
         }
 
 
+        // Read-only directory available to every signed-in user (via the user
+        // menu, not the admin-only Command Center → Contacts pane). Shows each
+        // promoter's full details - including the optional Instagram/website/
+        // venue links, which intentionally never show up on the event detail
+        // page itself - plus every event they're linked to as a promoter.
+        function renderContactsDirectory() {
+            const promoters = [...getDB('promoters')].sort((a, b) => a.name.localeCompare(b.name));
+            const el = document.getElementById('contactsDirectoryList');
+            if (!promoters.length) { el.innerHTML = `<p style="color:var(--text-muted); font-size:0.85rem;">No promoter contacts have been added yet.</p>`; return; }
+            el.innerHTML = promoters.map(p => {
+                const events = getDB('events')
+                    .filter(e => getEventPromoterIds(e).includes(p.id) && !e.hidden)
+                    .sort((a, b) => new Date(b.date) - new Date(a.date));
+                const linkRow = [
+                    p.instagram ? `<a href="${p.instagram}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">📸 Instagram</a>` : '',
+                    p.website ? `<a href="${p.website}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">🌐 Website</a>` : '',
+                    p.venueLink ? `<a href="${p.venueLink}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">📍 Venue</a>` : ''
+                ].filter(Boolean).join('');
+                return `<div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4>
+                    <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">${p.phone ? '📞 ' + p.phone : ''}${p.phone && p.email ? ' • ' : ''}${p.email ? '✉️ ' + p.email : ''}</p>
+                    ${(p.tags || []).length ? `<div class="tags-container" style="margin-top:8px;">${p.tags.map(t => `<span class="neon-tag tag-active">${t}</span>`).join('')}</div>` : ''}
+                    ${linkRow ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">${linkRow}</div>` : ''}
+                    <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-glass);">
+                        <h5 style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Events (${events.length})</h5>
+                        ${events.length ? events.map(e => `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;" onclick="openEventDetail('${e.id}')">
+                            <span style="font-size:0.88rem;">${e.title}${e.archived ? ' <span style="color:var(--text-muted); font-weight:400;">(past)</span>' : ''}</span>
+                            <span style="font-size:0.78rem; color:var(--neon-teal); white-space:nowrap;">🗓️ ${e.date}</span>
+                        </div>`).join('') : `<p style="color:var(--text-muted); font-size:0.8rem;">No events linked to this contact yet.</p>`}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
         function renderContacts() { document.getElementById('promoterList').innerHTML = getDB('promoters').map(p => `<div class="glass-card" style="padding:16px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;"><div style="cursor:pointer; flex:1;" onclick="openP('${p.id}')"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4><div class="tags-container" style="margin-top:8px;">${(p.tags || []).map(t => `<span class="neon-tag tag-active">${t}</span>`).join('')}</div></div><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); flex-shrink:0;" onclick="delPromoter('${p.id}')">Delete</button></div></div>`).join(''); }
-        function addPromoter() { const id = 'p' + Date.now(); const name = prompt('Name:'); if (!name) return; saveDoc('promoters', id, { id, name, phone: prompt('Phone:') || '', email: prompt('Email:') || '', tags: [], notes: [] }); }
-        function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').value = p.name || ''; document.getElementById('pPhone').value = p.phone || ''; document.getElementById('pEmail').value = p.email || ''; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
+        function addPromoter() { const id = 'p' + Date.now(); const name = prompt('Name:'); if (!name) return; saveDoc('promoters', id, { id, name, phone: prompt('Phone:') || '', email: prompt('Email:') || '', instagram: '', website: '', venueLink: '', tags: [], notes: [] }); }
+        function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').value = p.name || ''; document.getElementById('pPhone').value = p.phone || ''; document.getElementById('pEmail').value = p.email || ''; document.getElementById('pInstagram').value = p.instagram || ''; document.getElementById('pWebsite').value = p.website || ''; document.getElementById('pVenueLink').value = p.venueLink || ''; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
         function updatePromoterField(field, value) {
             const pr = getDB('promoters').find(x => x.id === selP);
             if (!pr) return;
