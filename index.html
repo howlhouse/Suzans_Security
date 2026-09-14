@@ -705,6 +705,15 @@
         </div>
     </div>
 
+    <!-- Single full editor for one event at a time, opened by tapping its
+         compact tile in the Events tab. Closing it (closeEventEditor) checks
+         for an unsaved draft first so edits can't be discarded by accident. -->
+    <div class="modal" id="eventEditorModal">
+        <div class="modal-sheet" style="max-width:720px; padding-top:20px;">
+            <div id="eventEditorBody"></div>
+        </div>
+    </div>
+
     <div class="modal" id="userModal">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -1337,6 +1346,7 @@
             if (!e) return;
             if (!confirm(`Archive "${e.title}"?\n\nThis is meant for cancellations - it will move the event to the Archive tab, mark it CANCELLED there, and take it off the active feed/calendar immediately. You can restore it later from the Archive tab if needed.`)) return;
             delete window._eventDrafts[id]; // it's leaving the active list - drop any unsaved draft for it
+            if (window._activeEventEditId === id) closeEventEditor(true);
             saveDoc('events', id, { ...e, archived: true, cancelled: true, archivedAt: Date.now(), archiveReason: 'manual' })
                 .then(() => logAction('Archived (cancelled) shift posting: ' + e.title))
                 .catch(err => alert('Could not archive event: ' + err.message));
@@ -2004,13 +2014,21 @@
            failed micro-write (permission hiccup, offline blip) silently dropped
            just that one field with no feedback.
 
-           Now each event tile edits a local in-memory DRAFT copy only. Nothing
+           Now each event edits a local in-memory DRAFT copy only. Nothing
            reaches Firestore until you click "Save Changes" — which does exactly
-           one write for the whole tile and shows you a clear ✅ Saved / ❌ Failed
-           result right on the button. A tile with unsaved changes is never
+           one write for the whole event and shows you a clear ✅ Saved / ❌ Failed
+           result right on the button. A draft with unsaved changes is never
            overwritten by incoming live updates (and is never overwritten mid-
            focus either), so you can't lose in-progress edits, and you always
-           know for certain whether something saved. */
+           know for certain whether something saved.
+
+           The Events tab itself only ever shows compact, glanceable tiles
+           (title/date/open slots) — a full stack of expanded editors got
+           unwieldy fast once there were more than a few postings. Tapping a
+           tile opens ONE event at a time in a dedicated editor modal, and
+           closing that modal (closeEventEditor) confirms first if the draft
+           is dirty, so an accidental tap-away can't silently discard edits. */
+        window._activeEventEditId = null; // id of the event currently open in the editor modal, or null
         window._eventDrafts = {}; // id -> working copy being edited, not yet saved
         window._eventDraftStatus = {}; // id -> 'saving' | 'saved' | 'error:<msg>' (transient)
 
@@ -2031,26 +2049,53 @@
             return stableStringify(draft) !== stableStringify(server);
         }
 
-        // Builds/updates ONE tile from its current draft, unconditionally.
-        // Unlike renderAdminEv(), this never skips for "dirty" state - it's
-        // meant to be called right after a deliberate user action (toggling a
+        // Opens the dedicated editor modal for one event, seeding its draft
+        // from the latest server data.
+        function openEventEditor(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            window._activeEventEditId = id;
+            window._eventDrafts[id] = JSON.parse(JSON.stringify(e));
+            renderTile(id);
+            document.getElementById('eventEditorModal').style.display = 'flex';
+        }
+        // Closes the editor modal. If the open draft has unsaved changes,
+        // confirms first so a stray tap-away (or the ✕) can't silently
+        // discard edits - pass force=true to skip that check (used when the
+        // event itself was archived/deleted out from under the editor).
+        function closeEventEditor(force) {
+            const id = window._activeEventEditId;
+            if (!force && id && isDraftDirty(id)) {
+                if (!confirm('You have unsaved changes to this event. Discard them and close?')) return;
+            }
+            if (id) delete window._eventDrafts[id];
+            window._activeEventEditId = null;
+            document.getElementById('eventEditorModal').style.display = 'none';
+        }
+
+        // Builds/updates the editor modal's content from its current draft,
+        // unconditionally - but only while that event's editor is actually
+        // open, since edits only ever happen on window._activeEventEditId.
+        // Meant to be called right after a deliberate user action (toggling a
         // tag, adding a timeline row, a successful save, etc.) where we WANT
-        // the tile to visibly update immediately.
+        // the editor to visibly update immediately.
         function renderTile(id) {
+            if (window._activeEventEditId !== id) return;
             const draft = window._eventDrafts[id];
             if (!draft) return;
-            const listEl = document.getElementById('adminEventsList');
-            let tile = document.getElementById('tile_' + id);
-            const html = `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-                    <span style="color:var(--neon-teal); font-weight:600;">Manage: ${draft.title}
-                        ${draft.hidden ? '<span style="color:var(--text-muted); font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-left:8px; border:1px solid var(--border-glass); border-radius:6px; padding:2px 6px;">Hidden from Feed</span>' : ''}
-                    </span>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${id}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? 'Show on Feed' : 'Hide from Feed'}</button>
-                        <button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="For cancellations - moves this to the Archive tab">🚫 Archive / Cancel</button>
-                        <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
-                    </div>
+            const body = document.getElementById('eventEditorBody');
+            if (!body) return;
+            body.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:14px;">
+                    <h3 style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal); word-break:break-word;">Manage: ${draft.title}
+                        ${draft.hidden ? '<span style="display:block; margin-top:6px; color:var(--text-muted); font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border:1px solid var(--border-glass); border-radius:6px; padding:2px 6px;">Hidden from Feed</span>' : ''}
+                    </h3>
+                    <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 8px; flex-shrink:0;" onclick="closeEventEditor()">✕</button>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+                    <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${id}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? 'Show on Feed' : 'Hide from Feed'}</button>
+                    <button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="For cancellations - moves this to the Archive tab">🚫 Archive / Cancel</button>
+                    <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
                 </div>
                 <div id="drag_${id}">
                     ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
@@ -2061,45 +2106,53 @@
                     <span id="saveStatus_${id}" style="font-size:0.8rem; font-weight:600;"></span>
                 </div>
             `;
-            if (!tile) {
-                tile = document.createElement('div');
-                tile.className = 'glass-card';
-                tile.style.padding = '15px';
-                tile.id = 'tile_' + id;
-                listEl.appendChild(tile);
-            }
-            tile.innerHTML = html;
             initDragDrop(`drag_${id}`, id);
         }
 
+        // The Events tab itself just lists compact, glanceable tiles - no
+        // inputs or per-tile state live here, so it's safe to fully rebuild
+        // on every refresh. Tapping a tile opens the single editor modal
+        // above via openEventEditor().
         function renderAdminEv() {
             runAutoArchiveSweep();
             const listEl = document.getElementById('adminEventsList');
             const evs = getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date));
-            const currentIds = evs.map(e => e.id);
 
-            // Remove tiles (and drafts) for events that no longer exist
-            [...listEl.children].forEach(child => {
-                const id = (child.id || '').replace('tile_', '');
-                if (id && !currentIds.includes(id)) { child.remove(); delete window._eventDrafts[id]; }
-            });
+            listEl.innerHTML = evs.map(e => {
+                const slots = eventOpenSlots(e);
+                return `<div class="glass-card event-tile" id="tile_${e.id}" style="padding:13px 15px; display:flex; gap:12px; align-items:center;" onclick="openEventEditor('${e.id}')">
+                    <div class="event-img-wrap" style="width:60px; height:60px; flex-shrink:0; border-radius:10px;">
+                        <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:700; color:var(--neon-teal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${e.title}
+                            ${e.hidden ? '<span style="color:var(--text-muted); font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border:1px solid var(--border-glass); border-radius:6px; padding:1px 6px; margin-left:6px; vertical-align:middle;">Hidden</span>' : ''}
+                        </div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:3px;">🗓️ ${e.date}${e.startTime ? ' · ' + e.startTime : ''} · ${slots} open slot${slots === 1 ? '' : 's'}</div>
+                    </div>
+                    <span style="color:var(--text-muted); font-size:1.3rem; flex-shrink:0;">›</span>
+                </div>`;
+            }).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">No shift postings yet. Tap "+ New Shift Posting" above to create one.</p>`;
 
-            evs.forEach(e => {
-                let tile = document.getElementById('tile_' + e.id);
-
-                // Roster stays in sync live no matter what - a guard claiming
-                // or dropping a shift isn't something the admin is "editing",
-                // so it shouldn't wait on whatever unsaved edits are pending
-                // elsewhere in this tile.
-                if (tile) syncRosterLive(e.id);
-
-                // Never clobber a tile that's mid-edit (focused) or has unsaved changes.
-                if (tile && (tile.contains(document.activeElement) || isDraftDirty(e.id))) return;
-
-                // (Re)initialize the draft from the latest server data.
-                window._eventDrafts[e.id] = JSON.parse(JSON.stringify(e));
-                renderTile(e.id);
-            });
+            // Keep an open editor's roster/status in sync with live data -
+            // never clobber it while the admin is mid-edit (a focused field,
+            // or unsaved changes), and close it automatically if the event
+            // it's editing was archived/deleted from elsewhere in the meantime.
+            const activeId = window._activeEventEditId;
+            if (activeId) {
+                const live = evs.find(e => e.id === activeId);
+                if (!live) {
+                    closeEventEditor(true);
+                } else {
+                    syncRosterLive(activeId);
+                    const body = document.getElementById('eventEditorBody');
+                    if (!(body && body.contains(document.activeElement)) && !isDraftDirty(activeId)) {
+                        window._eventDrafts[activeId] = JSON.parse(JSON.stringify(live));
+                        renderTile(activeId);
+                    }
+                }
+            }
         }
 
         function setTileStatus(id, text, color) {
@@ -2425,6 +2478,7 @@
         function delEv(id) {
             if (confirm('Delete this shift posting permanently? This cannot be undone.')) {
                 delete window._eventDrafts[id];
+                if (window._activeEventEditId === id) closeEventEditor(true);
                 deleteDoc('events', id);
             }
         }
