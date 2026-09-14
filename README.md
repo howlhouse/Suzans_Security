@@ -62,7 +62,7 @@ There is no server-side application code — all logic runs client-side in the b
 - Per-shift roster showing assigned officers and their post assignment (Door, ID Check, Float, Dancefloor, etc.)
 - Venue address with a one-tap "Get Directions" link
 - Operational timeline (time-stamped run-of-show items)
-- Linked client/promoter contact card
+- Linked client/promoter contact card(s) — an event can have more than one promoter attached
 - Live shift-specific chat thread
 - Content tags (SFW, NSFW, 18+, Kink, Themed, etc.) for at-a-glance context
 
@@ -74,6 +74,11 @@ There is no server-side application code — all logic runs client-side in the b
 - File/image attachment support
 - Push-style browser notifications for new shifts and new messages (when permission is granted)
 
+### Promoter Directory
+- Read-only directory, open to every signed-in user via the account dropdown next to the user's name (not just admins)
+- Lists every promoter/client contact with phone, email, and optional Instagram/website/venue links
+- Shows every event each contact is linked to as a promoter, past and upcoming, tap-through to shift detail
+
 ### Command Center (Admin)
 Gated behind a PIN, with the following management tabs:
 
@@ -81,7 +86,7 @@ Gated behind a PIN, with the following management tabs:
 - **Chat Mgmt** — create/delete channels, clear channel history, moderate individual messages, review attachments
 - **Logs** — chronological activity log (logins, shift claims/drops, registrations, post assignments)
 - **Users** — view all staff accounts, promote/demote admin ("Commander") status, reset passwords, delete accounts
-- **Contacts** — manage promoter/client records, tags, and debrief notes; delete contacts
+- **Contacts** — manage promoter/client records (including optional Instagram, website, and venue links), tags, and debrief notes; delete contacts
 - **PIN** — change the admin PIN
 
 ### Accounts
@@ -99,11 +104,11 @@ All data lives in Cloud Firestore. Collections:
 
 | Collection | Purpose | Key fields |
 |---|---|---|
-| `events` | Shift postings | `id`, `title`, `date`, `desc`, `address`, `timeline[]`, `tags[]`, `image`, `ticketLink`, `openSlots`, `guards[]`, `guardPosts{}`, `promoterId`, `layout[]` |
+| `events` | Shift postings | `id`, `title`, `date`, `desc`, `address`, `timeline[]`, `tags[]`, `image`, `ticketLink`, `openSlots`, `guards[]`, `guardPosts{}`, `promoterIds[]` (legacy single-promoter events may still carry `promoterId`), `layout[]` |
 | `users` | Staff accounts | `id`, `name`, `email`, `phone`, `password`, `isAdmin` |
 | `channels` | Team chat channel names | document ID = channel name |
 | `chats` | Chat messages (both team channels and per-event threads, distinguished by `channel` field) | `id`, `channel`, `user`, `text`, `file` |
-| `promoters` | Client/promoter contacts | `id`, `name`, `phone`, `email`, `tags[]`, `notes[]` |
+| `promoters` | Client/promoter contacts | `id`, `name`, `phone`, `email`, `instagram`, `website`, `venueLink`, `tags[]`, `notes[]` |
 | `logs` | Activity/audit log | `id`, `time`, `user`, `action` |
 | `_meta` | Internal app metadata (currently just the one-time database seed flag) | `seedStatus.seeded` |
 
@@ -175,6 +180,7 @@ This seeding is permanently guarded by a flag document (`_meta/seedStatus`) and 
 4. Use **Comms** for general team chat, or the chat thread inside a specific shift for shift-specific coordination.
 5. Check the **Calendar** tab for a month-at-a-glance view of all postings.
 6. Forgot your password? Tap the reset link on the sign-in screen to get a password reset email sent to your address — no need to wait on an administrator.
+7. Tap your name in the header and choose **Promoter Directory** to browse every client/promoter contact — phone, email, Instagram/website/venue links, and which events they're tied to.
 
 ---
 
@@ -182,11 +188,11 @@ This seeding is permanently guarded by a flag document (`_meta/seedStatus`) and 
 
 Tap the 🔒 **Admin** icon in the bottom dock and enter the PIN (default `0000` — change this immediately in **Command Center → PIN**).
 
-- **Events tab:** Click **+ New Shift Posting** to create a shift. Edit any field, then click **Save Changes** on that event to commit — nothing is written until you explicitly save. Drag section blocks (image, info, tags, logistics, roster) to reorder how they display. Use **Delete Tile** to permanently remove a posting.
+- **Events tab:** Click **+ New Shift Posting** to create a shift. Edit any field, then click **Save Changes** on that event to commit — nothing is written until you explicitly save. Drag section blocks (image, info, tags, logistics, roster) to reorder how they display. In the info section, pick as many promoter/client contacts as apply to the event (or none) — they're just toggled on/off, no separate step needed. Use **Delete Tile** to permanently remove a posting.
 - **Chat Mgmt:** Add/remove channels, clear a channel's history, or delete individual messages.
 - **Logs:** Read-only audit trail of login/claim/registration activity.
 - **Users:** Toggle a user between Guard and Commander (admin) status, send a user a password reset email, or delete an account.
-- **Contacts:** Add promoters/clients, tag them, and log debrief notes after events. Delete contacts that are no longer active.
+- **Contacts:** Add promoters/clients, tag them, and log debrief notes after events. Optionally add Instagram, website, and venue links — these show up for everyone in the Promoter Directory (not on the event detail page itself). Delete contacts that are no longer active.
 
 ---
 
