@@ -73,6 +73,15 @@
         .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); padding: 5px 12px; border-radius: 12px; font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--neon-teal); }
         .new-msg-banner { background: linear-gradient(135deg, var(--neon-pink), #d81159); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 700; text-align: center; padding: 7px 10px; letter-spacing: 0.4px; }
         .community-banner { background: rgba(212, 160, 23, 0.12); color: #d9b65c; border-bottom: 1px solid rgba(212, 160, 23, 0.22); font-family: 'Outfit', sans-serif; font-size: 0.68rem; font-weight: 600; text-align: center; padding: 5px 10px; letter-spacing: 0.3px; }
+
+        /* System-wide announcement banner - sits above .container, below the
+           sticky header, and is shown/hidden by renderAnnouncementBanner()
+           for every signed-in user based on the admin's Command Center >
+           System settings. Colors are set inline per the chosen preset. */
+        .site-announcement-banner { display: none; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; position: relative; z-index: 900; padding: 10px 20px; text-align: center; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.85rem; }
+        .site-announcement-banner .ann-link-btn { background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.35); color: inherit; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.78rem; padding: 4px 12px; border-radius: 14px; cursor: pointer; }
+        .color-swatch { width: 40px; height: 40px; border-radius: 12px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0; }
+        .color-swatch.selected { border-color: #fff; box-shadow: 0 0 0 2px var(--neon-teal); }
         .dock-badge { position: absolute; top: -6px; right: -10px; background: var(--neon-pink); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-shadow: 0 0 6px rgba(255, 42, 133, 0.6); }
         /* Purely decorative "CANCELLED" ribbon drawn over an archived/cancelled
            event's tile image. Pure CSS, no layout impact on anything around it -
@@ -201,6 +210,15 @@
             <button class="btn btn-outline btn-sm" style="padding: 6px 12px; border-radius: 20px;" onclick="document.getElementById('aboutModal').style.display='flex'">ℹ️</button>
         </div>
     </header>
+
+    <!-- SYSTEM ANNOUNCEMENT BANNER: controlled from Command Center > System.
+         Visible across every view while enabled (and not past its expiration),
+         or while an admin is actively previewing a draft (preview-only, local
+         to that admin's session, never written to Firestore). -->
+    <div class="site-announcement-banner" id="siteAnnouncementBanner">
+        <span id="siteAnnouncementText"></span>
+        <button class="ann-link-btn" id="siteAnnouncementLinkBtn" style="display:none;"></button>
+    </div>
 
     <div class="container">
         <!-- VIEW 1: UPCOMING EVENTS FEED -->
@@ -359,6 +377,7 @@
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
                 <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
                 <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
+                <button class="segment-btn" onclick="switchAdmin('adminSystem')">System</button>
                 <button class="segment-btn" onclick="switchAdmin('adminSettings')">⚙️ My PIN</button>
             </div>
 
@@ -416,6 +435,33 @@
             <div id="adminContacts" class="admin-pane" style="display: none;">
                 <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addPromoter()">+ New Promoter</button>
                 <div id="promoterList"></div>
+            </div>
+
+            <div id="adminSystem" class="admin-pane" style="display: none;">
+                <div class="glass-card" style="padding: 20px; max-width: 520px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">📢 Announcement Banner</h4>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">Shows a banner at the top of the app, above every view, for every signed-in user. Turn it on and off whenever you like - it also turns itself off automatically for everyone once the expiration date/time passes.</p>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Banner Text</label>
+                    <textarea id="annText" class="input-field" rows="2" placeholder="e.g. Team meeting Sunday at 5pm — mandatory for all leads." oninput="updateAnnouncementPreview()"></textarea>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Color</label>
+                    <div id="annColorPicker" style="display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 14px;"></div>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Link to Event (optional)</label>
+                    <select id="annEventLink" class="input-field" onchange="updateAnnouncementPreview()"></select>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Auto-Off Date/Time (optional)</label>
+                    <input type="datetime-local" id="annExpires" class="input-field" onchange="updateAnnouncementPreview()">
+                    <p style="font-size:0.7rem; color:var(--text-muted); margin:-10px 0 14px;">Leave blank to keep it on indefinitely until you turn it off yourself.</p>
+
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="saveAnnouncement()">💾 Save</button>
+                        <button class="btn btn-outline btn-sm" id="annPreviewBtn" onclick="toggleAnnouncementPreview()">👁️ Preview</button>
+                        <button class="btn btn-sm" id="annToggleBtn" onclick="toggleAnnouncementLive()">🟢 Turn On</button>
+                    </div>
+                    <p id="annStatusNote" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
+                </div>
             </div>
 
             <div id="adminSettings" class="admin-pane" style="display: none;">
@@ -943,8 +989,8 @@
         }
 
         // --- 3. GLOBAL STATE ---
-        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [], tags: [] };
-        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist', 'tags', 'roles'];
+        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [], tags: [], roles: [], announcement: [] };
+        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist', 'tags', 'roles', 'announcement'];
         const getDB = k => window.ss_state[k] || [];
 
         // --- 3b. SAFE WRITE HELPER (fixes silent-fail / undefined-field save bug) ---
@@ -1198,6 +1244,21 @@
                 window._archiveSweepIntervalStarted = true;
                 setInterval(() => { try { runAutoArchiveSweep(); } catch (err) { console.error('Auto-archive sweep failed:', err); } }, 60 * 60 * 1000);
             }
+
+            // Announcement banner: the authoritative Firestore flip (enabled -> false)
+            // only needs to happen occasionally (any client can do it), but every
+            // client should stop *displaying* an expired banner right away rather
+            // than waiting up to an hour - hence the separate, much shorter interval
+            // for just the render check below.
+            try { runAnnouncementExpirySweep(); } catch (err) { console.error('Initial announcement expiry sweep failed:', err); }
+            if (!window._annExpirySweepIntervalStarted) {
+                window._annExpirySweepIntervalStarted = true;
+                setInterval(() => { try { runAnnouncementExpirySweep(); } catch (err) { console.error('Announcement expiry sweep failed:', err); } }, 60 * 60 * 1000);
+            }
+            if (!window._annBannerIntervalStarted) {
+                window._annBannerIntervalStarted = true;
+                setInterval(() => { try { renderAnnouncementBanner(); } catch (err) { console.error('Announcement banner render failed:', err); } }, 30 * 1000);
+            }
         }
 
         function attachRealtimeListeners() {
@@ -1253,6 +1314,7 @@
             updateDockForUser();
             updateCommsBadge();
             try { scheduleShiftReminders(); } catch (err) { console.error('Reminder scheduling failed:', err); }
+            try { renderAnnouncementBanner(); } catch (err) { console.error('Announcement banner render failed:', err); }
             renderEvents();
             if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();
@@ -1348,6 +1410,147 @@
                 console.error('Auto-archive sweep failed:', err);
             } finally {
                 _archiveSweepRunning = false;
+            }
+        }
+
+        /* SYSTEM ANNOUNCEMENT BANNER
+           A single doc (announcement/main) drives a banner shown above every
+           view for every signed-in user. Admins edit it from Command Center >
+           System - text, a color preset, an optional link to an event, and an
+           optional auto-off date/time. Preview is local-only: it never touches
+           Firestore, it just swaps the same on-screen banner to the admin's
+           unsaved draft until they hit Save/Turn On/Stop Preview or leave the
+           tab. */
+        const ANNOUNCEMENT_PRESETS = [
+            { id: 'teal', label: 'Teal', bg: 'linear-gradient(135deg, #00f5d4, #00c4a7)', color: '#08080c' },
+            { id: 'saguaro', label: 'Saguaro Green', bg: 'linear-gradient(135deg, #00ff87, #00b35d)', color: '#08080c' },
+            { id: 'amber', label: 'Amber', bg: 'linear-gradient(135deg, #ffb347, #d4a017)', color: '#08080c' },
+            { id: 'pink', label: 'Pink', bg: 'linear-gradient(135deg, #ff2a85, #d81159)', color: '#fff' },
+            { id: 'purple', label: 'Purple', bg: 'linear-gradient(135deg, #7928ca, #4a00e0)', color: '#fff' },
+            { id: 'danger', label: 'Red Alert', bg: 'linear-gradient(135deg, #ff3366, #a3002b)', color: '#fff' },
+        ];
+        function defaultAnnouncement() { return { id: 'main', enabled: false, text: '', colorPreset: 'teal', eventId: '', expiresAt: '' }; }
+        function getAnnouncement() { return getDB('announcement')[0] || defaultAnnouncement(); }
+
+        // Renders the ACTUAL live banner (or hides it) for the currently
+        // signed-in user, unless a preview is active - preview owns the
+        // banner element until it's stopped or the admin leaves the tab.
+        function renderAnnouncementBanner() {
+            if (window._annPreviewActive) return;
+            const ann = getAnnouncement();
+            const expired = ann.expiresAt && Date.now() > new Date(ann.expiresAt).getTime();
+            if (ann.enabled && ann.text && !expired) renderAnnouncementBannerEl(ann, false);
+            else hideAnnouncementBannerEl();
+        }
+        function renderAnnouncementBannerEl(ann, isPreview) {
+            const preset = ANNOUNCEMENT_PRESETS.find(p => p.id === ann.colorPreset) || ANNOUNCEMENT_PRESETS[0];
+            const el = document.getElementById('siteAnnouncementBanner');
+            el.style.background = preset.bg;
+            el.style.color = preset.color;
+            el.style.display = 'flex';
+            document.getElementById('siteAnnouncementText').innerHTML = (isPreview ? '🔍 PREVIEW (not visible to others yet) — ' : '') + (ann.text || '');
+            const linkBtn = document.getElementById('siteAnnouncementLinkBtn');
+            const evt = ann.eventId ? getDB('events').find(e => e.id === ann.eventId) : null;
+            if (evt) {
+                linkBtn.style.display = 'inline-block';
+                linkBtn.textContent = 'View Event →';
+                linkBtn.onclick = () => openEventDetail(evt.id);
+            } else {
+                linkBtn.style.display = 'none';
+                linkBtn.onclick = null;
+            }
+        }
+        function hideAnnouncementBannerEl() { document.getElementById('siteAnnouncementBanner').style.display = 'none'; }
+
+        function renderAdminSystem() {
+            const ann = getAnnouncement();
+            document.getElementById('annText').value = ann.text || '';
+            document.getElementById('annExpires').value = ann.expiresAt || '';
+            document.getElementById('annEventLink').innerHTML = '<option value="">— No link —</option>' +
+                getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date))
+                    .map(e => `<option value="${e.id}" ${e.id === ann.eventId ? 'selected' : ''}>${e.title} (${e.date})</option>`).join('');
+            window._annSelectedColor = ann.colorPreset || 'teal';
+            document.getElementById('annColorPicker').innerHTML = ANNOUNCEMENT_PRESETS.map(p =>
+                `<div class="color-swatch ${p.id === window._annSelectedColor ? 'selected' : ''}" style="background:${p.bg};" title="${p.label}" onclick="selectAnnColor('${p.id}')"></div>`
+            ).join('');
+            const toggleBtn = document.getElementById('annToggleBtn');
+            toggleBtn.textContent = ann.enabled ? '🔴 Turn Off' : '🟢 Turn On';
+            toggleBtn.className = 'btn btn-sm' + (ann.enabled ? ' btn-magenta' : '');
+            document.getElementById('annStatusNote').textContent = ann.enabled
+                ? ('Live now for everyone.' + (ann.expiresAt ? ' Auto-off at ' + new Date(ann.expiresAt).toLocaleString() + '.' : ' No expiration set - it stays on until you turn it off.'))
+                : 'Currently off. Make your changes, hit Save, then Turn On when it\'s ready to show everyone.';
+            document.getElementById('annPreviewBtn').textContent = window._annPreviewActive ? '🛑 Stop Preview' : '👁️ Preview';
+        }
+        function selectAnnColor(id) {
+            window._annSelectedColor = id;
+            document.querySelectorAll('#annColorPicker .color-swatch').forEach(el => el.classList.remove('selected'));
+            if (window.event && window.event.target) window.event.target.classList.add('selected');
+            updateAnnouncementPreview();
+        }
+        function readAnnDraftFromForm() {
+            return {
+                text: document.getElementById('annText').value.trim(),
+                colorPreset: window._annSelectedColor || 'teal',
+                eventId: document.getElementById('annEventLink').value || '',
+                expiresAt: document.getElementById('annExpires').value || '',
+            };
+        }
+        function saveAnnouncement() {
+            const draft = { ...getAnnouncement(), ...readAnnDraftFromForm() };
+            saveDoc('announcement', 'main', draft).then(() => {
+                logAction('Updated announcement banner');
+                renderAdminSystem();
+            });
+        }
+        function toggleAnnouncementLive() {
+            const existing = getAnnouncement();
+            const draft = { ...existing, ...readAnnDraftFromForm(), enabled: !existing.enabled };
+            if (draft.enabled && !draft.text) { alert('Add some banner text before turning it on.'); return; }
+            saveDoc('announcement', 'main', draft).then(() => {
+                logAction(draft.enabled ? 'Turned ON the announcement banner' : 'Turned OFF the announcement banner');
+                clearAnnouncementPreview();
+                renderAdminSystem();
+            });
+        }
+        // Preview shows the CURRENT unsaved form values on the real banner
+        // element, purely client-side - nothing here ever reaches Firestore.
+        function toggleAnnouncementPreview() {
+            window._annPreviewActive = !window._annPreviewActive;
+            if (window._annPreviewActive) updateAnnouncementPreview();
+            else renderAnnouncementBanner();
+            document.getElementById('annPreviewBtn').textContent = window._annPreviewActive ? '🛑 Stop Preview' : '👁️ Preview';
+        }
+        function updateAnnouncementPreview() {
+            if (!window._annPreviewActive) return;
+            renderAnnouncementBannerEl({ ...readAnnDraftFromForm() }, true);
+        }
+        function clearAnnouncementPreview() {
+            if (!window._annPreviewActive) return;
+            window._annPreviewActive = false;
+            const btn = document.getElementById('annPreviewBtn');
+            if (btn) btn.textContent = '👁️ Preview';
+            renderAnnouncementBanner();
+        }
+
+        // Best-effort background sweep (same shape as runAutoArchiveSweep):
+        // once the expiration time has passed, flip `enabled` off server-side
+        // so it's really off for everyone, not just hidden on clients that
+        // happen to still be open and rendering.
+        let _annExpirySweepRunning = false;
+        function runAnnouncementExpirySweep() {
+            if (_annExpirySweepRunning) return;
+            _annExpirySweepRunning = true;
+            try {
+                const ann = getAnnouncement();
+                if (ann.enabled && ann.expiresAt && Date.now() > new Date(ann.expiresAt).getTime()) {
+                    saveDoc('announcement', 'main', { ...ann, enabled: false })
+                        .then(() => logAction('Announcement banner auto-expired'))
+                        .catch(err => console.error('Announcement expiry sweep failed:', err));
+                }
+            } catch (err) {
+                console.error('Announcement expiry sweep failed:', err);
+            } finally {
+                _annExpirySweepRunning = false;
             }
         }
 
@@ -1687,6 +1890,7 @@
             if (v === 'contactsDirectoryView') renderContactsDirectory();
             if (v === 'settingsView') renderSettings();
             if (v === 'adminConsoleView') renderAdminEv();
+            if (v !== 'adminConsoleView') clearAnnouncementPreview();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -2006,7 +2210,8 @@
         function switchAdmin(t) {
             document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
             document.querySelectorAll('.admin-pane').forEach(el => el.style.display = 'none'); document.getElementById(t).style.display = 'block';
-            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') { renderAdminTags(); renderAdminRoles(); } if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts();
+            if (t !== 'adminSystem') clearAnnouncementPreview(); // leaving the tab always drops any unsaved preview
+            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') { renderAdminTags(); renderAdminRoles(); } if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts(); if (t === 'adminSystem') renderAdminSystem();
         }
 
         /* ADMIN EVENTS — staged draft + explicit Save button
