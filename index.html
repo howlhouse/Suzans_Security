@@ -1789,27 +1789,18 @@
             // can see who else is on it. Everyone else just sees slot counts.
             const canSeeRoster = (u && u.isAdmin) || isSignedUp;
 
+            // Rank restrictions on a position only gate who can CLAIM it (see
+            // positionsHtml below) - once you're on the shift roster at all
+            // (canSeeRoster), you see every teammate on it, rank restrictions
+            // notwithstanding.
             let rosterHtml = !canSeeRoster ? '' : (e.guards || []).map(g => {
                 const isMe = g === u?.name;
                 const posLabel = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
-                const posDef = hasPositions ? (e.positions || []).find(p => p.name === posLabel) : null;
-                // Rank-restricted positions hide WHO filled them from everyone
-                // except the guard themselves and admins - guards without the
-                // required rank should only ever see that the slot is filled.
-                const isRestricted = posDef && posDef.allowedRoles && posDef.allowedRoles.length;
-                const canSeeIdentity = !isRestricted || isMe || (u && u.isAdmin);
                 const positionCell = (!hasPositions && isMe)
                     ? `<select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:600;" onchange="updateGuardPost('${e.id}', '${g}', this.value)">
                             ${LEGACY_POST_OPTIONS.map(p => `<option value="${p}" ${posLabel === p ? 'selected' : ''}>${p}</option>`).join('')}
                        </select>`
                     : `<span style="color:var(--neon-teal); font-weight:600; font-size:0.85rem;">${posLabel}</span>`;
-                if (!canSeeIdentity) {
-                    return `
-                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                        <td style="padding:10px 6px; color:var(--text-muted);">🔒 Restricted position filled</td>
-                        <td style="padding:10px 6px; text-align:right;">${positionCell}</td>
-                    </tr>`;
-                }
                 return `
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                     <td style="padding:10px 6px;">🛡️ ${g}${isMe ? ' <span style="color:var(--neon-pink); font-size:0.75rem;">(You)</span>' : ''}</td>
