@@ -1702,7 +1702,7 @@
                 const openSlots = eventOpenSlots(e);
                 const isSignedUp = (e.guards || []).includes(u?.name);
                 const evtChan = 'evt_' + e.id;
-                const unreadChat = unreadCount(evtChan);
+                const unreadChat = (isSignedUp || u?.isAdmin) ? unreadCount(evtChan) : 0;
                 const statusText = isSignedUp
                     ? `<span style="color:var(--neon-saguaro); font-weight:600;">✓ You're In</span>`
                     : (openSlots === 0 ? 'Filled' : `${openSlots} Open`);
@@ -1784,8 +1784,12 @@
             const isSignedUp = u && (e.guards || []).includes(u.name);
             const hasPositions = e.positions && e.positions.length;
             const myNote = u && e.guardNotes && e.guardNotes[u.name];
+            // Shift rosters are private between the team working that shift -
+            // only guards who've claimed a slot on this event (plus admins)
+            // can see who else is on it. Everyone else just sees slot counts.
+            const canSeeRoster = (u && u.isAdmin) || isSignedUp;
 
-            let rosterHtml = (e.guards || []).map(g => {
+            let rosterHtml = !canSeeRoster ? '' : (e.guards || []).map(g => {
                 const isMe = g === u?.name;
                 const posLabel = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
                 const posDef = hasPositions ? (e.positions || []).find(p => p.name === posLabel) : null;
@@ -1917,10 +1921,11 @@
                                 </button>` : ''}
                             </div>
                             <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:6px 16px;">
-                                ${rosterHtml ? `<table style="width:100%; border-collapse:collapse; font-size:0.9rem;"><tbody>${rosterHtml}</tbody></table>` : '<p style="color:var(--text-muted); font-size:0.85rem; padding:10px 0;">No officers assigned yet.</p>'}
+                                ${rosterHtml ? `<table style="width:100%; border-collapse:collapse; font-size:0.9rem;"><tbody>${rosterHtml}</tbody></table>` : (!canSeeRoster && (e.guards || []).length ? '<p style="color:var(--text-muted); font-size:0.85rem; padding:10px 0;">🔒 Sign up for this shift to see your team.</p>' : '<p style="color:var(--text-muted); font-size:0.85rem; padding:10px 0;">No officers assigned yet.</p>')}
                             </div>
                         </div>
 
+                        ${canSeeRoster ? `
                         <div style="margin-top: 24px;">
                             <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">Live Shift Comms</h4>
                             <div id="detailChatBox" style="height:220px; overflow-y:auto; background:rgba(12,12,18,0.6); border:1px solid var(--border-glass); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
@@ -1928,11 +1933,11 @@
                                 <input type="text" id="detailChatInput" class="input-field" placeholder="Transmit shift update..." style="margin:0;" data-1p-ignore>
                                 <button class="btn btn-sm" onclick="sendDetailChat('${e.id}')">Send</button>
                             </div>
-                        </div>
+                        </div>` : ''}
                     </div>
                 </div>
             `;
-            renderDetailChat(e.id);
+            if (canSeeRoster) renderDetailChat(e.id);
         }
 
         function updateGuardPost(eventId, guardName, postVal) {
