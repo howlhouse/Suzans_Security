@@ -223,13 +223,13 @@
                 return `<tr style="border-top:1px solid rgba(255,255,255,0.06);">
                     <td style="padding:6px 4px;">${g}</td>
                     <td style="padding:6px 4px;">
-                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${eventId}','${g.replace(/'/g, "\\'")}',this.value)">
+                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${eventId}','${jsStr(g)}',this.value)">
                             <option value="Unassigned" ${currentPos === 'Unassigned' ? 'selected' : ''}>Unassigned</option>
                             ${posOptions.map(p => `<option value="${p}" ${currentPos === p ? 'selected' : ''}>${p}</option>`).join('')}
                         </select>
                     </td>
                     <td style="padding:6px 4px;">
-                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${((e.guardNotes && e.guardNotes[g]) || '').replace(/"/g, '&quot;')}" onchange="draftSetGuardNote('${eventId}','${g.replace(/'/g, "\\'")}',this.value)" data-1p-ignore>
+                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${((e.guardNotes && e.guardNotes[g]) || '').replace(/"/g, '&quot;')}" onchange="draftSetGuardNote('${eventId}','${jsStr(g)}',this.value)" data-1p-ignore>
                     </td>
                     <td style="padding:6px 4px;"><b style="color:var(--danger-glow);cursor:pointer;" onclick="draftRmGuard('${eventId}',${i})">✕</b></td>
                 </tr>`;
@@ -309,7 +309,7 @@
                         </div>
                         <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:6px;">
                             <span style="font-size:0.68rem; color:var(--text-muted); margin-right:2px;">Restrict to ranks:</span>
-                            ${getRoleCatalog().map(r => `<span class="neon-tag ${(p.allowedRoles || []).includes(r) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer; font-size:0.68rem; padding:3px 8px;" onclick="draftTogglePositionRole('${e.id}',${i},'${r.replace(/'/g, "\\'")}')">${(p.allowedRoles || []).includes(r) ? '✓ ' : ''}${r}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.7rem;">No ranks in the catalog - add some under Command Center → Tags &amp; Roles.</span>'}
+                            ${getRoleCatalog().map(r => `<span class="neon-tag ${(p.allowedRoles || []).includes(r) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer; font-size:0.68rem; padding:3px 8px;" onclick="draftTogglePositionRole('${e.id}',${i},'${jsStr(r)}')">${(p.allowedRoles || []).includes(r) ? '✓ ' : ''}${r}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.7rem;">No ranks in the catalog - add some under Command Center → Tags &amp; Roles.</span>'}
                             <span style="font-size:0.65rem; color:${(p.allowedRoles || []).length ? 'var(--neon-pink)' : 'var(--text-muted)'}; display:block; width:100%; margin-top:3px;">${(p.allowedRoles || []).length ? 'Only guards holding one of the checked ranks can see or claim this position. Everyone else just sees it as filled/open.' : 'Open to guards of any rank.'}</span>
                         </div>
                     </div>`).join('')}

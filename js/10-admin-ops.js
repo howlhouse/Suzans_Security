@@ -14,7 +14,7 @@
         function renderAdminTags() {
             const tags = getDB('tags').slice().sort((a, b) => a.name.localeCompare(b.name));
             document.getElementById('adminTagsList').innerHTML = tags.map(t => `
-                <span class="neon-tag tag-active">${t.name} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="delCatalogTag('${t.id}','${t.name.replace(/'/g, "\\'")}')">×</b></span>
+                <span class="neon-tag tag-active">${t.name} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="delCatalogTag('${t.id}','${jsStr(t.name)}')">×</b></span>
             `).join('') || '<span style="color:var(--text-muted); font-size:0.85rem;">No tags yet - add one above.</span>';
         }
         function addCatalogTag() {
@@ -38,7 +38,7 @@
         function renderAdminRoles() {
             const roles = getDB('roles').slice().sort((a, b) => a.name.localeCompare(b.name));
             document.getElementById('adminRolesList').innerHTML = roles.map(r => `
-                <span class="neon-tag tag-active">${r.name} <b style="color:var(--neon-teal);cursor:pointer;margin-left:6px;" title="Rename" onclick="editCatalogRole('${r.id}','${r.name.replace(/'/g, "\\'")}')">✎</b><b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" title="Delete" onclick="delCatalogRole('${r.id}','${r.name.replace(/'/g, "\\'")}')">×</b></span>
+                <span class="neon-tag tag-active">${r.name} <b style="color:var(--neon-teal);cursor:pointer;margin-left:6px;" title="Rename" onclick="editCatalogRole('${r.id}','${jsStr(r.name)}')">✎</b><b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" title="Delete" onclick="delCatalogRole('${r.id}','${jsStr(r.name)}')">×</b></span>
             `).join('') || '<span style="color:var(--text-muted); font-size:0.85rem;">No ranks yet - add one above.</span>';
         }
         function addCatalogRole() {

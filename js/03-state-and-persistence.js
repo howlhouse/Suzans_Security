@@ -8,6 +8,14 @@
         // which was silently killing entire writes any time one field was unset).
         function cleanData(obj) { return JSON.parse(JSON.stringify(obj)); }
 
+        // Safely embeds a value inside a single-quoted JS string literal within
+        // an inline onclick/onchange handler (e.g. onclick="fn('${jsStr(name)}')").
+        // Backslashes MUST be escaped before quotes - escaping quotes alone lets
+        // a literal backslash in the value (a name ending in one, a pasted note,
+        // etc.) combine with the very quote-escaping backslash this inserts,
+        // breaking out of the string instead of just being a backslash.
+        function jsStr(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
         // If Firestore genuinely never responds (blocked by a firewall/ad
         // blocker, an expired auth session, a misconfigured project, etc.)
         // the SDK's own promise can hang indefinitely with no error at all -
