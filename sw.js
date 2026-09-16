@@ -8,7 +8,7 @@ const CORE_ASSETS = [
     './js/03-state-and-persistence.js', './js/04-bootstrap.js', './js/05-catalog-and-announcements.js',
     './js/06-auth-and-shell.js', './js/07-events-and-details.js', './js/08-calendar.js',
     './js/09-admin-events.js', './js/10-admin-ops.js', './js/11-settings-and-calendar.js',
-    './js/12-banlist-chat-misc.js',
+    './js/12-banlist-chat-misc.js', './js/13-init.js',
 ];
 
 self.addEventListener('install', (e) => {

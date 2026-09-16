@@ -136,7 +136,8 @@ Data syncs in real time to every connected client via Firestore's realtime liste
 │   ├── 09-admin-events.js
 │   ├── 10-admin-ops.js
 │   ├── 11-settings-and-calendar.js
-│   └── 12-banlist-chat-misc.js
+│   ├── 12-banlist-chat-misc.js
+│   └── 13-init.js
 ├── manifest.json        # PWA manifest (app name, icons, theme colors)
 ├── sw.js                 # Service worker (app-shell caching for fast repeat loads)
 ├── firestore.rules      # Firestore security rules
