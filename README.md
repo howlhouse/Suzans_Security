@@ -20,7 +20,8 @@ Created and managed in partnership with **Howlhouse, LLC**.
 10. [Security Notes](#security-notes)
 11. [Progressive Web App (PWA) Behavior](#progressive-web-app-pwa-behavior)
 12. [Known Limitations](#known-limitations)
-13. [Version History](#version-history)
+13. [Developer Documentation](#developer-documentation)
+14. [Version History](#version-history)
 
 ---
 
@@ -43,7 +44,7 @@ The app is designed to be installed as a Progressive Web App (PWA) on officers' 
 
 | Layer | Technology |
 |---|---|
-| Frontend | Single-page vanilla HTML/CSS/JavaScript (no build step, no framework) |
+| Frontend | Single-page vanilla HTML/CSS/JavaScript, split across `styles.css` and `js/*.js` by feature for maintainability (no build step, no framework — see [Project Structure](#project-structure)) |
 | Backend / Database | Google Firebase — **Cloud Firestore** (real-time NoSQL database) |
 | Auth | Firebase Authentication (Email/Password provider) — staff register and sign in with real Firebase Auth accounts |
 | Hosting | Static hosting (e.g., Firebase Hosting, GitHub Pages, or any static file host) |
@@ -120,14 +121,35 @@ Data syncs in real time to every connected client via Firestore's realtime liste
 
 ```
 .
-├── index.html          # The entire application (markup, styles, and logic)
+├── index.html           # Markup only — links styles.css, loads js/*.js in order
+├── styles.css           # All app styling
+├── js/                  # App logic, split by feature (see docs/FILE_GUIDE.md)
+│   ├── 00-loading-mascot.js
+│   ├── 01-firebase-init.js
+│   ├── 02-notifications.js
+│   ├── 03-state-and-persistence.js
+│   ├── 04-bootstrap.js
+│   ├── 05-catalog-and-announcements.js
+│   ├── 06-auth-and-shell.js
+│   ├── 07-events-and-details.js
+│   ├── 08-calendar.js
+│   ├── 09-admin-events.js
+│   ├── 10-admin-ops.js
+│   ├── 11-settings-and-calendar.js
+│   └── 12-banlist-chat-misc.js
 ├── manifest.json        # PWA manifest (app name, icons, theme colors)
 ├── sw.js                 # Service worker (app-shell caching for fast repeat loads)
 ├── firestore.rules      # Firestore security rules
+├── docs/                # Developer documentation — see docs/ARCHITECTURE.md and docs/FILE_GUIDE.md
 └── House_Black_Logo.png # HowlHouse brand logo, used in-app and as the PWA icon
 ```
 
-There is intentionally no build step or bundler — `index.html` is deployable as-is to any static host.
+There is intentionally no build step or bundler — every file here is plain,
+static HTML/CSS/JS, deployable as-is to any static host. The app used to be
+one file with everything inlined; it's now split into the files above purely
+for maintainability (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for why
+and how that split works). Nothing about how the app runs, looks, or behaves
+changed as part of that split.
 
 ---
 
@@ -138,10 +160,10 @@ There is intentionally no build step or bundler — `index.html` is deployable a
 2. Enable **Cloud Firestore** in Native mode.
 3. Enable **Firebase Authentication → Sign-in method → Email/Password**. This is required — see [Security Notes](#security-notes) for why.
 4. Publish the contents of `firestore.rules` under **Firestore Database → Rules**.
-5. Copy your project's Firebase config object into the `firebaseConfig` constant near the top of the `<script>` block in `index.html` (already populated for the current project).
+5. Copy your project's Firebase config object into the `firebaseConfig` constant in `js/01-firebase-init.js` (already populated for the current project).
 
 ### 2. Deploy the static files
-Upload `index.html`, `manifest.json`, `sw.js`, and `House_Black_Logo.png` to the same directory on any static host — for example:
+Upload the whole repository directory — `index.html`, `styles.css`, `js/`, `manifest.json`, `sw.js`, `firestore.rules`, and the image/logo assets — to any static host, preserving the folder structure (`js/*.js` must stay under a `js/` subfolder relative to `index.html`). For example:
 - Firebase Hosting (`firebase deploy`)
 - GitHub Pages
 - Netlify / Vercel / any static file server
@@ -164,10 +186,10 @@ This seeding is permanently guarded by a flag document (`_meta/seedStatus`) and 
 
 | Item | Location | Notes |
 |---|---|---|
-| Firebase project credentials | `firebaseConfig` in `index.html` | Not a secret — access is controlled by Firestore rules, not by hiding this value |
+| Firebase project credentials | `firebaseConfig` in `js/01-firebase-init.js` | Not a secret — access is controlled by Firestore rules, not by hiding this value |
 | Admin PIN | Set via Command Center → PIN; stored in the browser's `localStorage` (`ss_pin`) | Defaults to `0000` until changed |
-| Preset event tags | `PRESET_TAGS` constant in `index.html` | Edit this array to add/remove tag options |
-| Guard post options | `renderEventDetail()` in `index.html` | Edit the inline array of post names |
+| Preset event tags | `DEFAULT_TAGS` constant in `js/05-catalog-and-announcements.js` | Edit this array to add/remove tag options |
+| Guard post options | `renderEventDetail()` in `js/07-events-and-details.js` | Edit the inline array of post names |
 | App icon / theme colors | `manifest.json` | Points to `House_Black_Logo.png` |
 
 ---
@@ -210,22 +232,32 @@ This is an internal tool built for a small, trusted staff team, with tradeoffs m
 ## Progressive Web App (PWA) Behavior
 
 - `manifest.json` allows the app to be "installed" to a phone's home screen with a standalone (browserless) window.
-- `sw.js` implements network-first caching of the app shell (`index.html`, `manifest.json`, the logo) so repeat loads are fast, while never caching or intercepting Firebase/Firestore network calls — live data is always fetched fresh.
+- `sw.js` implements network-first caching of the app shell (`index.html`, `styles.css`, every file in `js/`, `manifest.json`, the logo) so repeat loads are fast, while never caching or intercepting Firebase/Firestore network calls — live data is always fetched fresh.
 - The loading screen shows real progress across the authentication handshake and each of the six Firestore collections, and will always proceed into the app within 20 seconds even in a degraded network condition.
 
 ---
 
 ## Known Limitations
 
-- No automated tests or CI pipeline — this is a single static file with no build step.
+- No automated tests or CI pipeline — this is a set of static files with no build step.
 - No real-time presence indicators (e.g., "who's currently online").
 - File attachments in chat use temporary local object URLs (`URL.createObjectURL`) rather than persistent cloud storage — attachments will not survive a page reload for the sender, and are not uploaded anywhere durable. Wiring this to Firebase Storage is a natural next step if persistent attachments are needed.
 - No pagination — all events, chats, users, and logs are loaded in full on every session. This is fine at current staff/event volume but would need revisiting at significant scale.
 
 ---
 
+## Developer Documentation
+
+For anyone (human or AI) making changes to this codebase, see the `docs/` folder:
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — why the app is split into `styles.css` + `js/*.js`, how classic multi-file scripts share global scope, and the guarantee that this split changed no behavior.
+- **[docs/FILE_GUIDE.md](docs/FILE_GUIDE.md)** — a one-line purpose and function list for every file in `js/`, so you can jump straight to the file that covers the feature you're touching instead of reading the whole app.
+
+---
+
 ## Version History
 
+- **Split the single-file app into `styles.css` + `js/*.js` by feature** — pure reorganization for maintainability, with no change to markup, styling, or logic (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how that was verified).
 - **Login/session hardening** — local sessions are now validated against the live user roster and force-logged-out if the account no longer exists.
 - **Admin event editor rebuilt around drafts** — edits to a shift posting are held locally and only written to the database when **Save Changes** is clicked, eliminating a class of bugs where in-progress edits (especially the date field) were being overwritten by incoming real-time updates.
 - **Fixed a data-loading race condition** that could, on some reloads, cause the app to briefly show a blank feed before populating, and in rarer cases caused the database to be mistakenly re-seeded over real edits. Seeding is now a one-time, permanently-flagged operation.

@@ -1,5 +1,15 @@
-const CACHE_NAME = 'suzans-security-v2';
-const CORE_ASSETS = ['./', './index.html', './manifest.json', './House_Black_Logo.png'];
+const CACHE_NAME = 'suzans-security-v3';
+// index.html used to be one file with an inline <style>/<script> - now it
+// loads styles.css and js/*.js as separate requests, so they need to be
+// precached too for the same offline-cold-boot behavior as before.
+const CORE_ASSETS = [
+    './', './index.html', './manifest.json', './House_Black_Logo.png', './styles.css',
+    './js/00-loading-mascot.js', './js/01-firebase-init.js', './js/02-notifications.js',
+    './js/03-state-and-persistence.js', './js/04-bootstrap.js', './js/05-catalog-and-announcements.js',
+    './js/06-auth-and-shell.js', './js/07-events-and-details.js', './js/08-calendar.js',
+    './js/09-admin-events.js', './js/10-admin-ops.js', './js/11-settings-and-calendar.js',
+    './js/12-banlist-chat-misc.js',
+];
 
 self.addEventListener('install', (e) => {
     e.waitUntil(
