@@ -87,6 +87,7 @@
                 // Storage blocked entirely - just show it once for this load and move on.
                 document.getElementById('welcomeModal').style.display = 'flex';
             }
+            maybeShowOpenShifts(); // no-ops while the welcome popup is up
         }
         function dismissWelcome() {
             try {
@@ -94,6 +95,70 @@
                 store.setItem('ss_welcomeSeen', '1');
             } catch (err) { /* no persistent storage available - nothing more we can do */ }
             closeModal('welcomeModal');
+            maybeShowOpenShifts();
+        }
+
+        // DAILY OPEN-SHIFTS SUMMARY: once per local calendar day per user, list every
+        // upcoming shift/position the user could still claim. Only marked as seen when
+        // they press "Acknowledge open shifts" (no X, no backdrop dismiss), so a
+        // refresh mid-popup brings it back. Nothing shows when there's nothing open.
+        function openShiftsKey(u) { return 'ss_openShiftsAck_' + (u.id || u.name); }
+        function todayKey() {
+            const d = new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function getOpenShiftsForUser(u) {
+            const out = [];
+            getDB('events').filter(e => !e.archived && !e.hidden && !e.cancelled && daysSinceEvent(e) <= 0)
+                .sort((a, b) => new Date(a.date) - new Date(b.date))
+                .forEach(e => {
+                    if ((e.guards || []).includes(u.name)) return;
+                    let items = [];
+                    if (e.positions && e.positions.length) {
+                        e.positions.forEach(p => {
+                            const left = (p.slots || 0) - positionFilled(e, p.name);
+                            const eligible = !(p.allowedRoles && p.allowedRoles.length) || p.allowedRoles.includes(u.role);
+                            if (left > 0 && eligible) items.push(`${p.name} (${left} open)`);
+                        });
+                    } else if ((e.openSlots || 0) > 0) {
+                        items.push(`General shift (${e.openSlots} open)`);
+                    }
+                    if (items.length) out.push({ e, items });
+                });
+            return out;
+        }
+        function maybeShowOpenShifts() {
+            try {
+                const u = currUser();
+                if (!u) return;
+                const welcome = document.getElementById('welcomeModal');
+                if (welcome && welcome.style.display === 'flex') return; // dismissWelcome() calls us again
+                let seen = false;
+                try { seen = (localStorage.getItem(openShiftsKey(u)) === todayKey()); } catch (err) { seen = false; }
+                if (seen) return;
+                const shifts = getOpenShiftsForUser(u);
+                if (!shifts.length) return;
+                document.getElementById('openShiftsList').innerHTML = shifts.map(({ e, items }) => `
+                    <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:14px; padding:14px 16px;">
+                        <div style="font-family:'Outfit'; font-weight:700; font-size:1.02rem; margin-bottom:2px;">${e.title}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🗓️ ${e.date}${e.startTime ? ' · ' + e.startTime : ''}</div>
+                        <ul style="margin:0 0 12px 18px; padding:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.6;">${items.map(i => `<li>${i}</li>`).join('')}</ul>
+                        <button class="btn btn-sm" onclick="goToOpenShift('${e.id}')">View &amp; Sign Up</button>
+                    </div>`).join('');
+                document.getElementById('openShiftsModal').style.display = 'flex';
+                document.getElementById('openShiftsSheet').scrollTop = 0;
+            } catch (err) { console.error('Open shifts popup failed:', err); }
+        }
+        function goToOpenShift(id) {
+            // Following a link counts as acting on the summary, so it's acknowledged
+            // for the day the same as pressing the button.
+            acknowledgeOpenShifts();
+            openEventDetail(id);
+        }
+        function acknowledgeOpenShifts() {
+            const u = currUser();
+            try { if (u) localStorage.setItem(openShiftsKey(u), todayKey()); } catch (err) { /* storage blocked - shows again next load */ }
+            closeModal('openShiftsModal');
         }
         function changePin() {
             const np = document.getElementById('newPinInput').value.trim();
