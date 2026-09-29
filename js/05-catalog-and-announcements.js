@@ -144,6 +144,72 @@
                 ? ('Live now for everyone.' + (ann.expiresAt ? ' Auto-off at ' + new Date(ann.expiresAt).toLocaleString() + '.' : ' No expiration set - it stays on until you turn it off.'))
                 : 'Currently off. Make your changes, hit Save, then Turn On when it\'s ready to show everyone.';
             document.getElementById('annPreviewBtn').textContent = window._annPreviewActive ? '🛑 Stop Preview' : '👁️ Preview';
+            renderPushForm();
+        }
+        // --- ADMIN PUSH NOTIFICATIONS (Command Center > System) ---
+        function renderPushForm() {
+            document.getElementById('pushEventLink').innerHTML = '<option value="">— No event —</option>' +
+                getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date))
+                    .map(e => `<option value="${e.id}">${e.title} (${e.date})</option>`).join('');
+            renderPushList();
+        }
+        function renderPushList() {
+            const now = Date.now();
+            const pushes = [...getDB('pushes')].sort((a, b) => (b.sendAt || 0) - (a.sendAt || 0));
+            const rows = pushes.map(p => {
+                const ev = p.eventId && getDB('events').find(e => e.id === p.eventId);
+                const sent = p.sendAt <= now;
+                const status = p.cancelled ? '🚫 Cancelled' : (sent ? '✅ Sent' : '⏳ Scheduled');
+                return `<div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:10px 12px; margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
+                        <div style="min-width:0;">
+                            <div style="font-weight:700; font-size:0.9rem;">${escapeHtml(p.title)}</div>
+                            <div style="font-size:0.78rem; color:var(--text-muted);">${status} · ${new Date(p.sendAt).toLocaleString()}${ev ? ' · 📌 ' + escapeHtml(ev.title) : ''}</div>
+                            ${p.body ? `<div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">${escapeHtml(p.body)}</div>` : ''}
+                        </div>
+                        <div style="display:flex; gap:6px; flex-shrink:0;">
+                            ${(!sent && !p.cancelled) ? `<button class="btn btn-outline btn-sm" onclick="cancelPush('${p.id}')">Cancel</button>` : ''}
+                            <button class="btn btn-outline btn-sm" onclick="deletePush('${p.id}')">🗑️</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            document.getElementById('pushList').innerHTML = rows || '<p style="color:var(--text-muted); font-size:0.8rem;">No push notifications yet.</p>';
+        }
+        function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        function schedulePush() {
+            const title = document.getElementById('pushTitle').value.trim();
+            const body = document.getElementById('pushBody').value.trim();
+            const eventId = document.getElementById('pushEventLink').value || '';
+            const when = document.getElementById('pushWhen').value;
+            const errEl = document.getElementById('pushErr');
+            const showErr = m => { errEl.textContent = m; errEl.style.display = 'block'; };
+            if (!title) { showErr('A title is required.'); return; }
+            let sendAt = Date.now();
+            if (when) {
+                sendAt = new Date(when).getTime();
+                if (isNaN(sendAt)) { showErr('That date/time is not valid.'); return; }
+                if (sendAt < Date.now() - 60 * 1000) { showErr('That time is in the past. Pick a future time, or leave it blank to send now.'); return; }
+            }
+            errEl.style.display = 'none';
+            const push = { id: 'push' + Date.now(), title, body, eventId, sendAt, createdAt: Date.now(), createdBy: currUser()?.name || '', cancelled: false };
+            saveDoc('pushes', push.id, push).then(() => {
+                logAction(`${when ? 'Scheduled' : 'Sent'} push notification: ${title}`);
+                document.getElementById('pushTitle').value = '';
+                document.getElementById('pushBody').value = '';
+                document.getElementById('pushWhen').value = '';
+                document.getElementById('pushEventLink').value = '';
+            }).catch(() => {});
+        }
+        function cancelPush(id) {
+            const p = getDB('pushes').find(x => x.id === id);
+            if (!p || !confirm('Cancel this scheduled notification?')) return;
+            saveDoc('pushes', id, { ...p, cancelled: true }).then(() => logAction('Cancelled push notification: ' + p.title)).catch(() => {});
+        }
+        function deletePush(id) {
+            const p = getDB('pushes').find(x => x.id === id);
+            if (!p || !confirm('Remove this notification from the list?')) return;
+            deleteDoc('pushes', id).then(() => logAction('Deleted push notification: ' + p.title)).catch(() => {});
         }
         function selectAnnColor(id) {
             window._annSelectedColor = id;

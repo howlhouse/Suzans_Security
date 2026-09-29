@@ -106,6 +106,10 @@
                 window._annExpirySweepIntervalStarted = true;
                 setInterval(() => { try { runAnnouncementExpirySweep(); } catch (err) { console.error('Announcement expiry sweep failed:', err); } }, 60 * 60 * 1000);
             }
+            if (!window._pushIntervalStarted) {
+                window._pushIntervalStarted = true;
+                setInterval(() => { try { deliverDuePushes(); } catch (err) { console.error('Push delivery failed:', err); } }, 30 * 1000);
+            }
             if (!window._annBannerIntervalStarted) {
                 window._annBannerIntervalStarted = true;
                 setInterval(() => { try { renderAnnouncementBanner(); } catch (err) { console.error('Announcement banner render failed:', err); } }, 30 * 1000);
@@ -166,6 +170,8 @@
             updateCommsBadge();
             try { scheduleShiftReminders(); } catch (err) { console.error('Reminder scheduling failed:', err); }
             try { renderAnnouncementBanner(); } catch (err) { console.error('Announcement banner render failed:', err); }
+            try { deliverDuePushes(); } catch (err) { console.error('Push delivery failed:', err); }
+            try { if (document.getElementById('adminSystem').style.display === 'block') renderPushList(); } catch (err) { console.error('Push list render failed:', err); }
             renderEvents();
             if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();

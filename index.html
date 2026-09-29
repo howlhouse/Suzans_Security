@@ -319,6 +319,31 @@
                     </div>
                     <p id="annStatusNote" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
                 </div>
+            
+
+                <div class="glass-card" style="padding: 20px; max-width: 520px; margin-top: 16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">🔔 Push Notifications</h4>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">Send a notification to everyone now, or schedule as many as you like for later. Tapping one opens the linked event. It arrives on each person's device when they have the app open (or the next time they open it, within 24 hours).</p>
+                    <p id="pushErr" style="color:var(--danger-glow); font-size:0.85rem; margin-bottom:10px; display:none;"></p>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Title</label>
+                    <input type="text" id="pushTitle" class="input-field" placeholder="e.g. Shifts still open Saturday" data-1p-ignore>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Message</label>
+                    <textarea id="pushBody" class="input-field" rows="2" placeholder="Optional details"></textarea>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Event (optional)</label>
+                    <select id="pushEventLink" class="input-field"></select>
+
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Send At</label>
+                    <input type="datetime-local" id="pushWhen" class="input-field">
+                    <p style="font-size:0.7rem; color:var(--text-muted); margin:-10px 0 14px;">Leave blank to send immediately. Submit again to schedule more.</p>
+
+                    <button class="btn btn-sm" onclick="schedulePush()">🔔 Send / Schedule</button>
+
+                    <h5 style="color:var(--text-secondary); font-size:0.8rem; text-transform:uppercase; letter-spacing:0.8px; margin:20px 0 10px;">Scheduled &amp; Sent</h5>
+                    <div id="pushList"></div>
+                </div>
             </div>
 
             <div id="adminSettings" class="admin-pane" style="display: none;">
