@@ -127,6 +127,7 @@
         function hideAnnouncementBannerEl() { document.getElementById('siteAnnouncementBanner').style.display = 'none'; }
 
         function renderAdminSystem() {
+            try { renderPushForm(); } catch (err) { console.error('Push form render failed:', err); } // first, so nothing below can stop it
             const ann = getAnnouncement();
             document.getElementById('annText').value = ann.text || '';
             document.getElementById('annExpires').value = ann.expiresAt || '';
@@ -144,13 +145,15 @@
                 ? ('Live now for everyone.' + (ann.expiresAt ? ' Auto-off at ' + new Date(ann.expiresAt).toLocaleString() + '.' : ' No expiration set - it stays on until you turn it off.'))
                 : 'Currently off. Make your changes, hit Save, then Turn On when it\'s ready to show everyone.';
             document.getElementById('annPreviewBtn').textContent = window._annPreviewActive ? '🛑 Stop Preview' : '👁️ Preview';
-            renderPushForm();
         }
         // --- ADMIN PUSH NOTIFICATIONS (Command Center > System) ---
         function renderPushForm() {
-            document.getElementById('pushEventLink').innerHTML = '<option value="">— No event —</option>' +
+            const sel = document.getElementById('pushEventLink');
+            const keep = sel.value; // re-rendered on live data updates - don't lose the admin's pick
+            sel.innerHTML = '<option value="">— No event —</option>' +
                 getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date))
-                    .map(e => `<option value="${e.id}">${e.title} (${e.date})</option>`).join('');
+                    .map(e => `<option value="${e.id}">${escapeHtml(e.title)} (${e.date})</option>`).join('');
+            sel.value = keep;
             renderPushList();
         }
         function renderPushList() {
