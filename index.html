@@ -621,6 +621,11 @@
             <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Ticket Link (optional)</label>
             <input type="text" id="neTicket" class="input-field" placeholder="https://...">
 
+            <label style="display:flex; gap:10px; align-items:flex-start; background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:12px; padding:12px 14px; margin:6px 0 10px; cursor:pointer;">
+                <input type="checkbox" id="neHidden" style="margin-top:3px; flex-shrink:0;">
+                <span style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5;"><strong>Create as hidden (tentative)</strong><br><span style="font-size:0.74rem; color:var(--text-muted);">Saved but not shown to guards or notified. Unhide it from the shift's tile when it's confirmed.</span></span>
+            </label>
+
             <p style="font-size: 0.74rem; color: var(--text-muted); margin: 4px 0 14px;">Tags, timeline, staffing positions, and roster details can be filled in from the shift's tile after it's created.</p>
 
             <button class="btn" id="neCreateBtn" style="width: 100%;" onclick="createNewEvent()">Create Shift Posting</button>

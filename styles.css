@@ -49,6 +49,10 @@
         .event-tile:active { transform: scale(0.985); }
         .event-img-wrap { position: relative; width: 100%; overflow: hidden; }
         .event-img { width: 100%; height: auto; display: block; }
+        /* Event detail hero: show the whole image (no cropping), but cap its height so
+           tall/large images don't push the content off-screen. Letterboxed on dark. */
+        .event-detail-img-wrap { background: #08080c; display: flex; justify-content: center; }
+        .event-detail-img { width: auto; max-width: 100%; height: auto; max-height: min(55vh, 420px); object-fit: contain; }
         .event-img-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 12, 0.1) 0%, rgba(8, 8, 12, 0.85) 100%); }
         .date-badge { position: absolute; bottom: 12px; left: 14px; background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.18); padding: 5px 12px; border-radius: 12px; font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--neon-teal); }
         .new-msg-banner { background: linear-gradient(135deg, var(--neon-pink), #d81159); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 700; text-align: center; padding: 7px 10px; letter-spacing: 0.4px; }

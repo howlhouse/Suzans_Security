@@ -1,4 +1,4 @@
-const CACHE_NAME = 'suzans-security-v4';
+const CACHE_NAME = 'suzans-security-v6';
 // index.html used to be one file with an inline <style>/<script> - now it
 // loads styles.css and js/*.js as separate requests, so they need to be
 // precached too for the same offline-cold-boot behavior as before.
