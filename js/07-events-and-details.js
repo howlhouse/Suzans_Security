@@ -3,8 +3,19 @@
            chat, etc. - keeping this primary list short and easy to scan was
            the whole point, so nothing actionable (claiming a shift, reading
            the brief) lives here anymore; it's all one tap away. */
+        // "Hide community events" filter: remembered per device so it sticks between visits.
+        function getHideCommunity() {
+            try { return localStorage.getItem('ss_hideCommunity') === '1'; } catch (err) { return false; }
+        }
+        function setHideCommunity(on) {
+            try { localStorage.setItem('ss_hideCommunity', on ? '1' : '0'); } catch (err) { /* storage blocked - applies until reload */ window._hideCommunityFallback = on; }
+            renderEvents();
+        }
         function renderEvents() {
-            const evs = getDB('events').filter(e => !e.archived && !e.hidden).sort((a, b) => new Date(a.date) - new Date(b.date));
+            const hideCommunity = getHideCommunity() || !!window._hideCommunityFallback;
+            const toggle = document.getElementById('hideCommunityToggle');
+            if (toggle) toggle.checked = hideCommunity;
+            const evs = getDB('events').filter(e => !e.archived && !e.hidden && !(hideCommunity && e.communityOnly)).sort((a, b) => new Date(a.date) - new Date(b.date));
             const u = currUser();
             document.getElementById('userEventsFeedList').innerHTML = evs.map(e => {
                 const openSlots = eventOpenSlots(e);
@@ -32,7 +43,7 @@
                         <span style="color:var(--text-muted); font-size:1.3rem; flex-shrink:0;">›</span>
                     </div>
                 </div>
-            `; }).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">No shift postings right now — check back soon.</p>`;
+            `; }).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">${hideCommunity ? 'No shift postings match this filter — uncheck "Hide community events" to see everything.' : 'No shift postings right now — check back soon.'}</p>`;
         }
 
         function toggleSignUp(id, eEvent = null) {

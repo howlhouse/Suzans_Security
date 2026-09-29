@@ -146,6 +146,19 @@
             const timeline = [...(e.timeline || [])].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
             return timeline[0]?.time ? to12Hour(timeline[0].time) : 'TBD';
         }
+        // Total length of the shift from its Start/End Time, as a label like
+        // "8 hrs" or "7.5 hrs". An end at or before the start means the shift runs
+        // past midnight, so it wraps to the next day. Returns null when either
+        // time is missing (older events), rather than guessing.
+        function shiftHoursLabel(e) {
+            const parse = t => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+            const start = parse(e.startTime), end = parse(e.endTime);
+            if (start === null || end === null) return null;
+            let mins = end - start;
+            if (mins <= 0) mins += 24 * 60;
+            const hrs = Math.round(mins / 60 * 100) / 100;
+            return `${hrs} ${hrs === 1 ? 'hr' : 'hrs'}`;
+        }
         function myUpcomingShifts() {
             const u = currUser();
             const today = new Date().toISOString().slice(0, 10);
@@ -179,7 +192,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
                         <div>
                             <h3 style="font-family:'Outfit'; font-size:1.2rem; font-weight:700; margin-bottom:4px;">${e.title}</h3>
-                            <p style="font-size:0.85rem; color:var(--text-muted);">🗓️ ${e.date} &nbsp;•&nbsp; ⏰ ${shiftTimeLabel(e)}</p>
+                            <p style="font-size:0.85rem; color:var(--text-muted);">🗓️ ${e.date} &nbsp;•&nbsp; ⏰ ${shiftTimeLabel(e)}${shiftHoursLabel(e) ? ` &nbsp;•&nbsp; ⏱️ ${shiftHoursLabel(e)}` : ''}</p>
                         </div>
                         <span class="neon-tag tag-active" style="white-space:nowrap;">${myPost}</span>
                     </div>
