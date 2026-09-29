@@ -155,9 +155,8 @@
             document.getElementById('eventDetailContent').innerHTML = `
                 <div class="glass-card">
                     ${e.communityOnly ? `<div class="community-banner" style="border-radius:16px 16px 0 0;">📋 Community Listing Only — Not a Contracted Event</div>` : ''}
-                    <div class="event-img-wrap" style="height:240px;">
-                        <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
-                        <div class="event-img-overlay"></div>
+                    <div class="event-img-wrap event-detail-img-wrap">
+                        <img src="${e.image}" class="event-img event-detail-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                         <div class="date-badge">🗓️ ${e.date}</div>
                     </div>
                     <div class="event-body">

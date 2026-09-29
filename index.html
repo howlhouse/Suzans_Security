@@ -448,6 +448,22 @@
         </div>
     </div>
 
+    <!-- DAILY OPEN-SHIFTS POPUP: shown once per calendar day (per user, per device).
+         Deliberately has no close button and no backdrop-dismiss - the only way out
+         is scrolling to the bottom and tapping "Acknowledge open shifts". -->
+    <div class="modal" id="openShiftsModal" style="z-index:2600;">
+        <div class="modal-sheet" id="openShiftsSheet" style="padding-top:22px;">
+            <div style="text-align:center; margin-bottom:14px;">
+                <div style="font-size:2.2rem; margin-bottom:6px;">📣</div>
+                <h3 style="font-family:'Outfit'; font-size:1.35rem; font-weight:800; color:var(--neon-teal); margin-bottom:6px;">Open Shifts For You</h3>
+                <p style="font-size:0.85rem; color:var(--text-muted);">Here's what's still open that you haven't signed up for. Tap <strong>View &amp; Sign Up</strong> to jump to a shift.</p>
+            </div>
+            <div id="openShiftsList" style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;"></div>
+            <p style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-bottom:10px;">This summary shows once a day.</p>
+            <button class="btn" style="width:100%;" onclick="acknowledgeOpenShifts()">Acknowledge open shifts</button>
+        </div>
+    </div>
+
     <template id="termsContentTemplate">
                 <p style="text-align:center; color:var(--text-muted); font-size:0.78rem; margin-bottom:16px;">Suzan's Security &amp; HowlHouse &mdash; Effective Date: September 14th, 2026</p>
                     <p>These Terms and Conditions of Use (“Terms”) constitute a legally binding agreement between you (“User,” “you,” or “your”) and HowlHouse (“HowlHouse,” “we,” “us,” or “our”), the developer, owner, and operator of this application (the “App”), and Suzan’s Security (“Suzan’s Security”), the security organization for which the App is currently provisioned. HowlHouse and Suzan’s Security are referred to individually as a “Company” and collectively as the “Companies.”</p>
@@ -604,6 +620,11 @@
 
             <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Ticket Link (optional)</label>
             <input type="text" id="neTicket" class="input-field" placeholder="https://...">
+
+            <label style="display:flex; gap:10px; align-items:flex-start; background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:12px; padding:12px 14px; margin:6px 0 10px; cursor:pointer;">
+                <input type="checkbox" id="neHidden" style="margin-top:3px; flex-shrink:0;">
+                <span style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5;"><strong>Create as hidden (tentative)</strong><br><span style="font-size:0.74rem; color:var(--text-muted);">Saved but not shown to guards or notified. Unhide it from the shift's tile when it's confirmed.</span></span>
+            </label>
 
             <p style="font-size: 0.74rem; color: var(--text-muted); margin: 4px 0 14px;">Tags, timeline, staffing positions, and roster details can be filled in from the shift's tile after it's created.</p>
 

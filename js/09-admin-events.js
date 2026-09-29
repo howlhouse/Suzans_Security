@@ -452,6 +452,7 @@
             document.getElementById('neDesc').value = '';
             document.getElementById('neSlots').value = 0;
             document.getElementById('neTicket').value = '';
+            document.getElementById('neHidden').checked = false;
             document.getElementById('newEventErr').style.display = 'none';
             document.getElementById('newEventModal').style.display = 'flex';
         }
@@ -479,14 +480,14 @@
                 layout: ['img', 'info', 'tags', 'logistics', 'roster'],
                 ticketLink: document.getElementById('neTicket').value.trim(),
                 archived: false, cancelled: false, archivedAt: null, archiveReason: null,
-                hidden: false
+                hidden: document.getElementById('neHidden').checked
             };
 
             const btn = document.getElementById('neCreateBtn');
             btn.disabled = true;
             btn.innerText = 'Creating...';
             saveDoc('events', newEv.id, newEv).then(() => {
-                logAction('Created shift posting: ' + title);
+                logAction((newEv.hidden ? 'Created hidden shift posting: ' : 'Created shift posting: ') + title);
                 closeModal('newEventModal');
                 // Newly created events land in ss_state via the live listener; give it a beat,
                 // then scroll the admin straight to the new tile so it's not lost among
