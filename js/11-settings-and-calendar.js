@@ -11,6 +11,7 @@
             document.getElementById('setNotifChat').checked = !u.notifPrefs || u.notifPrefs.chat !== false;
             document.getElementById('setNotifReminder90').checked = !u.notifPrefs || u.notifPrefs.reminder90 !== false;
             renderMyShifts();
+            try { renderPushDeviceStatus(); } catch (err) { console.error(err); }
         }
         // "14:30" -> "2:30 PM". Falsy/malformed input passes through unchanged.
         // --- ADD TO CALENDAR ---
