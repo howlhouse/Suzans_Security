@@ -1,6 +1,6 @@
         // --- 3. GLOBAL STATE ---
-        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [], tags: [], roles: [], announcement: [] };
-        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist', 'tags', 'roles', 'announcement'];
+        window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], logs: [], banlist: [], tags: [], roles: [], announcement: [], pushes: [] };
+        const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'logs', 'banlist', 'tags', 'roles', 'announcement', 'pushes'];
         const getDB = k => window.ss_state[k] || [];
 
         // --- 3b. SAFE WRITE HELPER (fixes silent-fail / undefined-field save bug) ---
