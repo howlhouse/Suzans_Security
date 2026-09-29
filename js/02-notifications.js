@@ -164,7 +164,7 @@
                 st.textContent = 'This browser doesn\'t support phone notifications.';
                 btn.style.display = 'none';
             } else if (Notification.permission === 'denied') {
-                st.textContent = 'Notifications are blocked for this app. Re-enable them in your device or browser settings, then come back.';
+                st.textContent = 'Notifications are blocked for this app. Tap "How to turn on notifications" below for the steps to re-enable them.';
                 btn.style.display = 'none';
             } else if (on && Notification.permission === 'granted') {
                 st.textContent = '✅ Enabled on this device.';
@@ -206,4 +206,31 @@
                     openEventDetail(id);
                 }
             } catch (err) { console.warn('Deep link failed:', err); }
+        }
+
+        // Browsers can't deep-link into OS settings, so show step-by-step directions
+        // instead, with the section for the user's own device listed first.
+        function openNotifHelp() {
+            const sections = {
+                ios: ['📱 iPhone / iPad', [
+                    'Notifications only work from the installed app: in Safari tap Share → <strong>Add to Home Screen</strong>, then open the app from your Home Screen.',
+                    'Then go to <strong>Settings → Notifications → Suzan\'s Security</strong> and turn on <strong>Allow Notifications</strong>.',
+                    'Back in the app, open Settings and tap <strong>Enable on this device</strong>.']],
+                android: ['🤖 Android', [
+                    'Press and hold the app icon → <strong>App info → Notifications</strong> and switch them on. (In Chrome: tap the lock icon by the address bar → <strong>Permissions → Notifications → Allow</strong>.)',
+                    'Back in the app, open Settings and tap <strong>Enable on this device</strong>.']],
+                desktop: ['💻 Computer', [
+                    'Click the lock icon at the left of the address bar → <strong>Notifications → Allow</strong>.',
+                    'Reload the page, open Settings, and tap <strong>Enable on this device</strong>.']],
+            };
+            const ua = navigator.userAgent;
+            const mine = isIOS() ? 'ios' : (/android/i.test(ua) ? 'android' : 'desktop');
+            const order = [mine, ...Object.keys(sections).filter(k => k !== mine)];
+            document.getElementById('notifHelpBody').innerHTML = order.map((k, i) => `
+                <div style="background:rgba(255,255,255,0.04); border:1px solid ${i === 0 ? 'var(--neon-teal)' : 'var(--border-glass)'}; border-radius:12px; padding:12px 14px; margin-bottom:10px;">
+                    <div style="font-weight:700; margin-bottom:6px; color:var(--text-primary);">${sections[k][0]}${i === 0 ? ' <span style="color:var(--neon-teal); font-size:0.72rem;">(your device)</span>' : ''}</div>
+                    <ol style="margin:0 0 0 18px; padding:0;">${sections[k][1].map(t => `<li style="margin-bottom:4px;">${t}</li>`).join('')}</ol>
+                </div>`).join('') +
+                '<p style="font-size:0.78rem; color:var(--text-muted);">The app can\'t open your device settings for you, so these are the steps to get there yourself.</p>';
+            document.getElementById('notifHelpModal').style.display = 'flex';
         }

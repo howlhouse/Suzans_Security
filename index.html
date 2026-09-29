@@ -209,7 +209,10 @@
                 <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:6px;">📲 Phone Notifications</h4>
                 <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">Get alerts on this device even when the app is closed.</p>
                 <p id="pushDeviceStatus" style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;"></p>
-                <button class="btn btn-sm" id="pushDeviceBtn" onclick="togglePushOnDevice()">Enable on this device</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn btn-sm" id="pushDeviceBtn" onclick="togglePushOnDevice()">Enable on this device</button>
+                    <button class="btn btn-outline btn-sm" onclick="openNotifHelp()">❓ How to turn on notifications</button>
+                </div>
             </div>
 
             <div class="glass-card" style="padding: 20px;">
@@ -401,6 +404,18 @@
             <button class="btn" style="width: 100%; margin-top: 8px;" id="authBtn" onclick="handleAuth()">Sign In to Dispatch</button>
             <p style="text-align: center; margin-top: 18px; color: var(--neon-teal); font-size: 0.85rem; cursor: pointer; font-weight: 600;" onclick="toggleAuth()" id="authToggleText">New Officer? Register Account</p>
             <p style="text-align: center; margin-top: 10px; color: var(--text-muted); font-size: 0.72rem; cursor:pointer;" onclick="forgotPassword()">Forgot password? Tap here to get a reset email.</p>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION HELP: web pages can't open device settings, so this walks the user there -->
+    <div class="modal" id="notifHelpModal">
+        <div class="modal-sheet">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal);">Turn on notifications</h3>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 8px;" onclick="closeModal('notifHelpModal')">✕</button>
+            </div>
+            <div id="notifHelpBody" style="font-size:0.88rem; color:var(--text-secondary); line-height:1.6;"></div>
+            <button class="btn" style="width:100%; margin-top:16px;" onclick="closeModal('notifHelpModal')">Got it</button>
         </div>
     </div>
 
