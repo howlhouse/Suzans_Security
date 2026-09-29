@@ -1,4 +1,4 @@
-const CACHE_NAME = 'suzans-security-v5';
+const CACHE_NAME = 'suzans-security-v6';
 // index.html used to be one file with an inline <style>/<script> - now it
 // loads styles.css and js/*.js as separate requests, so they need to be
 // precached too for the same offline-cold-boot behavior as before.
@@ -48,4 +48,33 @@ self.addEventListener('fetch', (e) => {
             })
             .catch(() => caches.match(e.request))
     );
+});
+
+// --- PUSH (Firebase Cloud Messaging via Web Push) ---
+// Shows the notification when the app is closed. Handles both a Firebase-console
+// "notification" message ({notification:{title,body}, data:{...}}) and a data-only
+// message. `data.eventId` (optional) makes a tap open that event.
+self.addEventListener('push', (e) => {
+    let payload = {};
+    try { payload = e.data ? e.data.json() : {}; } catch (err) { payload = { notification: { body: e.data && e.data.text() } }; }
+    const n = payload.notification || {};
+    const data = payload.data || {};
+    const title = n.title || data.title || "Suzan's Security";
+    e.waitUntil(self.registration.showNotification(title, {
+        body: n.body || data.body || '',
+        icon: 'Suzans_Security_Icon_192.png',
+        badge: 'Suzans_Security_Icon_192.png',
+        data: { eventId: data.eventId || '' },
+    }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+    e.notification.close();
+    const eventId = e.notification.data && e.notification.data.eventId;
+    const target = new URL(eventId ? './?event=' + encodeURIComponent(eventId) : './', self.registration.scope).href;
+    e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+        const open = wins.find((w) => w.url.startsWith(self.registration.scope));
+        if (open) { open.navigate && eventId ? open.navigate(target).then((c) => c && c.focus()) : open.focus(); return; }
+        return clients.openWindow(target);
+    }));
 });

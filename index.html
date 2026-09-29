@@ -16,6 +16,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -202,6 +203,13 @@
                     <span style="font-size:0.85rem;">Shift reminder (90 minutes before start)</span>
                 </label>
                 <button class="btn btn-sm" onclick="saveMyProfile()">💾 Save Notification Settings</button>
+            </div>
+
+            <div class="glass-card" style="padding: 20px;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:6px;">📲 Phone Notifications</h4>
+                <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">Get alerts on this device even when the app is closed.</p>
+                <p id="pushDeviceStatus" style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;"></p>
+                <button class="btn btn-sm" id="pushDeviceBtn" onclick="togglePushOnDevice()">Enable on this device</button>
             </div>
 
             <div class="glass-card" style="padding: 20px;">

@@ -43,6 +43,8 @@
                     updateDockForUser();
                     requestNotificationPermission();
                     await initialLoad();
+                    syncPushToken();
+                    handlePushDeepLink();
                 } catch (err) {
                     console.error('Failed to load profile:', err);
                     document.getElementById('loadStepText').innerText = 'Profile load error: ' + err.message;

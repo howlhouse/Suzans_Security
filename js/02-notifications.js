@@ -118,3 +118,92 @@
             });
         }
 
+
+        // --- 2d. REAL PUSH (works with the app closed) ---
+        // Each device registers with Firebase Cloud Messaging and saves its token in
+        // the `pushTokens` collection so a server (Cloud Function / Firebase console)
+        // can reach it. Display + tap handling live in sw.js. Opt-in only, from a
+        // button in Settings: iPhones require the tap, and they also require the app
+        // to be installed to the Home Screen first.
+        const VAPID_PUBLIC_KEY = 'BPXVrQgkqbnfPesAZIrTc540lK8RjfT0pilRM5TZrKGtYxMSHzsM5MpQWwWhTH1jsNHvLL-NcCc0swiVMfo97o4';
+        function pushSupported() {
+            return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && firebase.messaging.isSupported();
+        }
+        function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+        function isStandalone() { return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }
+        function getPushRegistration() { return navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready); }
+        async function getPushToken() {
+            const reg = await getPushRegistration();
+            return firebase.messaging().getToken({ vapidKey: VAPID_PUBLIC_KEY, serviceWorkerRegistration: reg });
+        }
+        async function savePushToken(token) {
+            const u = currUser();
+            if (!u) return;
+            await db.collection('pushTokens').doc(token).set({
+                token, userId: u.id, userName: u.name || '', platform: isIOS() ? 'ios' : 'other', updatedAt: Date.now()
+            });
+            try { localStorage.setItem('ss_pushToken', token); } catch (err) { /* fine */ }
+        }
+        // Tokens can rotate, so refresh the saved one on each sign-in for devices already opted in.
+        async function syncPushToken() {
+            try {
+                if (!pushSupported() || Notification.permission !== 'granted' || localStorage.getItem('ss_pushOn') !== '1') return;
+                await savePushToken(await getPushToken());
+            } catch (err) { console.warn('Push token sync failed:', err); }
+        }
+        function renderPushDeviceStatus() {
+            const st = document.getElementById('pushDeviceStatus'), btn = document.getElementById('pushDeviceBtn');
+            if (!st || !btn) return;
+            let on = false;
+            try { on = localStorage.getItem('ss_pushOn') === '1'; } catch (err) { /* ignore */ }
+            btn.style.display = '';
+            if (isIOS() && !isStandalone()) {
+                st.textContent = 'On iPhone/iPad, first tap Share → "Add to Home Screen", then open the app from your Home Screen and enable notifications here.';
+                btn.style.display = 'none';
+            } else if (!pushSupported()) {
+                st.textContent = 'This browser doesn\'t support phone notifications.';
+                btn.style.display = 'none';
+            } else if (Notification.permission === 'denied') {
+                st.textContent = 'Notifications are blocked for this app. Re-enable them in your device or browser settings, then come back.';
+                btn.style.display = 'none';
+            } else if (on && Notification.permission === 'granted') {
+                st.textContent = '✅ Enabled on this device.';
+                btn.textContent = 'Turn off on this device';
+            } else {
+                st.textContent = 'Not enabled on this device.';
+                btn.textContent = 'Enable on this device';
+            }
+        }
+        async function togglePushOnDevice() {
+            const btn = document.getElementById('pushDeviceBtn');
+            btn.disabled = true;
+            try {
+                if (localStorage.getItem('ss_pushOn') === '1') {
+                    const token = localStorage.getItem('ss_pushToken');
+                    try { await firebase.messaging().deleteToken(); } catch (err) { console.warn(err); }
+                    if (token) await db.collection('pushTokens').doc(token).delete().catch(() => {});
+                    localStorage.removeItem('ss_pushOn'); localStorage.removeItem('ss_pushToken');
+                } else {
+                    const perm = await Notification.requestPermission();
+                    if (perm !== 'granted') { alert('Notifications weren\'t allowed, so phone notifications stay off.'); return; }
+                    await savePushToken(await getPushToken());
+                    localStorage.setItem('ss_pushOn', '1');
+                }
+            } catch (err) {
+                console.error('Push toggle failed:', err);
+                alert('Could not change phone notifications: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                renderPushDeviceStatus();
+            }
+        }
+        // Tapping a push opens the app at ?event=<id>; jump straight to that event.
+        function handlePushDeepLink() {
+            try {
+                const id = new URLSearchParams(location.search).get('event');
+                if (id && getDB('events').some(e => e.id === id)) {
+                    history.replaceState(null, '', location.pathname);
+                    openEventDetail(id);
+                }
+            } catch (err) { console.warn('Deep link failed:', err); }
+        }
