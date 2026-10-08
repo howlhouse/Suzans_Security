@@ -61,6 +61,7 @@
                 <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none;">
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('myShiftsView');"><span>📋</span><span>My Shifts &amp; Notes</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('contactsDirectoryView');"><span>📇</span><span>Promoter Directory</span></button>
+                    <button class="user-menu-item" onclick="closeUserMenu(); switchView('licensesView');"><span>🪪</span><span>Licenses</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('settingsView');"><span>⚙️</span><span>Settings</span></button>
                     <button class="user-menu-item danger" onclick="closeUserMenu(); if(confirm('Sign out of Suzan\'s Security?')) logout();"><span>⏻</span><span>Sign Out</span></button>
                 </div>
@@ -155,6 +156,24 @@
                 <p style="color:var(--text-muted); font-size:0.85rem;">Client &amp; promoter contacts, their links, and the shifts they're tied to</p>
             </div>
             <div id="contactsDirectoryList"></div>
+        </section>
+
+        <!-- VIEW: LICENSES -->
+        <section id="licensesView" style="display: none;">
+            <div style="margin-bottom: 20px;">
+                <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">Licenses</h2>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Recommended certifications for the Suzan's Security team</p>
+            </div>
+
+            <div class="glass-card" style="padding: 20px; border: 1px solid rgba(0,245,212,0.4);">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:10px;">⭐ Highly Recommended</h4>
+                <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">All Suzan's Security team members are <strong>HIGHLY recommended</strong> to maintain a basic <strong>Title IV license</strong> and an <strong>Unarmed Guard card</strong>. Both can be completed online:</p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <a class="btn btn-outline" style="text-decoration:none; text-align:center;" href="https://www.360training.com/learn2serve/alcohol/arizona" target="_blank" rel="noopener noreferrer">🍸 Title IV License &mdash; Learn2Serve (Arizona)</a>
+                    <a class="btn btn-outline" style="text-decoration:none; text-align:center;" href="https://go.defencifytraining.com/arizona-guard-card" target="_blank" rel="noopener noreferrer">🛡️ Unarmed Guard Card &mdash; Defencify (Arizona)</a>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.6; margin-top:14px;">The Unarmed Guard card also requires <strong>fingerprinting</strong> and <strong>licensing fees paid to the state</strong>. <a href="https://www.azdps.gov/sites/default/files/2026-08/SG%20Unarmed%20Application%2003900.pdf" target="_blank" rel="noopener noreferrer" style="color:var(--neon-teal); font-weight:600;">Arizona DPS unarmed guard application (PDF)</a></p>
+            </div>
         </section>
 
         <!-- VIEW: SETTINGS -->

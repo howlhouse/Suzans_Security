@@ -249,7 +249,7 @@
             // directly (bypassing promptAdminPin), never actually show it to a
             // non-admin. The PIN prompt is the intended door in.
             if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'settingsView', 'adminConsoleView'].forEach(id => {
+            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'licensesView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
             });
