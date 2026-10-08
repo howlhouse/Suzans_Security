@@ -21,6 +21,7 @@
             document.querySelectorAll('.admin-pane').forEach(el => el.style.display = 'none'); document.getElementById(t).style.display = 'block';
             if (t !== 'adminSystem') clearAnnouncementPreview(); // leaving the tab always drops any unsaved preview
             if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') { renderAdminTags(); renderAdminRoles(); } if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts(); if (t === 'adminSystem') renderAdminSystem();
+            if (t === 'adminLicenses') startAdminLicensesListener(); else stopAdminLicensesListener();
         }
 
         /* ADMIN EVENTS — staged draft + explicit Save button

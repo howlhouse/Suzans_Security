@@ -248,6 +248,7 @@
             window._selfDeleting = true; // tells validateSession() to stand down - we're handling sign-out ourselves
             try {
                 logAction('Self-deleted account: ' + u.name);
+                await purgeUserLicenses(u.id);
                 await deleteDoc('users', u.id);
                 try {
                     // Only works without re-authentication if the sign-in is recent;
@@ -319,3 +320,220 @@
         function delPromoter(id) { if (confirm('Delete this contact permanently? This cannot be undone.')) deleteDoc('promoters', id); }
         function delPromoterFromModal() { if (selP && confirm('Delete this contact permanently? This cannot be undone.')) { deleteDoc('promoters', selP); closeModal('promoterModal'); } }
 
+
+        // --- LICENSES & CERTIFICATES ---
+        // There's no file storage on this project, so uploads live in Firestore as
+        // data URLs (photos are shrunk in the browser first to fit the 1 MB doc
+        // limit). Each upload is two docs sharing one id:
+        //   licenses/{id}      - small metadata (who, type, expiry, file name)
+        //   licenseFiles/{id}  - the actual image/PDF data
+        // Keeping them apart lets the admin roster live-update without downloading
+        // every staffer's image; a file is only fetched when someone taps View.
+        // Neither collection is in allCollections / ss_state on purpose, and
+        // firestore.rules limits both to the owner plus admins.
+        const LICENSE_TYPES = { title4: 'Title IV License', guardcard: 'Unarmed Guard Card' };
+        const LICENSE_MAX_DATA_CHARS = 900000;     // data-URL length that still fits a Firestore doc
+        const LICENSE_MAX_PDF_BYTES = 650 * 1024;  // base64 adds ~33%
+        let adminLicenses = [];
+        let adminLicUnsub = null;
+        let myLicenses = [];
+        let licenseViewUrl = null;
+
+        function licenseLabel(l) { return l.type === 'other' ? (l.label || 'Other certificate') : (LICENSE_TYPES[l.type] || 'License'); }
+        function licenseStatus(l) {
+            if (!l.expires) return { text: 'On file', color: 'var(--neon-saguaro)' };
+            const end = new Date(l.expires + 'T23:59:59');
+            if (isNaN(end)) return { text: 'On file', color: 'var(--neon-saguaro)' };
+            const days = Math.ceil((end - new Date()) / 86400000);
+            const when = new Date(l.expires + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            if (days < 0) return { text: 'Expired ' + when, color: 'var(--danger-glow)' };
+            if (days <= 60) return { text: 'Expires ' + when, color: '#ffb020' };
+            return { text: 'Valid to ' + when, color: 'var(--neon-saguaro)' };
+        }
+
+        async function renderMyLicenses() {
+            const u = currUser();
+            const el = document.getElementById('myLicensesList');
+            if (!u || !el) return;
+            try {
+                const snap = await db.collection('licenses').where('uid', '==', u.id).get();
+                myLicenses = snap.docs.map(d => d.data());
+            } catch (err) {
+                console.error('Could not load licenses:', err);
+                el.innerHTML = `<p style="color:var(--danger-glow); font-size:0.85rem;">Couldn't load your licenses (${escapeHtml(err.message)}).</p>`;
+                return;
+            }
+            const order = { title4: 0, guardcard: 1, other: 2 };
+            const list = [...myLicenses].sort((a, b) => (order[a.type] - order[b.type]) || String(a.label || '').localeCompare(String(b.label || '')));
+            const missing = Object.keys(LICENSE_TYPES).filter(t => !list.some(l => l.type === t));
+            el.innerHTML = list.map(l => {
+                const st = licenseStatus(l);
+                return `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+                    <div style="min-width:0;">
+                        <div style="font-weight:600; font-size:0.9rem;">${escapeHtml(licenseLabel(l))}</div>
+                        <div style="font-size:0.78rem; color:${st.color};">${escapeHtml(st.text)}</div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <button class="btn btn-outline btn-sm" onclick="viewLicense('${escapeHtml(jsStr(l.id))}')">View</button>
+                        <button class="btn btn-outline btn-sm" style="color:var(--danger-glow);" onclick="deleteMyLicense('${escapeHtml(jsStr(l.id))}')">Delete</button>
+                    </div>
+                </div>`;
+            }).join('') + missing.map(t => `<div style="padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06); font-size:0.85rem;"><span style="font-weight:600;">${LICENSE_TYPES[t]}</span> <span style="color:var(--text-muted);">&mdash; not uploaded yet</span></div>`).join('');
+        }
+
+        // Photos: scale down + re-encode as JPEG until it fits. PDFs: must already be small.
+        function loadImageFromFile(file) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That image couldn't be read. Try a JPG or PNG photo, or a PDF.")); };
+                img.src = url;
+            });
+        }
+        async function prepareLicenseFile(file) {
+            if (file.type === 'application/pdf') {
+                if (file.size > LICENSE_MAX_PDF_BYTES) throw new Error('That PDF is too large (limit about 650 KB). Take a clear photo of the certificate instead, or upload a smaller PDF.');
+                const data = await new Promise((resolve, reject) => {
+                    const r = new FileReader();
+                    r.onload = () => resolve(r.result);
+                    r.onerror = () => reject(new Error('Could not read that PDF.'));
+                    r.readAsDataURL(file);
+                });
+                return { dataUrl: data, mime: 'application/pdf' };
+            }
+            if (!file.type.startsWith('image/')) throw new Error('Please choose a photo (JPG/PNG) or a PDF.');
+            const img = await loadImageFromFile(file);
+            let dim = 1800, quality = 0.85;
+            for (let i = 0; i < 8; i++) {
+                const scale = Math.min(1, dim / Math.max(img.naturalWidth, img.naturalHeight));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+                canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const out = canvas.toDataURL('image/jpeg', quality);
+                if (out.length <= LICENSE_MAX_DATA_CHARS) return { dataUrl: out, mime: 'image/jpeg' };
+                dim = Math.round(dim * 0.8); quality = Math.max(0.5, quality - 0.07);
+            }
+            throw new Error('Could not shrink that photo enough. Try a smaller image.');
+        }
+
+        async function uploadMyLicense() {
+            const u = currUser();
+            if (!u) return;
+            const type = document.getElementById('licType').value;
+            const label = document.getElementById('licLabel').value.trim();
+            const expires = document.getElementById('licExpires').value;
+            const file = document.getElementById('licFile').files[0];
+            if (type === 'other' && !label) { alert('Please enter what this certificate is.'); return; }
+            if (!file) { alert('Choose a photo or PDF first.'); return; }
+            const btn = document.getElementById('licUploadBtn');
+            btn.disabled = true; btn.textContent = 'Uploading…';
+            try {
+                let prepared;
+                try { prepared = await prepareLicenseFile(file); }
+                catch (err) { alert(err.message); return; }
+                const id = type === 'other' ? `${u.id}_other_${Date.now()}` : `${u.id}_${type}`;
+                // File first, metadata second: a listed license never points at a missing file.
+                await saveDoc('licenseFiles', id, { id, uid: u.id, mime: prepared.mime, data: prepared.dataUrl });
+                await saveDoc('licenses', id, { id, uid: u.id, userName: u.name || '', type, label: type === 'other' ? label : '', expires: expires || '', fileName: file.name, mime: prepared.mime, uploadedAt: new Date().toISOString() });
+                logAction('Uploaded license: ' + licenseLabel({ type, label }));
+                document.getElementById('licFile').value = '';
+                document.getElementById('licExpires').value = '';
+                document.getElementById('licLabel').value = '';
+                alert('Uploaded. Managers can now see it.');
+                renderMyLicenses();
+            } catch (err) {
+                console.error('License upload failed:', err); // saveDoc already alerted
+            } finally {
+                btn.disabled = false; btn.textContent = '⬆️ Upload';
+            }
+        }
+
+        async function deleteMyLicense(id) {
+            const l = myLicenses.find(x => x.id === id);
+            if (!l || !confirm(`Remove your ${licenseLabel(l)} from the app?`)) return;
+            try {
+                await deleteDoc('licenses', id);
+                await deleteDoc('licenseFiles', id);
+                logAction('Removed license: ' + licenseLabel(l));
+            } catch (err) { /* deleteDoc already alerted */ }
+            renderMyLicenses();
+        }
+
+        // Opens the stored file for the owner or an admin.
+        async function viewLicense(id) {
+            const l = myLicenses.find(x => x.id === id) || adminLicenses.find(x => x.id === id);
+            document.getElementById('licenseViewTitle').textContent = l ? ((l.userName ? l.userName + ' - ' : '') + licenseLabel(l)) : 'License';
+            const body = document.getElementById('licenseViewBody');
+            body.innerHTML = '<p style="color:var(--text-muted);">Loading…</p>';
+            document.getElementById('licenseViewModal').style.display = 'flex';
+            try {
+                const snap = await db.collection('licenseFiles').doc(id).get({ source: 'server' });
+                if (!snap.exists) { body.innerHTML = '<p style="color:var(--danger-glow);">The file for this license is missing.</p>'; return; }
+                const f = snap.data();
+                if (f.mime === 'application/pdf') {
+                    const blob = await (await fetch(f.data)).blob();
+                    licenseViewUrl = URL.createObjectURL(blob);
+                    body.innerHTML = `<a class="btn btn-sm" style="text-decoration:none; display:inline-block; margin-bottom:12px;" href="${licenseViewUrl}" target="_blank" rel="noopener">Open PDF in new tab</a>
+                        <iframe src="${licenseViewUrl}" style="width:100%; height:60vh; border:1px solid var(--border-glass); border-radius:12px; background:#fff;"></iframe>`;
+                } else {
+                    body.innerHTML = `<img src="${f.data}" alt="License" style="max-width:100%; border-radius:12px;">`;
+                }
+            } catch (err) {
+                console.error('Could not open license:', err);
+                body.innerHTML = `<p style="color:var(--danger-glow);">Couldn't open it (${escapeHtml(err.message)}).</p>`;
+            }
+        }
+        function closeLicenseViewer() {
+            document.getElementById('licenseViewModal').style.display = 'none';
+            document.getElementById('licenseViewBody').innerHTML = '';
+            if (licenseViewUrl) { URL.revokeObjectURL(licenseViewUrl); licenseViewUrl = null; }
+        }
+
+        // Admin roster: live-updating (metadata only) while the Licenses tab is open.
+        function startAdminLicensesListener() {
+            if (adminLicUnsub) { renderAdminLicenses(); return; }
+            renderAdminLicenses();
+            adminLicUnsub = db.collection('licenses').onSnapshot(snap => {
+                adminLicenses = snap.docs.map(d => d.data());
+                renderAdminLicenses();
+            }, err => {
+                console.error('Licenses listener failed:', err);
+                document.getElementById('adminLicBody').innerHTML = `<tr><td colspan="4" style="color:var(--danger-glow);">Couldn't load licenses (${escapeHtml(err.message)}). Make sure the latest firestore.rules are published.</td></tr>`;
+                adminLicUnsub = null;
+            });
+        }
+        function stopAdminLicensesListener() {
+            if (adminLicUnsub) { adminLicUnsub(); adminLicUnsub = null; }
+        }
+        function renderAdminLicenses() {
+            const body = document.getElementById('adminLicBody');
+            if (!body) return;
+            const q = (document.getElementById('adminLicSearch').value || '').trim().toLowerCase();
+            const chip = l => {
+                const st = licenseStatus(l);
+                return `<button class="btn btn-outline btn-sm" style="color:${st.color}; margin:2px 4px 2px 0; white-space:nowrap;" onclick="viewLicense('${escapeHtml(jsStr(l.id))}')">${l.type === 'other' ? escapeHtml(licenseLabel(l)) + ': ' : ''}${escapeHtml(st.text)}</button>`;
+            };
+            const none = '<span style="color:var(--text-muted);">&mdash;</span>';
+            const users = getDB('users').filter(u => !q || String(u.name || '').toLowerCase().includes(q)).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+            body.innerHTML = users.map(u => {
+                const mine = adminLicenses.filter(l => l.uid === u.id);
+                const one = t => { const l = mine.find(x => x.type === t); return l ? chip(l) : none; };
+                const others = mine.filter(l => l.type === 'other');
+                return `<tr><td><strong>${escapeHtml(u.name)}</strong></td><td>${one('title4')}</td><td>${one('guardcard')}</td><td>${others.length ? others.map(chip).join('') : none}</td></tr>`;
+            }).join('') || '<tr><td colspan="4" style="color:var(--text-muted);">No matching staff.</td></tr>';
+        }
+
+        // Clean up a removed account's uploads (used by account deletion paths).
+        async function purgeUserLicenses(uid) {
+            try {
+                const snap = await db.collection('licenses').where('uid', '==', uid).get();
+                if (snap.empty) return;
+                const batch = db.batch();
+                snap.docs.forEach(d => { batch.delete(d.ref); batch.delete(db.collection('licenseFiles').doc(d.id)); });
+                await batch.commit();
+            } catch (err) { console.warn('Could not clean up licenses:', err); }
+        }

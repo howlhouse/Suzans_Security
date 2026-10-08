@@ -61,6 +61,7 @@
                 <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none;">
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('myShiftsView');"><span>📋</span><span>My Shifts &amp; Notes</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('contactsDirectoryView');"><span>📇</span><span>Promoter Directory</span></button>
+                    <button class="user-menu-item" onclick="closeUserMenu(); switchView('licensesView');"><span>🪪</span><span>Licenses</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('settingsView');"><span>⚙️</span><span>Settings</span></button>
                     <button class="user-menu-item danger" onclick="closeUserMenu(); if(confirm('Sign out of Suzan\'s Security?')) logout();"><span>⏻</span><span>Sign Out</span></button>
                 </div>
@@ -157,6 +158,45 @@
             <div id="contactsDirectoryList"></div>
         </section>
 
+        <!-- VIEW: LICENSES -->
+        <section id="licensesView" style="display: none;">
+            <div style="margin-bottom: 20px;">
+                <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">Licenses</h2>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Your certifications, on file for managers</p>
+            </div>
+
+            <div class="glass-card" style="padding: 20px; border: 1px solid rgba(0,245,212,0.4);">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:10px;">⭐ Highly Recommended</h4>
+                <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">All Suzan's Security team members are <strong>HIGHLY recommended</strong> to maintain a basic <strong>Title IV license</strong> and an <strong>Unarmed Guard card</strong>. Both can be completed online:</p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <a class="btn btn-outline" style="text-decoration:none; text-align:center;" href="https://www.360training.com/learn2serve/alcohol/arizona" target="_blank" rel="noopener noreferrer">🍸 Title IV License &mdash; Learn2Serve (Arizona)</a>
+                    <a class="btn btn-outline" style="text-decoration:none; text-align:center;" href="https://go.defencifytraining.com/arizona-guard-card" target="_blank" rel="noopener noreferrer">🛡️ Unarmed Guard Card &mdash; Defencify (Arizona)</a>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.6; margin-top:14px;">The Unarmed Guard card also requires <strong>fingerprinting</strong> and <strong>licensing fees paid to the state</strong>. <a href="https://www.azdps.gov/sites/default/files/2026-08/SG%20Unarmed%20Application%2003900.pdf" target="_blank" rel="noopener noreferrer" style="color:var(--neon-teal); font-weight:600;">Arizona DPS unarmed guard application (PDF)</a></p>
+            </div>
+
+            <div class="glass-card" style="padding: 20px;">
+                <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:6px;">My Licenses &amp; Certificates</h4>
+                <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.5; margin-bottom:14px;">Upload a photo or PDF of each one. Only you and Suzan's admins can see your uploads.</p>
+                <div id="myLicensesList"></div>
+                <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border-glass);">
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Add / replace</label>
+                    <select id="licType" class="input-field" onchange="document.getElementById('licOtherWrap').style.display = this.value === 'other' ? 'block' : 'none'" data-1p-ignore>
+                        <option value="title4">Title IV License</option>
+                        <option value="guardcard">Unarmed Guard Card</option>
+                        <option value="other">Other certificate</option>
+                    </select>
+                    <div id="licOtherWrap" style="display:none;">
+                        <input type="text" id="licLabel" class="input-field" maxlength="60" placeholder="What is it? (e.g. CPR / First Aid)" data-1p-ignore>
+                    </div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Expiration date (optional)</label>
+                    <input type="date" id="licExpires" class="input-field" data-1p-ignore>
+                    <input type="file" id="licFile" accept="image/*,application/pdf" class="input-field" style="padding:10px;">
+                    <button class="btn btn-sm" id="licUploadBtn" onclick="uploadMyLicense()">⬆️ Upload</button>
+                </div>
+            </div>
+        </section>
+
         <!-- VIEW: SETTINGS -->
         <section id="settingsView" style="display: none;">
             <div style="margin-bottom: 20px;">
@@ -249,6 +289,7 @@
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
                 <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
                 <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
+                <button class="segment-btn" onclick="switchAdmin('adminLicenses')">🪪 Licenses</button>
                 <button class="segment-btn" onclick="switchAdmin('adminSystem')">System</button>
                 <button class="segment-btn" onclick="switchAdmin('adminSettings')">⚙️ My PIN</button>
             </div>
@@ -307,6 +348,13 @@
             <div id="adminContacts" class="admin-pane" style="display: none;">
                 <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addPromoter()">+ New Promoter</button>
                 <div id="promoterList"></div>
+            </div>
+
+            <div id="adminLicenses" class="admin-pane" style="display: none;">
+                <input type="text" id="adminLicSearch" class="input-field" placeholder="Search staff by name…" oninput="renderAdminLicenses()" data-1p-ignore>
+                <div class="glass-card" style="padding:12px; overflow-x:auto;">
+                    <table class="data-table"><thead><tr><th>Name</th><th>Title IV</th><th>Guard Card</th><th>Other</th></tr></thead><tbody id="adminLicBody"></tbody></table>
+                </div>
             </div>
 
             <div id="adminSystem" class="admin-pane" style="display: none;">
@@ -404,6 +452,17 @@
             <button class="btn" style="width: 100%; margin-top: 8px;" id="authBtn" onclick="handleAuth()">Sign In to Dispatch</button>
             <p style="text-align: center; margin-top: 18px; color: var(--neon-teal); font-size: 0.85rem; cursor: pointer; font-weight: 600;" onclick="toggleAuth()" id="authToggleText">New Officer? Register Account</p>
             <p style="text-align: center; margin-top: 10px; color: var(--text-muted); font-size: 0.72rem; cursor:pointer;" onclick="forgotPassword()">Forgot password? Tap here to get a reset email.</p>
+        </div>
+    </div>
+
+    <!-- LICENSE VIEWER -->
+    <div class="modal" id="licenseViewModal" style="z-index:2600;">
+        <div class="modal-sheet" style="max-width:640px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px;">
+                <h3 id="licenseViewTitle" style="font-family:'Outfit'; font-size:1.15rem; color:var(--neon-teal);"></h3>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 8px;" onclick="closeLicenseViewer()">✕</button>
+            </div>
+            <div id="licenseViewBody" style="text-align:center;"></div>
         </div>
     </div>
 

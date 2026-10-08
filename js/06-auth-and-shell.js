@@ -249,7 +249,7 @@
             // directly (bypassing promptAdminPin), never actually show it to a
             // non-admin. The PIN prompt is the intended door in.
             if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'settingsView', 'adminConsoleView'].forEach(id => {
+            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'licensesView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
             });
@@ -262,8 +262,10 @@
             if (v === 'banListView') renderBanList();
             if (v === 'myShiftsView') renderMyShiftsView();
             if (v === 'contactsDirectoryView') renderContactsDirectory();
+            if (v === 'licensesView') renderMyLicenses();
             if (v === 'settingsView') renderSettings();
             if (v === 'adminConsoleView') renderAdminEv();
+            if (v !== 'adminConsoleView') stopAdminLicensesListener();
             if (v !== 'adminConsoleView') clearAnnouncementPreview();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
