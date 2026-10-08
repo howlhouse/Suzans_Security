@@ -92,6 +92,12 @@
             { id: 'pink', label: 'Pink', bg: 'linear-gradient(135deg, #ff2a85, #d81159)', color: '#fff' },
             { id: 'purple', label: 'Purple', bg: 'linear-gradient(135deg, #7928ca, #4a00e0)', color: '#fff' },
             { id: 'danger', label: 'Red Alert', bg: 'linear-gradient(135deg, #ff3366, #a3002b)', color: '#fff' },
+            // Animated styles: the look lives in the .ann-fx-<fx> CSS class (styles.css).
+            { id: 'rainbow', fx: 'rainbow', label: '🌈 Rainbow Flow', color: '#fff' },
+            { id: 'twinkle', fx: 'twinkle', label: '✨ Twinkle', color: '#fff' },
+            { id: 'pulse', fx: 'pulse', label: '💗 Pulse Glow', color: '#fff' },
+            { id: 'siren', fx: 'siren', label: '🚨 Siren Sweep', color: '#fff' },
+            { id: 'gold', fx: 'gold', label: '🏆 Gold Shimmer', color: '#2a1d00' },
         ];
         function defaultAnnouncement() { return { id: 'main', enabled: false, text: '', colorPreset: 'teal', eventId: '', expiresAt: '' }; }
         function getAnnouncement() { return getDB('announcement')[0] || defaultAnnouncement(); }
@@ -109,7 +115,8 @@
         function renderAnnouncementBannerEl(ann, isPreview) {
             const preset = ANNOUNCEMENT_PRESETS.find(p => p.id === ann.colorPreset) || ANNOUNCEMENT_PRESETS[0];
             const el = document.getElementById('siteAnnouncementBanner');
-            el.style.background = preset.bg;
+            el.className = 'site-announcement-banner' + (preset.fx ? ' ann-fx ann-fx-' + preset.fx : '');
+            el.style.background = preset.fx ? '' : preset.bg;
             el.style.color = preset.color;
             el.style.display = 'flex';
             document.getElementById('siteAnnouncementText').innerHTML = (isPreview ? '🔍 PREVIEW (not visible to others yet) — ' : '') + (ann.text || '');
@@ -135,9 +142,10 @@
                 getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date))
                     .map(e => `<option value="${e.id}" ${e.id === ann.eventId ? 'selected' : ''}>${e.title} (${e.date})</option>`).join('');
             window._annSelectedColor = ann.colorPreset || 'teal';
-            document.getElementById('annColorPicker').innerHTML = ANNOUNCEMENT_PRESETS.map(p =>
-                `<div class="color-swatch ${p.id === window._annSelectedColor ? 'selected' : ''}" style="background:${p.bg};" title="${p.label}" onclick="selectAnnColor('${p.id}')"></div>`
-            ).join('');
+            const swatch = p => `<div class="color-swatch ${p.fx ? 'ann-fx ann-fx-' + p.fx : ''} ${p.id === window._annSelectedColor ? 'selected' : ''}" style="${p.fx ? '' : 'background:' + p.bg + ';'}" title="${p.label}" onclick="selectAnnColor('${p.id}')"></div>`;
+            document.getElementById('annColorPicker').innerHTML = ANNOUNCEMENT_PRESETS.filter(p => !p.fx).map(swatch).join('') +
+                '<div style="flex-basis:100%; font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; margin-top:4px;">Animated &mdash; hover/tap to see the name</div>' +
+                ANNOUNCEMENT_PRESETS.filter(p => p.fx).map(swatch).join('');
             const toggleBtn = document.getElementById('annToggleBtn');
             toggleBtn.textContent = ann.enabled ? '🔴 Turn Off' : '🟢 Turn On';
             toggleBtn.className = 'btn btn-sm' + (ann.enabled ? ' btn-magenta' : '');

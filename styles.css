@@ -64,6 +64,55 @@
            System settings. Colors are set inline per the chosen preset. */
         .site-announcement-banner { display: none; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; position: relative; z-index: 900; padding: 10px 20px; text-align: center; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.85rem; }
         .site-announcement-banner .ann-link-btn { background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.35); color: inherit; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.78rem; padding: 4px 12px; border-radius: 14px; cursor: pointer; }
+        /* Animated announcement-banner styles. Each .ann-fx-* class works on both
+           the live banner and the small picker swatches (the base class gives
+           them position/overflow for the ::before/::after overlays). Nothing
+           flashes faster than ~1.5s per cycle, and everything holds still for
+           people who have "reduce motion" turned on. */
+        .ann-fx { position: relative; overflow: hidden; }
+        .ann-fx > * { position: relative; z-index: 1; }
+        .ann-fx::before, .ann-fx::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+
+        /* 1. Rainbow Flow - a rainbow that slowly slides across the banner */
+        .ann-fx-rainbow { background: linear-gradient(90deg, #ff0055, #ff7a00, #ffe600, #00e676, #00b0ff, #7c4dff, #ff00c8, #ff0055); background-size: 200% 100%; animation: annRainbow 7s linear infinite; text-shadow: 0 1px 3px rgba(0,0,0,0.65); }
+        @keyframes annRainbow { to { background-position: 200% 0; } }
+
+        /* 2. Twinkle - night sky with two layers of stars that fade in and out out of step */
+        .ann-fx-twinkle { background: linear-gradient(135deg, #0b0b2b, #2a0a4a 55%, #0b1a3a); text-shadow: 0 0 8px rgba(255,255,255,0.45); }
+        .ann-fx-twinkle::before { background-image:
+            radial-gradient(2.3px 2.3px at 6% 32%, #fff, transparent), radial-gradient(1.9px 1.9px at 17% 74%, #ffe9a8, transparent),
+            radial-gradient(2.6px 2.6px at 29% 24%, #fff, transparent), radial-gradient(1.9px 1.9px at 41% 68%, #ffb8f0, transparent),
+            radial-gradient(2.3px 2.3px at 55% 30%, #fff, transparent), radial-gradient(1.9px 1.9px at 68% 76%, #b8f4ff, transparent),
+            radial-gradient(2.6px 2.6px at 80% 26%, #ffe9a8, transparent), radial-gradient(2.1px 2.1px at 93% 62%, #fff, transparent);
+            animation: annTwinkle 2.6s ease-in-out infinite alternate; }
+        .ann-fx-twinkle::after { background-image:
+            radial-gradient(2.1px 2.1px at 11% 58%, #fff, transparent), radial-gradient(2.6px 2.6px at 23% 20%, #b8f4ff, transparent),
+            radial-gradient(1.9px 1.9px at 36% 82%, #fff, transparent), radial-gradient(2.3px 2.3px at 48% 46%, #ffe9a8, transparent),
+            radial-gradient(2.1px 2.1px at 61% 78%, #ffb8f0, transparent), radial-gradient(2.6px 2.6px at 74% 40%, #fff, transparent),
+            radial-gradient(1.9px 1.9px at 86% 84%, #fff, transparent), radial-gradient(2.3px 2.3px at 97% 22%, #ffe9a8, transparent);
+            animation: annTwinkle 3.4s ease-in-out -1.7s infinite alternate; }
+        @keyframes annTwinkle { from { opacity: 0.15; transform: scale(0.98); } to { opacity: 1; transform: scale(1.02); } }
+
+        /* 3. Pulse Glow - a neon border that gently swells and shrinks, drifting teal to pink */
+        .ann-fx-pulse { background: #0c0c12; text-shadow: 0 0 10px rgba(255,255,255,0.35); animation: annPulse 3s ease-in-out infinite; }
+        @keyframes annPulse {
+            0%, 100% { box-shadow: inset 0 0 0 2px #00f5d4, inset 0 0 10px 2px rgba(0,245,212,0.45); }
+            50% { box-shadow: inset 0 0 0 6px #ff2a85, inset 0 0 22px 6px rgba(255,42,133,0.55); }
+        }
+
+        /* 4. Siren Sweep - red and blue light rolling back and forth (slow, no strobing) */
+        .ann-fx-siren { background: linear-gradient(90deg, #ff1744, #1b0a2e, #2979ff, #1b0a2e, #ff1744); background-size: 200% 100%; animation: annRainbow 4s linear infinite; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+
+        /* 5. Gold Shimmer - polished gold with a bright sheen that glides across */
+        .ann-fx-gold { background: linear-gradient(135deg, #b8860b, #ffd700 45%, #ffe680 55%, #c99700); text-shadow: 0 1px 0 rgba(255,255,255,0.35); }
+        .ann-fx-gold::before { background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.85) 50%, transparent 62%); transform: translateX(-100%); animation: annSheen 3.6s ease-in-out infinite; }
+        @keyframes annSheen { 0% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
+
+        @media (prefers-reduced-motion: reduce) {
+            .ann-fx, .ann-fx::before, .ann-fx::after { animation: none !important; }
+            .ann-fx-gold::before { display: none; }
+            .ann-fx-pulse { box-shadow: inset 0 0 0 4px #00f5d4; }
+        }
         .color-swatch { width: 40px; height: 40px; border-radius: 12px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0; }
         .color-swatch.selected { border-color: #fff; box-shadow: 0 0 0 2px var(--neon-teal); }
         .dock-badge { position: absolute; top: -6px; right: -10px; background: var(--neon-pink); color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-shadow: 0 0 6px rgba(255, 42, 133, 0.6); }
