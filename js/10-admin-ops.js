@@ -110,7 +110,6 @@
             const u = getDB('users').find(x => x.id === id);
             if (!u) return;
             if (confirm(`Remove ${u.name}'s access and profile from this app? This cannot be undone.\n\nNote: this removes their app access immediately, but due to Firebase security restrictions it can't delete their underlying login credential from here. If you need to fully block that email/password combo from ever signing in again, also remove them under Firebase Console → Authentication → Users.`)) {
-                purgeUserLicenses(id);
                 deleteDoc('users', id);
             }
         }
@@ -213,7 +212,6 @@
             if (me && me.id === editingUserId) { alert("You can't delete the account you're currently signed in as. Sign in as another admin first."); return; }
             const u = getDB('users').find(x => x.id === editingUserId);
             if (confirm(`Remove ${u ? u.name : 'this user'}'s access and profile from this app? This cannot be undone.\n\nNote: this removes app access immediately but can't delete their underlying login credential from here - see Firebase Console → Authentication → Users for that.`)) {
-                purgeUserLicenses(editingUserId);
                 deleteDoc('users', editingUserId);
                 closeModal('userModal');
             }

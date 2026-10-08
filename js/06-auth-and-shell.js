@@ -262,10 +262,8 @@
             if (v === 'banListView') renderBanList();
             if (v === 'myShiftsView') renderMyShiftsView();
             if (v === 'contactsDirectoryView') renderContactsDirectory();
-            if (v === 'licensesView') renderMyLicenses();
             if (v === 'settingsView') renderSettings();
             if (v === 'adminConsoleView') renderAdminEv();
-            if (v !== 'adminConsoleView') stopAdminLicensesListener();
             if (v !== 'adminConsoleView') clearAnnouncementPreview();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
