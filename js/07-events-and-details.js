@@ -54,12 +54,12 @@
                 e.guards = e.guards.filter(g => g !== u.name);
                 delete e.guardPosts[u.name];
                 e.openSlots++;
-                logAction('Dropped shift: ' + e.title);
+                logAction('Dropped shift: ' + e.title, 'shift_drop', { eventId: e.id });
             } else {
                 e.guards.push(u.name);
                 e.guardPosts[u.name] = 'Unassigned';
                 e.openSlots--;
-                logAction('Claimed shift: ' + e.title);
+                logAction('Claimed shift: ' + e.title, 'shift_claim', { eventId: e.id });
             }
             saveDoc('events', e.id, e);
         }
@@ -75,7 +75,7 @@
                 // Cancel this position
                 e.guards = e.guards.filter(g => g !== u.name);
                 delete e.guardPosts[u.name];
-                logAction(`Dropped ${positionName} at ${e.title}`);
+                logAction(`Dropped ${positionName} at ${e.title}`, 'shift_drop', { eventId: e.id, position: positionName });
             } else {
                 const pos = (e.positions || []).find(p => p.name === positionName);
                 if (pos && pos.allowedRoles && pos.allowedRoles.length && !pos.allowedRoles.includes(u.role)) {
@@ -86,14 +86,18 @@
                 if (pos && filled >= pos.slots) { alert(`${positionName} is already full.`); return; }
                 if (!e.guards.includes(u.name)) e.guards.push(u.name);
                 e.guardPosts[u.name] = positionName;
-                logAction(`Claimed ${positionName} at ${e.title}`);
+                logAction(`Claimed ${positionName} at ${e.title}`, 'shift_claim', { eventId: e.id, position: positionName });
             }
             saveDoc('events', e.id, e);
         }
 
         /* EVENT DETAIL */
         let activeDetailId = null;
-        function openEventDetail(id) { activeDetailId = id; switchView('eventDetail'); renderEventDetail(id); }
+        function openEventDetail(id) {
+            activeDetailId = id; switchView('eventDetail'); renderEventDetail(id);
+            const ev = getDB('events').find(x => x.id === id);
+            if (ev) logEvent('event_view', 'Viewed shift: ' + ev.title, { eventId: id });
+        }
 
         function renderEventDetail(id) {
             const e = getDB('events').find(x => x.id === id);

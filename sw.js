@@ -1,4 +1,4 @@
-const CACHE_NAME = 'suzans-security-v9';
+const CACHE_NAME = 'suzans-security-v10';
 // index.html used to be one file with an inline <style>/<script> - now it
 // loads styles.css and js/*.js as separate requests, so they need to be
 // precached too for the same offline-cold-boot behavior as before.
@@ -40,7 +40,9 @@ self.addEventListener('fetch', (e) => {
     // This keeps the app fast on repeat loads without ever serving a stale index.html
     // while you're online.
     e.respondWith(
-        fetch(e.request)
+        // cache: 'no-cache' = always check with the server (cheap 304 if unchanged) instead of
+        // trusting the browser's 10-minute HTTP cache, so a new release shows up on the next load.
+        fetch(e.request, { cache: 'no-cache' })
             .then((resp) => {
                 const copy = resp.clone();
                 caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy)).catch(() => {});

@@ -146,17 +146,19 @@
                         <button class="btn btn-sm" onclick="goToOpenShift('${e.id}')">View &amp; Sign Up</button>
                     </div>`).join('');
                 document.getElementById('openShiftsModal').style.display = 'flex';
+                logEvent('open_shifts_shown', 'Open-shifts summary shown', { shifts: shifts.length });
                 document.getElementById('openShiftsSheet').scrollTop = 0;
             } catch (err) { console.error('Open shifts popup failed:', err); }
         }
         function goToOpenShift(id) {
             // Following a link counts as acting on the summary, so it's acknowledged
             // for the day the same as pressing the button.
-            acknowledgeOpenShifts();
+            acknowledgeOpenShifts('link', id);
             openEventDetail(id);
         }
-        function acknowledgeOpenShifts() {
+        function acknowledgeOpenShifts(via, eventId) {
             const u = currUser();
+            logEvent('shift_ack', 'Acknowledged open shifts', { via: via || 'button', eventId: eventId || '' });
             try { if (u) localStorage.setItem(openShiftsKey(u), todayKey()); } catch (err) { /* storage blocked - shows again next load */ }
             closeModal('openShiftsModal');
         }
@@ -178,5 +180,5 @@
         let actChan = 'general';
         function renderChat() { document.getElementById('chatDropdown').innerHTML = getDB('channels').map(c => `<option value="${c}" ${c === actChan ? 'selected' : ''}>#${c}</option>`).join(''); document.getElementById('chatTitle').innerText = '# ' + actChan; document.getElementById('chatBox').innerHTML = getDB('chats').filter(c => c.channel === actChan).sort((a, b) => a.id.localeCompare(b.id)).map(c => `<div class="chat-bubble ${c.user === currUser()?.name ? 'mine' : ''}"><div style="font-size:0.72rem; font-weight:600; color:${c.user === currUser()?.name ? '#ff9ee2' : 'var(--neon-teal)'}; margin-bottom:3px;">${c.user}</div><div>${c.text}</div>${c.file ? `<div style="margin-top:6px;"><a href="${c.file}" style="color:var(--text-primary); font-size:0.75rem; font-weight:600;">📎 View File</a></div>` : ''}</div>`).join(''); document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; markChannelRead(actChan); updateCommsBadge(); }
         function switchChat(c) { actChan = c; renderChat(); }
-        function sendChat(fUrl = null) { let v = document.getElementById('chatInput').value; if (v || fUrl) { let cm = { id: 'm' + Date.now(), channel: actChan, user: currUser().name, text: v || 'Sent file', file: fUrl }; saveDoc('chats', cm.id, cm); document.getElementById('chatInput').value = ''; } }
+        function sendChat(fUrl = null) { let v = document.getElementById('chatInput').value; if (v || fUrl) { logEvent('chat_send', 'Sent a chat message', { channel: actChan }); let cm = { id: 'm' + Date.now(), channel: actChan, user: currUser().name, text: v || 'Sent file', file: fUrl }; saveDoc('chats', cm.id, cm); document.getElementById('chatInput').value = ''; } }
         function uploadFile(e) { if (e.target.files[0]) sendChat(URL.createObjectURL(e.target.files[0])); }

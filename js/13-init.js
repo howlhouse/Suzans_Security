@@ -43,6 +43,7 @@
                     updateDockForUser();
                     requestNotificationPermission();
                     await initialLoad();
+                    trackSessionStart();
                     syncPushToken();
                     handlePushDeepLink();
                 } catch (err) {

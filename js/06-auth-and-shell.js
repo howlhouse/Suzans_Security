@@ -198,7 +198,7 @@
                         // (see openUserModal).
                         const profile = { id: cred.user.uid, uid: cred.user.uid, name, email, phone, role: 'Private', isAdmin: isFirstEver };
                         await saveDoc('users', cred.user.uid, profile);
-                        logAction(isFirstEver ? 'Registered first account (auto-admin)' : 'Registered new guard');
+                        logAction(isFirstEver ? 'Registered first account (auto-admin)' : 'Registered new guard', 'register');
                         notifySystemAdminOfNewUser(profile);
 
                         // onAuthStateChanged skipped this sign-in (isRegistering), so
@@ -223,7 +223,7 @@
                     }
                 } else {
                     await auth.signInWithEmailAndPassword(email, pass);
-                    logAction('Logged in');
+                    window._justSignedIn = true; // onAuthStateChanged -> trackSessionStart() logs the sign-in once the profile is loaded
                     // onAuthStateChanged takes it from here: loads the profile,
                     // hides this modal, and loads the rest of the app's data.
                 }
@@ -242,13 +242,18 @@
             }).catch(err => alert('Could not send reset email: ' + friendlyAuthError(err)));
         }
 
-        function logout() { logAction('Logged out'); auth.signOut().then(() => location.reload()); }
+        // Wait (briefly) for the log write before signing out - once signed out, the write would be rejected.
+        function logout() {
+            Promise.race([logEvent('logout', 'Signed out'), new Promise(r => setTimeout(r, 1500))])
+                .then(() => auth.signOut()).then(() => location.reload());
+        }
 
         function switchView(v) {
             // Belt-and-suspenders: even if something calls switchView('adminConsoleView')
             // directly (bypassing promptAdminPin), never actually show it to a
             // non-admin. The PIN prompt is the intended door in.
             if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
+            trackView(v);
             ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'licensesView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';

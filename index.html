@@ -311,8 +311,54 @@
             </div>
 
             <div id="adminLogs" class="admin-pane" style="display: none;">
-                <div class="glass-card" style="padding:12px; overflow-x:auto;">
-                    <table class="data-table"><thead><tr><th>Time</th><th>User</th><th>Action</th></tr></thead><tbody id="logsBody"></tbody></table>
+                <div class="glass-card" style="padding:14px;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <select id="actRange" class="input-field" style="width:auto; margin:0;" onchange="loadActivityLogs()">
+                            <option value="1">Last 24 hours</option>
+                            <option value="7" selected>Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                        <button class="btn btn-sm" onclick="loadActivityLogs()">🔄 Refresh</button>
+                        <button class="btn btn-outline btn-sm" onclick="exportActivityCsv()">⬇️ Export CSV</button>
+                    </div>
+                    <p id="actStatus" style="font-size:0.75rem; color:var(--text-muted); margin-top:8px;"></p>
+                </div>
+
+                <div id="actSummary" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:14px;"></div>
+
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">Daily active staff</h4>
+                    <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:10px;">People who used the app each day</p>
+                    <div id="actDau"></div>
+                </div>
+
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">Staff adoption</h4>
+                    <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:10px;">Opens = times the app was opened or returned to. Tap a name to filter the history below.</p>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table"><thead><tr><th>Name</th><th>Last seen</th><th>Opens</th><th>Days active</th><th>Claims</th><th>Acks</th><th>Device</th></tr></thead><tbody id="actUsersBody"></tbody></table>
+                    </div>
+                </div>
+
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:10px;">Activity history</h4>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                        <select id="actUserFilter" class="input-field" style="width:auto; margin:0;" onchange="renderLogs(true)"></select>
+                        <select id="actTypeFilter" class="input-field" style="width:auto; margin:0;" onchange="renderLogs(true)">
+                            <option value="">All activity</option>
+                            <option value="sessions">Opens &amp; sign-ins</option>
+                            <option value="nav">Screens viewed</option>
+                            <option value="shifts">Shifts (viewed, claimed, acknowledged)</option>
+                            <option value="chat">Chat</option>
+                            <option value="admin">Admin &amp; other actions</option>
+                        </select>
+                        <input type="text" id="actSearch" class="input-field" style="width:auto; flex:1; min-width:140px; margin:0;" placeholder="Search…" oninput="renderLogs(true)" data-1p-ignore>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table"><thead><tr><th>When</th><th>User</th><th>Activity</th></tr></thead><tbody id="logsBody"></tbody></table>
+                    </div>
+                    <button class="btn btn-outline btn-sm" id="actMoreBtn" style="margin-top:12px; display:none;" onclick="showMoreLogs()">Show more</button>
                 </div>
             </div>
 
