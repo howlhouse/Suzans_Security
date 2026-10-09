@@ -117,17 +117,73 @@
              regFields box: scroll to the bottom to unlock the checkbox,
              check it to accept - all in the same window, no popup needed.
            - The About window still opens a read-only viewer modal. */
+        // TERMS VERSIONING
+        //   TERMS_LAST_UPDATED - the date shown in the Terms header and the re-accept popup.
+        //   TERMS_VERSION      - what each user's accepted version is compared against. Change
+        //                        it (any new string, e.g. the new date) and EVERY user is asked
+        //                        to accept again the next time they open the app. Update only
+        //                        TERMS_LAST_UPDATED to refresh the date without forcing that.
+        //   Each acceptance is saved on the user's profile (termsVersion / termsAcceptedAt).
+        const TERMS_VERSION = '2026-10-08';
+        const TERMS_LAST_UPDATED = 'October 8th, 2026';
         let termsAccepted = false;
         function isScrolledToBottom(el) { return el.scrollTop + el.clientHeight >= el.scrollHeight - 24; }
 
         function populateTermsContainers() {
             const tpl = document.getElementById('termsContentTemplate');
+            tpl.content.querySelectorAll('.terms-updated').forEach(el => { el.textContent = TERMS_LAST_UPDATED; });
+            document.querySelectorAll('.terms-updated').forEach(el => { el.textContent = TERMS_LAST_UPDATED; });
             document.querySelectorAll('.terms-content').forEach(el => {
                 el.innerHTML = '';
                 el.appendChild(tpl.content.cloneNode(true));
             });
         }
         populateTermsContainers();
+
+        // --- RE-ACCEPTANCE POPUP ---
+        // Shown after sign-in when the user hasn't accepted the current TERMS_VERSION (this
+        // includes accounts an admin created, who never saw the sign-up checkbox).
+        function needsTermsAcceptance(u) { return !!u && u.termsVersion !== TERMS_VERSION; }
+        function maybeRequireTerms() {
+            const u = currUser();
+            if (!needsTermsAcceptance(u)) { window._termsPending = false; return false; }
+            window._termsPending = true;
+            document.getElementById('termsReacceptModal').style.display = 'flex';
+            const body = document.getElementById('reacceptTermsBody');
+            const cb = document.getElementById('reacceptCheckbox');
+            body.scrollTop = 0; cb.checked = false; cb.disabled = true;
+            document.getElementById('reacceptBtn').disabled = true;
+            requestAnimationFrame(() => { if (isScrolledToBottom(body)) cb.disabled = false; });
+            return true;
+        }
+        function onReacceptScroll() {
+            if (isScrolledToBottom(document.getElementById('reacceptTermsBody'))) document.getElementById('reacceptCheckbox').disabled = false;
+        }
+        function onReacceptCheckboxChange() {
+            document.getElementById('reacceptBtn').disabled = !document.getElementById('reacceptCheckbox').checked;
+        }
+        async function acceptUpdatedTerms() {
+            const u = currUser();
+            if (!u) return;
+            const btn = document.getElementById('reacceptBtn');
+            btn.disabled = true; btn.textContent = 'Saving…';
+            try {
+                // Merge just these two fields so a stale in-memory profile can't overwrite anything else.
+                const patch = { termsVersion: TERMS_VERSION, termsAcceptedAt: Date.now() };
+                await withTimeout(db.collection('users').doc(u.id).set(patch, { merge: true }), 15000, 'saving your acceptance');
+                window._currentUserProfile = { ...u, ...patch };
+                logEvent('terms_accepted', 'Accepted Terms & Conditions (last updated ' + TERMS_LAST_UPDATED + ')', { version: TERMS_VERSION });
+                window._termsPending = false;
+                closeModal('termsReacceptModal');
+                maybeShowWelcome(); // the popups that were held back while this was up
+            } catch (err) {
+                console.error('Terms acceptance failed:', err);
+                alert('Could not save your acceptance: ' + err.message + '\nPlease check your connection and try again.');
+                btn.disabled = false;
+            } finally {
+                btn.textContent = 'I Agree & Continue';
+            }
+        }
 
         function resetRegTermsGate() {
             termsAccepted = false;
@@ -196,7 +252,7 @@
                         // Everyone starts at the bottom rank until Command promotes
                         // them - matches how admin-created accounts default too
                         // (see openUserModal).
-                        const profile = { id: cred.user.uid, uid: cred.user.uid, name, email, phone, role: 'Private', isAdmin: isFirstEver };
+                        const profile = { id: cred.user.uid, uid: cred.user.uid, name, email, phone, role: 'Private', isAdmin: isFirstEver, termsVersion: TERMS_VERSION, termsAcceptedAt: Date.now() };
                         await saveDoc('users', cred.user.uid, profile);
                         logAction(isFirstEver ? 'Registered first account (auto-admin)' : 'Registered new guard', 'register');
                         notifySystemAdminOfNewUser(profile);

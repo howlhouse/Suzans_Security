@@ -78,7 +78,7 @@
         const LEGACY_LOGS_BEFORE_TS = 1791504426000; // when activity tracking shipped; older logs have no `ts` field
         let actData = { logs: [], presence: {}, capped: false, loadedAt: 0, shown: ACT_PAGE, rangeDays: 7 };
         const ACT_GROUPS = {
-            sessions: ['session_start', 'session_resume', 'login', 'logout', 'push_open'],
+            sessions: ['session_start', 'session_resume', 'login', 'logout', 'push_open', 'terms_accepted'],
             nav: ['view'],
             shifts: ['event_view', 'open_shifts_shown', 'shift_ack', 'shift_claim', 'shift_drop'],
             chat: ['chat_send'],
@@ -91,7 +91,7 @@
             event_view: ['📅', 'Shift viewed', '#7fd4ff'], open_shifts_shown: ['📣', 'Open shifts shown', '#ffb020'],
             shift_ack: ['👍', 'Read open shifts', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
             shift_drop: ['❌', 'Dropped', 'var(--danger-glow)'], chat_send: ['💬', 'Chat', 'var(--text-secondary)'],
-            register: ['🆕', 'Registered', 'var(--neon-pink)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
+            register: ['🆕', 'Registered', 'var(--neon-pink)'], terms_accepted: ['📜', 'Accepted terms', 'var(--neon-saguaro)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
         };
         const ACT_SESSION_TYPES = ['session_start', 'session_resume'];
 
@@ -211,12 +211,16 @@
             document.getElementById('actUsersBody').innerHTML = rows.map(r => {
                 const stale = !r.lastSeen ? 'var(--danger-glow)' : (Date.now() - r.lastSeen > 7 * 86400000 ? '#ffb020' : 'var(--neon-saguaro)');
                 const dev = r.pres.platform ? `${r.pres.installed ? '📲 App' : '🌐 Browser'} · ${escapeHtml(r.pres.platform)}${(r.pres.pushOn || r.pres.notif === 'granted') ? ' · 🔔' : ''}` : '<span style="color:var(--text-muted);">—</span>';
+                const tv = r.u.termsVersion;
+                const terms = !tv ? '<span style="color:var(--danger-glow);">Not yet</span>'
+                    : (tv === TERMS_VERSION ? `<span style="color:var(--neon-saguaro);">✓ ${r.u.termsAcceptedAt ? new Date(r.u.termsAcceptedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Current'}</span>` : '<span style="color:#ffb020;">Older version</span>');
                 return `<tr style="cursor:pointer;" onclick="filterLogsByUser('${escapeHtml(jsStr(r.u.id))}')">
                     <td><strong>${escapeHtml(r.u.name)}</strong>${r.u.isAdmin ? ' <span style="color:var(--text-muted); font-size:0.7rem;">admin</span>' : ''}<div style="font-size:0.7rem; color:var(--text-muted);">${escapeHtml(r.u.role || '')}</div></td>
                     <td style="color:${stale}; font-weight:600; white-space:nowrap;">${actAgo(r.lastSeen)}</td>
                     <td>${r.opens}</td><td>${r.days}</td><td>${r.claims}${r.drops ? ` <span style="color:var(--text-muted);">(−${r.drops})</span>` : ''}</td><td>${r.acks}</td>
+                    <td style="font-size:0.78rem; white-space:nowrap;">${terms}</td>
                     <td style="font-size:0.78rem; white-space:nowrap;">${dev}</td></tr>`;
-            }).join('') || '<tr><td colspan="7" style="color:var(--text-muted);">No staff yet.</td></tr>';
+            }).join('') || '<tr><td colspan="8" style="color:var(--text-muted);">No staff yet.</td></tr>';
         }
 
         function filteredActivityLogs() {
@@ -331,6 +335,7 @@
             // New users default to Private - only override for an existing
             // user being edited, whose actual rank (or lack of one) we show as-is.
             document.getElementById('umRole').value = u ? (u.role || '') : 'Private';
+            document.getElementById('umShowOpenShifts').checked = u ? !u.openShiftsPopupOff : true;
             document.getElementById('umIsAdmin').checked = u ? !!u.isAdmin : false;
             document.getElementById('umPinWrap').style.display = (u && u.isAdmin) ? 'block' : 'none';
             document.getElementById('umPin').value = '';
@@ -356,6 +361,7 @@
             const role = document.getElementById('umRole').value;
             const pw = document.getElementById('umPassword').value;
             const isAdmin = document.getElementById('umIsAdmin').checked;
+            const openShiftsPopupOff = !document.getElementById('umShowOpenShifts').checked;
             const pinInput = document.getElementById('umPin').value.trim();
             const errEl = document.getElementById('umErr');
             const showErr = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
@@ -375,7 +381,7 @@
                 // entered, they'll be prompted to set their own the first time
                 // they open the admin console (see promptAdminPin).
                 const pin = isAdmin ? (pinInput || existing.pin) : existing.pin;
-                const updated = { ...existing, name, phone, role, isAdmin, pin };
+                const updated = { ...existing, name, phone, role, isAdmin, pin, openShiftsPopupOff };
                 saveDoc('users', editingUserId, updated).then(() => {
                     logAction('Updated user profile: ' + name);
                     const me = currUser();
@@ -396,7 +402,7 @@
                     const cred = await secAuth.createUserWithEmailAndPassword(email, pw);
                     const newUid = cred.user.uid;
                     await secAuth.signOut();
-                    const nu = { id: newUid, uid: newUid, name, email, phone, role, isAdmin, pin: isAdmin ? pinInput : undefined };
+                    const nu = { id: newUid, uid: newUid, name, email, phone, role, isAdmin, openShiftsPopupOff, pin: isAdmin ? pinInput : undefined };
                     await saveDoc('users', newUid, nu);
                     logAction('Admin created new user: ' + name);
                     notifySystemAdminOfNewUser(nu);
