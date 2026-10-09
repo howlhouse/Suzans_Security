@@ -169,11 +169,22 @@
                 <p style="color:var(--text-muted); font-size:0.85rem;">Developer tools: user feedback, activity and logs</p>
             </div>
             <div class="segmented-control">
-                <button class="segment-btn active" id="dashTabFeedbackBtn" onclick="switchDashTab('feedback')">Feedback <span id="dashFeedbackCount"></span></button>
+                <button class="segment-btn active" id="dashTabOverviewBtn" onclick="switchDashTab('overview')">Overview</button>
+                <button class="segment-btn" id="dashTabFeedbackBtn" onclick="switchDashTab('feedback')">Feedback <span id="dashFeedbackCount"></span></button>
                 <button class="segment-btn" id="dashTabActivityBtn" onclick="switchDashTab('activity')">Activity &amp; Logs</button>
             </div>
 
-            <div id="dashFeedbackPane">
+            <div id="dashOverviewPane">
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+                    <button class="btn btn-sm" id="ovRange7" onclick="setOverviewRange(7)">Last 7 days</button>
+                    <button class="btn btn-outline btn-sm" id="ovRange30" onclick="setOverviewRange(30)">Last 30 days</button>
+                    <button class="btn btn-outline btn-sm" onclick="refreshOverview()">🔄 Refresh</button>
+                    <span id="ovStatus" style="font-size:0.72rem; color:var(--text-muted);"></span>
+                </div>
+                <div id="dashOverviewBody"></div>
+            </div>
+
+            <div id="dashFeedbackPane" style="display:none;">
                 <div id="dashFeedbackChips" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;"></div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
                     <select id="dashFbType" class="input-field" style="width:auto; margin:0;" onchange="renderFeedbackPanel(true)"></select>

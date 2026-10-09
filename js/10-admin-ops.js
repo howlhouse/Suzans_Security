@@ -179,6 +179,19 @@
             return { rows, dau, totalOpens, totalClaims, totalDrops, shownDays, ackDays };
         }
 
+        // Bar chart of distinct active staff per day (last 30 days of the range at most).
+        function buildDauBars(dau, rangeDays) {
+            const days = Math.min(rangeDays, 30), bars = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const d = new Date(Date.now() - i * 86400000), k = dayKey(d);
+                bars.push({ k, n: dau[k] ? dau[k].size : 0, label: d.toLocaleDateString([], { month: 'short', day: 'numeric' }) });
+            }
+            const max = Math.max(1, ...bars.map(b => b.n));
+            return `<div style="display:flex; align-items:flex-end; gap:${days > 14 ? 3 : 8}px; height:90px;">` +
+                bars.map(b => `<div title="${escapeHtml(b.label)}: ${b.n} active" style="flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%;"><div style="font-size:0.65rem; color:var(--text-muted);">${b.n || ''}</div><div style="width:100%; max-width:34px; height:${Math.max(2, Math.round(b.n / max * 62))}px; background:${b.n ? 'linear-gradient(180deg, var(--neon-teal), var(--neon-saguaro))' : 'rgba(255,255,255,0.08)'}; border-radius:4px 4px 0 0;"></div></div>`).join('') + '</div>' +
+                `<div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--text-muted); margin-top:4px;"><span>${escapeHtml(bars[0].label)}</span><span>${escapeHtml(bars[bars.length - 1].label)}</span></div>`;
+        }
+
         function renderActivityDashboard() {
             const { rows, dau, totalOpens, totalClaims, totalDrops, shownDays, ackDays } = computeActivityStats();
             const staff = rows.length;
@@ -197,16 +210,7 @@
                 card(`${installed}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Installed to home screen', `${pct(installed)}% (as of last open)`) +
                 card(`${notif}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Notifications on', `${pct(notif)}% (as of last open)`);
 
-            // Daily-active bars for up to the last 30 days of the range.
-            const days = Math.min(actData.rangeDays, 30), bars = [];
-            for (let i = days - 1; i >= 0; i--) {
-                const d = new Date(Date.now() - i * 86400000), k = dayKey(d);
-                bars.push({ k, n: dau[k] ? dau[k].size : 0, label: d.toLocaleDateString([], { month: 'short', day: 'numeric' }) });
-            }
-            const max = Math.max(1, ...bars.map(b => b.n));
-            document.getElementById('actDau').innerHTML = `<div style="display:flex; align-items:flex-end; gap:${days > 14 ? 3 : 8}px; height:90px;">` +
-                bars.map(b => `<div title="${escapeHtml(b.label)}: ${b.n} active" style="flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%;"><div style="font-size:0.65rem; color:var(--text-muted);">${b.n || ''}</div><div style="width:100%; max-width:34px; height:${Math.max(2, Math.round(b.n / max * 62))}px; background:${b.n ? 'linear-gradient(180deg, var(--neon-teal), var(--neon-saguaro))' : 'rgba(255,255,255,0.08)'}; border-radius:4px 4px 0 0;"></div></div>`).join('') + '</div>' +
-                `<div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--text-muted); margin-top:4px;"><span>${escapeHtml(bars[0].label)}</span><span>${escapeHtml(bars[bars.length - 1].label)}</span></div>`;
+            document.getElementById('actDau').innerHTML = buildDauBars(dau, actData.rangeDays);
 
             rows.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
             document.getElementById('actUsersBody').innerHTML = rows.map(r => {
@@ -458,7 +462,7 @@
         // Feedback triage + the same Activity & Logs panel the admin console has. The Logs panel
         // is one set of DOM ids, so the Dashboard borrows it (moves it in) and
         // restoreLogsPanel() puts it back where the admin console expects it.
-        let dashFeedback = [], dashFbUnsub = null, dashFbDirty = false, dashTab = 'feedback';
+        let dashFeedback = [], dashFbUnsub = null, dashFbDirty = false, dashTab = 'overview';
         let logsPanelHome = null;
         const FEEDBACK_ORDER = ['new', 'reviewing', 'planned', 'done', 'declined'];
 
@@ -480,6 +484,8 @@
         }
         function switchDashTab(tab) {
             dashTab = tab;
+            document.getElementById('dashTabOverviewBtn').classList.toggle('active', tab === 'overview');
+            document.getElementById('dashOverviewPane').style.display = tab === 'overview' ? 'block' : 'none';
             document.getElementById('dashTabFeedbackBtn').classList.toggle('active', tab === 'feedback');
             document.getElementById('dashTabActivityBtn').classList.toggle('active', tab === 'activity');
             document.getElementById('dashFeedbackPane').style.display = tab === 'feedback' ? 'block' : 'none';
@@ -489,10 +495,11 @@
                 if (panel.parentNode !== document.getElementById('dashActivityHost')) document.getElementById('dashActivityHost').appendChild(panel);
                 panel.style.display = 'block';
                 if (actData.loadedAt && Date.now() - actData.loadedAt > 300000) loadActivityLogs(); else renderLogs();
-            } else { renderFeedbackPanel(); }
+            } else if (tab === 'overview') { renderOverview(); } else { renderFeedbackPanel(); }
         }
         function renderDashboardActivityIfShown() {
             if (dashTab === 'activity' && document.getElementById('adminLogs').parentNode === document.getElementById('dashActivityHost')) renderLogs();
+            if (dashTab === 'overview') renderOverviewBody();
         }
 
         function startFeedbackListener() {
@@ -500,6 +507,7 @@
             dashFbUnsub = db.collection('feedback').orderBy('ts', 'desc').limit(300).onSnapshot(snap => {
                 dashFeedback = snap.docs.map(d => d.data());
                 updateFeedbackBadge();
+                if (dashTab === 'overview') renderOverviewBody();
                 const ae = document.activeElement;
                 if (ae && document.getElementById('dashFeedbackList').contains(ae) && /TEXTAREA|INPUT|SELECT/.test(ae.tagName)) { dashFbDirty = true; return; } // don't wipe what they're typing
                 renderFeedbackPanel();
@@ -578,4 +586,114 @@
         function deleteFeedback(id) {
             if (!confirm('Delete this feedback permanently?')) return;
             withTimeout(db.collection('feedback').doc(id).delete(), 15000, 'deleting feedback').then(() => logAction('Deleted a feedback item')).catch(err => alert('⚠️ Could not delete: ' + err.message));
+        }
+
+        // --- DASHBOARD OVERVIEW (front page of the Dashboard) ---
+        // Built from data already in memory (users, events, feedback) plus the activity logs the
+        // Logs panel loads (cached 5 minutes; Refresh reloads). Developer testing (env=dev) is
+        // left out of the numbers, same as the Logs tab.
+        function setOverviewRange(days) {
+            document.getElementById('actRange').value = String(days);
+            refreshOverview();
+        }
+        function refreshOverview() {
+            document.getElementById('ovStatus').textContent = 'Loading…';
+            loadActivityLogs().then(() => renderOverviewBody());
+        }
+        function renderOverview() {
+            if (!actData.loadedAt || Date.now() - actData.loadedAt > 300000) refreshOverview();
+            else renderOverviewBody();
+        }
+        function ovCard(title, body, extra) {
+            return `<div class="glass-card" style="padding:14px; margin:0; ${extra || ''}"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:0.9rem; margin-bottom:8px;">${title}</h4>${body}</div>`;
+        }
+        function ovTile(big, label, sub, color) {
+            return `<div class="glass-card" style="padding:14px; margin:0;"><div style="font-family:'Outfit'; font-size:1.55rem; font-weight:800; color:${color || 'var(--neon-teal)'};">${big}</div><div style="font-size:0.78rem; font-weight:600;">${label}</div><div style="font-size:0.7rem; color:var(--text-muted);">${sub}</div></div>`;
+        }
+        function ovBars(rows, color) {
+            if (!rows.length) return '<p style="font-size:0.78rem; color:var(--text-muted);">Nothing yet.</p>';
+            const max = Math.max(...rows.map(r => r[1]));
+            return rows.map(r => `<div style="margin-bottom:6px;"><div style="display:flex; justify-content:space-between; font-size:0.78rem;"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:8px;">${escapeHtml(r[0])}</span><span style="color:var(--text-muted);">${r[1]}</span></div><div style="height:6px; border-radius:3px; background:rgba(255,255,255,0.08);"><div style="height:100%; width:${Math.max(4, Math.round(r[1] / max * 100))}%; border-radius:3px; background:${color || 'var(--neon-teal)'};"></div></div></div>`).join('');
+        }
+        function ovTop(map, n) { return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n); }
+
+        function renderOverviewBody() {
+            const el = document.getElementById('dashOverviewBody');
+            if (!el) return;
+            const days = actData.rangeDays || 7;
+            document.getElementById('ovRange7').className = 'btn btn-sm' + (days === 7 ? '' : ' btn-outline');
+            document.getElementById('ovRange30').className = 'btn btn-sm' + (days === 30 ? '' : ' btn-outline');
+            document.getElementById('ovStatus').textContent = actData.loadedAt ? `Updated ${actAgo(actData.loadedAt)} · ${actData.logs.length.toLocaleString()} log events read` : '';
+
+            const { rows, dau, totalOpens } = computeActivityStats();
+            const staff = rows.length;
+            const real = actData.logs.filter(l => l.env !== 'dev');
+            const today = dayKey(new Date());
+            const opensToday = real.filter(l => ACT_SESSION_TYPES.includes(l.type) && l.day === today).length;
+            const active = rows.filter(r => r.opens > 0 || r.days > 0).length;
+            const pct = (n, d) => d ? Math.round(n / d * 100) : 0;
+
+            // shifts
+            const upcoming = getDB('events').filter(e => !e.archived && !e.hidden && !e.cancelled && daysSinceEvent(e) <= 0);
+            let openSlots = 0, filled = 0;
+            upcoming.forEach(e => { const o = eventOpenSlots(e), f = (e.guards || []).length; openSlots += o; filled += f; });
+            const fillPct = pct(filled, filled + openSlots);
+
+            // feedback
+            const fb = dashFeedback;
+            const fbNew = fb.filter(f => (f.status || 'new') === 'new').length;
+            const fbOpen = fb.filter(f => ['new', 'reviewing', 'planned'].includes(f.status || 'new')).length;
+
+            const installed = rows.filter(r => r.pres.installed).length;
+            const notif = rows.filter(r => r.pres.pushOn || r.pres.notif === 'granted').length;
+            const termsOk = rows.filter(r => r.u.termsVersion === TERMS_VERSION).length;
+
+            const tiles = ovTile(`${active}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Active staff', `${pct(active, staff)}% in the last ${days} days`) +
+                ovTile(opensToday, 'Opens today', `${totalOpens.toLocaleString()} in ${days} days`) +
+                ovTile(fbOpen, 'Open feedback', `${fbNew} new`, fbNew ? '#7fd4ff' : 'var(--neon-teal)') +
+                ovTile(upcoming.length, 'Upcoming shifts', `${openSlots} open positions · ${fillPct}% filled`, openSlots ? '#ffb020' : 'var(--neon-saguaro)') +
+                ovTile(`${installed}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Installed to home screen', `${pct(installed, staff)}% of staff`) +
+                ovTile(`${notif}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Notifications on', `${pct(notif, staff)}% of staff`) +
+                ovTile(`${termsOk}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'On current Terms', `${staff - termsOk} still to accept`, termsOk === staff ? 'var(--neon-saguaro)' : '#ffb020');
+
+            // screens + shifts viewed
+            const screens = {}, shifts = {};
+            real.forEach(l => {
+                if (l.type === 'view') { const n = (l.meta && l.meta.view) || String(l.action).replace(/^Viewed /, ''); screens[n] = (screens[n] || 0) + 1; }
+                if (l.type === 'event_view') { const n = String(l.action).replace(/^Viewed shift: /, ''); shifts[n] = (shifts[n] || 0) + 1; }
+            });
+
+            // needs attention
+            const attn = rows.map(r => {
+                const why = [];
+                if (r.u.isDev) { /* developers often only use DEV, which isn't counted */ }
+                else if (!r.lastSeen) why.push('never opened the app');
+                else if (Date.now() - r.lastSeen > 7 * 86400000) why.push('not seen for ' + actAgo(r.lastSeen).replace(' ago', ''));
+                if (r.u.termsVersion !== TERMS_VERSION) why.push('terms not accepted');
+                return why.length ? { name: r.u.name, why: why.join(', ') } : null;
+            }).filter(Boolean);
+
+            // feed + latest feedback
+            const feed = actData.logs.slice(0, 12).map(l => {
+                const t = ACT_TYPE_LABELS[l.type] || ACT_TYPE_LABELS.action;
+                return `<div style="display:flex; gap:8px; font-size:0.78rem; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:var(--text-muted); white-space:nowrap;">${actAgo(l.ts)}</span><span style="min-width:0;"><strong style="color:var(--neon-teal);">${escapeHtml(l.user)}</strong> <span style="color:${t[2]};">${t[0]}</span> ${escapeHtml(l.action)}${l.env === 'dev' ? ' <span style="color:#ffb020; font-weight:800;">DEV</span>' : ''}</span></div>`;
+            }).join('') || '<p style="font-size:0.78rem; color:var(--text-muted);">No activity in this range.</p>';
+            const latestFb = fb.filter(f => ['new', 'reviewing', 'planned'].includes(f.status || 'new')).slice(0, 5).map(f => {
+                const st = FEEDBACK_STATUSES[f.status] || FEEDBACK_STATUSES.new;
+                return `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.8rem; cursor:pointer;" onclick="switchDashTab('feedback')"><div style="display:flex; justify-content:space-between; gap:8px;"><span style="color:var(--text-muted);">${escapeHtml(FEEDBACK_TYPES[f.type] || '')} · ${escapeHtml(f.user || '')}</span><span style="color:${st[1]}; font-weight:700;">${st[0]}</span></div><div>${escapeHtml(String(f.message || '').slice(0, 110))}${String(f.message || '').length > 110 ? '…' : ''}</div></div>`;
+            }).join('') || '<p style="font-size:0.78rem; color:var(--text-muted);">No open feedback. 🎉</p>';
+
+            const data = [['Staff', staff], ['Shift postings', getDB('events').length], ['Chat messages', getDB('chats').length], ['Promoters', getDB('promoters').length], ['Ban list entries', getDB('banlist').length], ['Feedback items', fb.length]]
+                .map(d => `<div style="display:flex; justify-content:space-between; font-size:0.8rem; padding:3px 0;"><span style="color:var(--text-muted);">${d[0]}</span><strong>${d[1].toLocaleString()}</strong></div>`).join('');
+
+            el.innerHTML = `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:14px;">${tiles}</div>
+                <div class="glass-card" style="padding:14px;"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:0.9rem; margin-bottom:4px;">Daily active staff</h4><p style="font-size:0.72rem; color:var(--text-muted); margin-bottom:10px;">Developer testing is not counted</p>${buildDauBars(dau, days)}</div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">
+                    ${ovCard('Latest open feedback', latestFb)}
+                    ${ovCard('Live activity', feed)}
+                    ${ovCard('Most visited screens', ovBars(ovTop(screens, 6)))}
+                    ${ovCard('Most viewed shifts', ovBars(ovTop(shifts, 6), '#7fd4ff'))}
+                    ${ovCard('Needs attention' + (attn.length ? ' (' + attn.length + ')' : ''), attn.length ? attn.slice(0, 10).map(a => `<div style="font-size:0.8rem; padding:3px 0;"><strong>${escapeHtml(a.name)}</strong> <span style="color:#ffb020;">${escapeHtml(a.why)}</span></div>`).join('') + (attn.length > 10 ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px;">+${attn.length - 10} more in Activity &amp; Logs</div>` : '') : '<p style="font-size:0.8rem; color:var(--neon-saguaro);">Everyone is active and up to date. ✅</p>')}
+                    ${ovCard('Data & environment', data + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); font-size:0.75rem; color:var(--text-muted);">Version: <strong style="color:#ffb020;">${IS_DEV_SITE ? 'DEV' : 'PROD'}</strong> · Terms ${escapeHtml(TERMS_LAST_UPDATED)}</div>`)}
+                </div>`;
         }
