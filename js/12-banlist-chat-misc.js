@@ -78,6 +78,7 @@
         // one-time per tab) if localStorage is unavailable (private browsing, etc.)
         // so the app never breaks just because storage is blocked.
         function maybeShowWelcome() {
+            if (maybeRequireTerms()) return; // updated Terms come first; accepting them calls this again
             try {
                 const store = (typeof localStorage !== 'undefined') ? localStorage : sessionStorage;
                 if (!store.getItem('ss_welcomeSeen')) {
@@ -131,6 +132,8 @@
             try {
                 const u = currUser();
                 if (!u) return;
+                if (window._termsPending) return;
+                if (u.openShiftsPopupOff) return; // an admin turned the daily popup off for this person
                 const welcome = document.getElementById('welcomeModal');
                 if (welcome && welcome.style.display === 'flex') return; // dismissWelcome() calls us again
                 let seen = false;

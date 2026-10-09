@@ -333,7 +333,7 @@
                     <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">Staff adoption</h4>
                     <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:10px;">Opens = times the app was opened or returned to. Read open-shifts popup = times they tapped Acknowledge on the daily popup listing shifts they can still sign up for. Tap a name to filter the history below.</p>
                     <div style="overflow-x:auto;">
-                        <table class="data-table"><thead><tr><th>Name</th><th>Last seen</th><th title="Times they opened the app or came back to it">Opens</th><th title="Different days they used the app">Days active</th><th title="Shifts/positions they signed up for (drops in brackets)">Shifts claimed</th><th title="Times they tapped Acknowledge on the daily open-shifts popup">Read open-shifts popup</th><th>Device</th></tr></thead><tbody id="actUsersBody"></tbody></table>
+                        <table class="data-table"><thead><tr><th>Name</th><th>Last seen</th><th title="Times they opened the app or came back to it">Opens</th><th title="Different days they used the app">Days active</th><th title="Shifts/positions they signed up for (drops in brackets)">Shifts claimed</th><th title="Times they tapped Acknowledge on the daily open-shifts popup">Read open-shifts popup</th><th title="Which version of the Terms & Conditions they last accepted">Terms accepted</th><th>Device</th></tr></thead><tbody id="actUsersBody"></tbody></table>
                     </div>
                 </div>
 
@@ -468,6 +468,22 @@
         </div>
     </div>
 
+    <!-- TERMS RE-ACCEPTANCE: shown on sign-in when the Terms version a user last accepted
+         is older than TERMS_VERSION (js/06). Blocks every other popup until accepted. -->
+    <div class="modal" id="termsReacceptModal" style="z-index:3000;">
+        <div class="modal-sheet" style="max-width: 640px; padding-top: 20px;">
+            <h3 style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal); margin-bottom:6px;">📜 Updated Terms &amp; Conditions</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5; margin-bottom:12px;">Our Terms &amp; Conditions of Use were last updated <strong class="terms-updated"></strong>. Please read through and accept them to keep using the app.</p>
+            <div id="reacceptTermsBody" class="terms-content reg-terms-scroll" style="max-height:45vh;" onscroll="onReacceptScroll()"></div>
+            <label class="terms-ack-label">
+                <input type="checkbox" id="reacceptCheckbox" disabled onchange="onReacceptCheckboxChange()">
+                <span>Scroll to the bottom to enable this checkbox. I have read and agree to the updated Terms &amp; Conditions of Use.</span>
+            </label>
+            <button class="btn" id="reacceptBtn" style="width:100%;" disabled onclick="acceptUpdatedTerms()">I Agree &amp; Continue</button>
+            <p style="text-align:center; margin-top:12px; color:var(--text-muted); font-size:0.75rem; cursor:pointer;" onclick="logout()">Don't agree? Sign out</p>
+        </div>
+    </div>
+
     <!-- NOTIFICATION HELP: web pages can't open device settings, so this walks the user there -->
     <div class="modal" id="notifHelpModal">
         <div class="modal-sheet">
@@ -578,7 +594,7 @@
     </div>
 
     <template id="termsContentTemplate">
-                <p style="text-align:center; color:var(--text-muted); font-size:0.78rem; margin-bottom:16px;">Suzan's Security &amp; HowlHouse &mdash; Effective Date: September 14th, 2026 &mdash; Last Updated: October 8th, 2026</p>
+                <p style="text-align:center; color:var(--text-muted); font-size:0.78rem; margin-bottom:16px;">Suzan's Security &amp; HowlHouse &mdash; Effective Date: September 14th, 2026 &mdash; Last Updated: <span class="terms-updated"></span></p>
                     <p>These Terms and Conditions of Use (“Terms”) constitute a legally binding agreement between you (“User,” “you,” or “your”) and HowlHouse (“HowlHouse,” “we,” “us,” or “our”), the developer, owner, and operator of this application (the “App”), and Suzan’s Security (“Suzan’s Security”), the security organization for which the App is currently provisioned. HowlHouse and Suzan’s Security are referred to individually as a “Company” and collectively as the “Companies.”</p>
                     <p>The App is currently intended for use by members of the Suzan’s Security security team and any other users to whom access is expressly granted. By accessing, downloading, installing, or otherwise using the App, you agree to be bound by these Terms in their entirety. If you do not agree to these Terms, you must not access or use the App.</p>
                     <h4>1. Acceptance of Terms</h4>
@@ -785,6 +801,11 @@
             <div id="umResetWrap" style="display:none; margin-bottom:14px;">
                 <button type="button" class="btn btn-outline btn-sm" style="width:100%;" onclick="sendResetFromModal()">✉️ Send Password Reset Email</button>
             </div>
+            <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 4px; cursor:pointer;">
+                <input type="checkbox" id="umShowOpenShifts" style="width:auto; margin:0;">
+                <span style="font-size:0.85rem;">Show the daily open-shifts popup</span>
+            </label>
+            <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 14px;">When on, this person sees a popup once a day listing shifts they can still sign up for, and must acknowledge it. Turn it off to stop it for this person.</p>
             <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 12px; cursor:pointer;">
                 <input type="checkbox" id="umIsAdmin" style="width:auto; margin:0;" onchange="document.getElementById('umPinWrap').style.display=this.checked?'block':'none'">
                 <span style="font-size:0.85rem;">Admin (Admin Console access)</span>
