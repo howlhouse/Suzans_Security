@@ -150,6 +150,7 @@
         });
         const VIEW_NAMES = { eventsFeed: 'Events', eventsFeedView: 'Events', calendarView: 'Calendar', teamChatView: 'Comms', banListView: 'Ban List', myShiftsView: 'My Shifts', contactsDirectoryView: 'Promoter Directory', licensesView: 'Licenses', dashboardView: 'Dashboard', settingsView: 'Settings', adminConsoleView: 'Admin Console' };
         function trackView(v) {
+            if (window._tourActive) return; // the guided tour flips through screens - don't log that as real use
             const name = VIEW_NAMES[v];
             if (!name || name === _lastTrackedView) return;
             _lastTrackedView = name;

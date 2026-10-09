@@ -86,11 +86,15 @@
     <div class="container">
         <!-- VIEW 1: UPCOMING EVENTS FEED -->
         <section id="eventsFeedView">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
-                <div>
-                    <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">Upcoming Shift Postings</h2>
-                    <p style="color:var(--text-muted); font-size:0.85rem;">Phoenix nightlife details, venues &amp; circuit parties</p>
-                </div>
+            <div class="ev-head">
+                <div class="ev-eyebrow">Phoenix nightlife</div>
+                <h2 class="ev-title">Upcoming Shift Postings</h2>
+                <p class="ev-summary" id="evSummary">Venues, circuit parties &amp; community events</p>
+            </div>
+            <div class="ev-filters" id="evFilters" role="group" aria-label="Filter shifts">
+                <button class="ev-chip active" data-f="all" onclick="setEventsFilter('all')">All</button>
+                <button class="ev-chip" data-f="open" onclick="setEventsFilter('open')">Open spots</button>
+                <button class="ev-chip" data-f="mine" onclick="setEventsFilter('mine')">I'm on</button>
             </div>
             <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-secondary); margin-bottom:14px; cursor:pointer; width:fit-content;">
                 <input type="checkbox" id="hideCommunityToggle" onchange="setHideCommunity(this.checked)">
@@ -179,6 +183,7 @@
                     <button class="btn btn-sm" id="ovRange7" onclick="setOverviewRange(7)">Last 7 days</button>
                     <button class="btn btn-outline btn-sm" id="ovRange30" onclick="setOverviewRange(30)">Last 30 days</button>
                     <button class="btn btn-outline btn-sm" onclick="refreshOverview()">🔄 Refresh</button>
+                    <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer;"><input type="checkbox" class="act-include-devs" style="width:auto; margin:0;" onchange="toggleIncludeDevs(this.checked)"> Include developers</label>
                     <span id="ovStatus" style="font-size:0.72rem; color:var(--text-muted);"></span>
                 </div>
                 <div id="dashOverviewBody"></div>
@@ -357,6 +362,7 @@
                         </select>
                         <button class="btn btn-sm" onclick="loadActivityLogs()">🔄 Refresh</button>
                         <button class="btn btn-outline btn-sm" onclick="exportActivityCsv()">⬇️ Export CSV</button>
+                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer;"><input type="checkbox" class="act-include-devs" style="width:auto; margin:0;" onchange="toggleIncludeDevs(this.checked)"> Include developers</label>
                     </div>
                     <p id="actStatus" style="font-size:0.75rem; color:var(--text-muted); margin-top:8px;"></p>
                 </div>
@@ -596,6 +602,7 @@
                     <p>Your personal data will never be sold, but may be shared with business partners as described in the Terms &amp; Conditions.</p>
                 </div>
                 <button class="terms-review-link" style="display:block; width:100%; text-align:center; margin-bottom: 10px; font-size:0.85rem;" onclick="viewTermsModal()">View full Terms &amp; Conditions</button>
+                <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal'); startTour(true)">🧭 Take the Tutorial</button>
                 <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="openFeedback()">💬 Send Feedback</button>
                 <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="showAboutPage(2)">📖 How to Use This App</button>
                 <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal')">Close</button>
@@ -952,6 +959,25 @@
             <textarea id="pNoteIn" class="input-field" rows="2" placeholder="Record incident note..." data-1p-ignore></textarea>
             <button class="btn btn-sm" onclick="addPNote()">Add Note</button>
             <button class="btn btn-sm btn-magenta" style="width:100%; margin-top:10px;" onclick="delPromoterFromModal()">Delete This Contact</button>
+        </div>
+    </div>
+
+    <!-- GUIDED TOUR (first-run tutorial, replayable from the info popup). Driven by js/12-banlist-chat-misc.js -->
+    <div id="tourLayer" style="display:none;">
+        <div id="tourBlocker"></div>
+        <div id="tourSpot"></div>
+        <div id="tourBubble" role="dialog" aria-live="polite" aria-labelledby="tourTitle">
+            <div id="tourArrow"></div>
+            <div id="tourStepNum"></div>
+            <h4 id="tourTitle"></h4>
+            <p id="tourText"></p>
+            <div class="tour-actions">
+                <button class="tour-skip" onclick="endTour('skipped')">Skip tour</button>
+                <span>
+                    <button class="btn btn-outline btn-sm" id="tourBack" onclick="tourBack()">Back</button>
+                    <button class="btn btn-sm" id="tourNext" onclick="tourNext()">Next</button>
+                </span>
+            </div>
         </div>
     </div>
 

@@ -77,6 +77,137 @@
         // again after the user dismisses it. Falls back to sessionStorage (still
         // one-time per tab) if localStorage is unavailable (private browsing, etc.)
         // so the app never breaks just because storage is blocked.
+        // --- GUIDED TOUR (first-run tutorial) ---
+        // Speech bubbles with a spotlight, one per feature. Skippable at any time; finishing OR
+        // skipping marks it done on the user's profile (tutorialDone) so it never reappears on its
+        // own. The "Take the Tutorial" button in the info popup replays it without changing that.
+        let tour = { steps: [], idx: 0, replay: false, view: '', menu: false, token: 0 };
+        function tutorialDoneFor(u) {
+            if (u.tutorialDone) return true;
+            try { return localStorage.getItem('ss_tutorialDone_' + u.id) === '1'; } catch (err) { return false; }
+        }
+        const tourEl = id => document.getElementById(id);
+        const tourSleep = ms => new Promise(r => setTimeout(r, ms));
+        function tourDock(view) { return document.querySelector(`.dock-item[data-view="${view}"]`); }
+        function tourMenuItem(view) { return document.querySelector(`#userMenuDropdown .user-menu-item[onclick*="${view}"]`); }
+        function buildTourSteps() {
+            const steps = [
+                { title: "Welcome to Suzan's Security 👋", text: "Here's a quick tour of everything in the app. You can <strong>skip at any time</strong>, and replay it later from the ⓘ info button (top right) → <strong>Take the Tutorial</strong>.", view: 'eventsFeed' },
+                { title: '🪩 Events', text: "Every upcoming shift posting lives here. Tap the <strong>Events</strong> tab any time to come back to this feed. You may also see a quick \"open shifts\" popup now and then &mdash; just acknowledge it.", view: 'eventsFeed', target: () => tourDock('eventsFeed') },
+                { title: 'Shift postings', text: "Each tile is a shift. <strong>Tap one</strong> to see the brief, timeline and who's on it, then <strong>claim a shift or a specific position</strong>, add a personal note, add it to your calendar, and chat with the team on that shift.", view: 'eventsFeed', target: () => document.querySelector('#userEventsFeedList .event-tile') || tourEl('userEventsFeedList') },
+                { title: 'Hide community events', text: "Turn this on to hide community-only events so your feed shows just the shifts.", view: 'eventsFeed', target: () => tourEl('hideCommunityToggle') && tourEl('hideCommunityToggle').parentElement },
+                { title: '📅 Calendar', text: "See every shift on a month grid. Use the arrows to change months and tap an event to open it.", view: 'calendarView', target: () => tourEl('calMonthText') && tourEl('calMonthText').parentElement },
+                { title: '💬 Comms', text: "Team chat. Pick a channel from the dropdown (each shift also gets its own chat), send messages, and attach files with the 📎 button. A red badge on this tab means something's unread.", view: 'eventsFeed', target: () => tourDock('teamChatView') },
+                { title: '🚫 Ban List', text: "Known problem patrons and incident history, shared by the whole team. <strong>Add a person</strong> or log an incident so everyone is informed.", view: 'banListView', target: () => document.querySelector('#banListView .btn') },
+                { title: '🛡️ Your menu', text: "Tap your name any time to open your menu. Here's what's inside, including <strong>Sign Out</strong> at the bottom.", view: 'eventsFeed', menu: true, target: () => tourEl('userPill') },
+                { title: '📋 My Shifts & Notes', text: "Everything you're scheduled for, with shift hours and your personal notes, at a glance.", view: 'myShiftsView', menu: true, target: () => tourMenuItem('myShiftsView') },
+                { title: '📇 Promoter Directory', text: "Client and promoter contacts, their links, and the shifts they're tied to.", view: 'contactsDirectoryView', menu: true, target: () => tourMenuItem('contactsDirectoryView') },
+                { title: '🪪 Licenses', text: "Recommended certifications for the team, like the basic Title IV license, with a link to get it online.", view: 'licensesView', menu: true, target: () => tourMenuItem('licensesView') },
+                { title: '⚙️ Settings', text: "Update your nickname and phone, choose which notifications you get, <strong>turn on phone notifications for this device</strong> so alerts reach you even when the app is closed, and reset your password.", view: 'settingsView', menu: true, target: () => tourMenuItem('settingsView') },
+                { title: 'ℹ️ Info & help', text: "The info button has the full how-to guide, the Terms &amp; Conditions, <strong>Send Feedback</strong> to the developers, and <strong>Take the Tutorial</strong> to replay this tour.", view: 'eventsFeed', target: () => document.querySelector('header .btn-outline[onclick*="aboutModal"]') },
+                { title: "You're all set 🎉", text: "That's everything. Tap <strong>Done</strong> and jump in &mdash; you can replay this tour anytime from the ⓘ info button.", view: 'eventsFeed' }
+            ];
+            return steps.filter(st => !st.when || st.when());
+        }
+
+        function startTour(replay) {
+            if (window._tourActive) return;
+            const u = currUser();
+            if (!u) return;
+            tour = { steps: buildTourSteps(), idx: 0, replay: !!replay, view: '', menu: false, token: 0 };
+            window._tourActive = true;
+            tourEl('tourLayer').style.display = 'block';
+            document.addEventListener('keydown', tourKey);
+            window.addEventListener('resize', tourReposition);
+            window.addEventListener('scroll', tourReposition, true);
+            logEvent('tutorial_started', replay ? 'Replayed the tutorial' : 'Started the tutorial');
+            showTourStep(0);
+        }
+        function tourKey(e) {
+            if (!window._tourActive) return;
+            if (e.key === 'Escape') endTour('skipped');
+            else if (e.key === 'ArrowRight' || e.key === 'Enter') tourNext();
+            else if (e.key === 'ArrowLeft') tourBack();
+        }
+        function tourNext() { if (tour.idx >= tour.steps.length - 1) endTour('completed'); else showTourStep(tour.idx + 1); }
+        function tourBack() { if (tour.idx > 0) showTourStep(tour.idx - 1); }
+
+        async function showTourStep(i) {
+            const token = ++tour.token;
+            tour.idx = i;
+            const st = tour.steps[i], last = i === tour.steps.length - 1;
+            tourEl('tourBubble').style.opacity = '0'; // hidden while the app moves to the right screen, shown again once placed
+            tourEl('tourStepNum').textContent = `Step ${i + 1} of ${tour.steps.length}`;
+            tourEl('tourTitle').innerHTML = st.title;
+            tourEl('tourText').innerHTML = st.text;
+            tourEl('tourBack').style.visibility = i === 0 ? 'hidden' : 'visible';
+            tourEl('tourNext').textContent = last ? 'Done' : 'Next';
+            // Put the app on the right screen (and the menu open/closed) before pointing at it.
+            const wantView = st.view || 'eventsFeed';
+            const changed = wantView !== tour.view || !!st.menu !== tour.menu;
+            if (wantView !== tour.view) switchView(wantView);
+            if (st.menu) tourEl('userMenuDropdown').style.display = 'block'; else closeUserMenu();
+            tour.view = wantView; tour.menu = !!st.menu;
+            await tourSleep(changed ? 450 : 60);
+            if (token !== tour.token || !window._tourActive) return; // user moved on / ended meanwhile
+            const el = st.target ? st.target() : null;
+            if (el && el.getBoundingClientRect().width > 0 && !el.closest('.dock-nav, header, #userMenuDropdown')) el.scrollIntoView({ block: 'center' });
+            tourPlace(el && el.getBoundingClientRect().width > 0 ? el : null);
+        }
+        let tourTargetEl = null;
+        function tourReposition() { if (window._tourActive) requestAnimationFrame(() => tourPlace(tourTargetEl)); }
+        function tourPlace(el) {
+            tourTargetEl = el;
+            const layer = tourEl('tourLayer'), spot = tourEl('tourSpot'), bubble = tourEl('tourBubble'), arrow = tourEl('tourArrow');
+            const vw = window.innerWidth, vh = window.innerHeight, bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+            bubble.style.opacity = '1';
+            if (!el) { // nothing to point at: centered card on a dimmed backdrop
+                layer.classList.add('centered'); spot.style.display = 'none'; arrow.style.display = 'none';
+                bubble.style.left = Math.max(12, (vw - bw) / 2) + 'px'; bubble.style.top = Math.max(12, (vh - bh) / 2) + 'px';
+                return;
+            }
+            layer.classList.remove('centered');
+            const r = el.getBoundingClientRect(), pad = 6;
+            spot.style.display = 'block';
+            spot.style.left = (r.left - pad) + 'px'; spot.style.top = (r.top - pad) + 'px';
+            spot.style.width = (r.width + pad * 2) + 'px'; spot.style.height = (r.height + pad * 2) + 'px';
+            const gap = 16, below = (vh - r.bottom) >= bh + gap + 8 || (vh - r.bottom) >= r.top;
+            let top = below ? r.bottom + pad + gap : r.top - pad - gap - bh;
+            top = Math.min(Math.max(8, top), vh - bh - 8);
+            let left = Math.min(Math.max(12, r.left + r.width / 2 - bw / 2), vw - bw - 12);
+            bubble.style.left = left + 'px'; bubble.style.top = top + 'px';
+            arrow.style.display = 'block';
+            arrow.style.left = Math.min(Math.max(16, r.left + r.width / 2 - left - 7), bw - 30) + 'px';
+            if (below) { arrow.style.top = '-8px'; arrow.style.bottom = ''; arrow.style.transform = 'rotate(45deg)'; arrow.style.borderLeft = arrow.style.borderTop = '1px solid rgba(0,245,212,0.55)'; arrow.style.borderRight = arrow.style.borderBottom = '0'; }
+            else { arrow.style.bottom = '-8px'; arrow.style.top = ''; arrow.style.transform = 'rotate(225deg)'; arrow.style.borderLeft = arrow.style.borderTop = '1px solid rgba(0,245,212,0.55)'; arrow.style.borderRight = arrow.style.borderBottom = '0'; }
+        }
+
+        // Taps inside the tour must not reach the app's "tap outside closes the user menu" handler.
+        tourEl('tourLayer').addEventListener('click', e => e.stopPropagation());
+
+        function endTour(reason) {
+            if (!window._tourActive) return;
+            tour.token++;
+            const wasReplay = tour.replay, step = tour.idx + 1, total = tour.steps.length;
+            document.removeEventListener('keydown', tourKey);
+            window.removeEventListener('resize', tourReposition);
+            window.removeEventListener('scroll', tourReposition, true);
+            tourEl('tourLayer').style.display = 'none';
+            closeUserMenu();
+            tour.view = '';
+            switchView('eventsFeed'); // still flagged active here so this isn't logged as a real screen view
+            window._tourActive = false;
+            logEvent(reason === 'completed' ? 'tutorial_completed' : 'tutorial_skipped', (reason === 'completed' ? 'Finished the tutorial' : 'Skipped the tutorial at step ' + step + ' of ' + total) + (wasReplay ? ' (replay)' : ''), { step, total });
+            const u = currUser();
+            if (!wasReplay && u) {
+                try { localStorage.setItem('ss_tutorialDone_' + u.id, '1'); } catch (err) { /* storage blocked */ }
+                const patch = { tutorialDone: true, tutorialDoneAt: Date.now() };
+                window._currentUserProfile = { ...u, ...patch };
+                withTimeout(db.collection('users').doc(u.id).set(patch, { merge: true }), 15000, 'saving tutorial progress').catch(err => console.warn('Could not save tutorial progress:', err.message));
+                maybeShowOpenShifts(); // held back while the tour ran
+            }
+        }
+
         // --- FEEDBACK (from the info popup) ---
         // One doc per submission in `feedback`. Developers triage it from the Dashboard on the
         // DEV site; `status` and an optional public `reply` are set there and shown back here.
@@ -140,7 +271,7 @@
                 // Storage blocked entirely - just show it once for this load and move on.
                 document.getElementById('welcomeModal').style.display = 'flex';
             }
-            maybeShowOpenShifts(); // no-ops while the welcome popup is up
+            afterWelcome(); // no-ops while the welcome popup is up
         }
         function dismissWelcome() {
             try {
@@ -148,6 +279,16 @@
                 store.setItem('ss_welcomeSeen', '1');
             } catch (err) { /* no persistent storage available - nothing more we can do */ }
             closeModal('welcomeModal');
+            afterWelcome();
+        }
+
+        // First-run order: Terms (if needed) -> Welcome popup -> guided tour (once per person) ->
+        // open-shifts popup. The tour hands over to the open-shifts popup when it ends.
+        function afterWelcome() {
+            const welcome = document.getElementById('welcomeModal');
+            if (welcome && welcome.style.display === 'flex') return;
+            const u = currUser();
+            if (u && !window._termsPending && !window._tourActive && !tutorialDoneFor(u)) { startTour(false); return; }
             maybeShowOpenShifts();
         }
 
