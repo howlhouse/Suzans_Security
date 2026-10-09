@@ -89,7 +89,7 @@
             login: ['🔑', 'Signed in', 'var(--neon-teal)'], logout: ['🚪', 'Signed out', 'var(--text-muted)'],
             push_open: ['🔔', 'From notification', 'var(--neon-teal)'], view: ['👀', 'Viewed', 'var(--text-secondary)'],
             event_view: ['📅', 'Shift viewed', '#7fd4ff'], open_shifts_shown: ['📣', 'Open shifts shown', '#ffb020'],
-            shift_ack: ['👍', 'Acknowledged', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
+            shift_ack: ['👍', 'Read open shifts', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
             shift_drop: ['❌', 'Dropped', 'var(--danger-glow)'], chat_send: ['💬', 'Chat', 'var(--text-secondary)'],
             register: ['🆕', 'Registered', 'var(--neon-pink)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
         };
@@ -192,7 +192,7 @@
                 card(`${active}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Active staff', `${pct(active)}% used the app`) +
                 card(totalOpens.toLocaleString(), 'App opens', active ? `~${(totalOpens / active).toFixed(1)} per active person` : 'in this range') +
                 card(totalClaims.toLocaleString(), 'Shifts claimed', `${totalDrops} dropped`) +
-                card(ackRate, 'Open-shift acks', `${ackedShown} of ${shownDays.size} daily popups acknowledged`) +
+                card(ackRate, 'Read the open-shifts popup', `${ackedShown} of ${shownDays.size} daily popups were acknowledged`) +
                 card(`${installed}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Installed to home screen', `${pct(installed)}% (as of last open)`) +
                 card(`${notif}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Notifications on', `${pct(notif)}% (as of last open)`);
 
