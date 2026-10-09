@@ -1,8 +1,8 @@
         /* ADMIN CHAT */
         function renderAdminChats() {
             const ch = getDB('channels'), msgs = getDB('chats').sort((a, b) => b.id.localeCompare(a.id));
-            document.getElementById('adminChanList').innerHTML = ch.map(c => `<div class="glass-card" style="display:flex;justify-content:space-between;padding:10px;margin-bottom:8px;"><span># ${c}</span><div><button class="btn btn-sm btn-magenta" onclick="delChan('${c}')">Del Chan</button> <button class="btn btn-sm btn-outline" onclick="clrChan('${c}')">Clr Hist</button></div></div>`).join('');
-            document.getElementById('adminMsgList').innerHTML = msgs.map(m => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:8px;font-size:0.85rem;"><span style="color:var(--neon-teal);">[#${m.channel}] ${m.user}: ${m.text}</span><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border:none;" onclick="delMsg('${m.id}')">✕</button></div>`).join('');
+            document.getElementById('adminChanList').innerHTML = ch.map(c => `<div class="glass-card" style="display:flex;justify-content:space-between;padding:10px;margin-bottom:8px;"><span># ${c}</span><div><button class="btn btn-sm btn-magenta" onclick="delChan('${c}')">Delete Channel</button> <button class="btn btn-sm btn-outline" onclick="clrChan('${c}')">Clear History</button></div></div>`).join('');
+            document.getElementById('adminMsgList').innerHTML = msgs.map(m => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:8px;font-size:0.85rem;"><span style="color:var(--neon-teal);">[#${m.channel}] ${m.user}: ${m.text}</span><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border:none;" onclick="delMsg('${m.id}')">Delete Message</button></div>`).join('');
             document.getElementById('adminAttachList').innerHTML = msgs.filter(m => m.file).map(m => `<div style="margin-bottom:6px;"><a href="${m.file}" style="color:var(--neon-teal); font-size:0.85rem; font-weight:600;">📎 Attachment in #${m.channel}</a></div>`).join('');
         }
         function addChannel() { let v = document.getElementById('newChanInput').value.toLowerCase().replace(/\s+/g, '-'); if (v) saveDoc('channels', v, { name: v }); }
@@ -89,7 +89,7 @@
             login: ['🔑', 'Signed in', 'var(--neon-teal)'], logout: ['🚪', 'Signed out', 'var(--text-muted)'],
             push_open: ['🔔', 'From notification', 'var(--neon-teal)'], view: ['👀', 'Viewed', 'var(--text-secondary)'],
             event_view: ['📅', 'Shift viewed', '#7fd4ff'], open_shifts_shown: ['📣', 'Open shifts shown', '#ffb020'],
-            shift_ack: ['👍', 'Acknowledged', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
+            shift_ack: ['👍', 'Read open shifts', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
             shift_drop: ['❌', 'Dropped', 'var(--danger-glow)'], chat_send: ['💬', 'Chat', 'var(--text-secondary)'],
             register: ['🆕', 'Registered', 'var(--neon-pink)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
         };
@@ -192,7 +192,7 @@
                 card(`${active}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Active staff', `${pct(active)}% used the app`) +
                 card(totalOpens.toLocaleString(), 'App opens', active ? `~${(totalOpens / active).toFixed(1)} per active person` : 'in this range') +
                 card(totalClaims.toLocaleString(), 'Shifts claimed', `${totalDrops} dropped`) +
-                card(ackRate, 'Open-shift acks', `${ackedShown} of ${shownDays.size} daily popups acknowledged`) +
+                card(ackRate, 'Read the open-shifts popup', `${ackedShown} of ${shownDays.size} daily popups were acknowledged`) +
                 card(`${installed}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Installed to home screen', `${pct(installed)}% (as of last open)`) +
                 card(`${notif}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Notifications on', `${pct(notif)}% (as of last open)`);
 
