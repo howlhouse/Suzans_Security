@@ -75,6 +75,7 @@
         // timestamp); user/type/search filters then run in the browser on what was fetched.
         const ACT_FETCH_CAP = 3000; // max log docs read per load (each doc read counts toward Firestore's daily quota)
         const ACT_PAGE = 150;
+        const LEGACY_LOGS_BEFORE_TS = 1791504426000; // when activity tracking shipped; older logs have no `ts` field
         let actData = { logs: [], presence: {}, capped: false, loadedAt: 0, shown: ACT_PAGE, rangeDays: 7 };
         const ACT_GROUPS = {
             sessions: ['session_start', 'session_resume', 'login', 'logout', 'push_open'],
@@ -121,15 +122,24 @@
             const now = Date.now(), start = now - rangeDays * 86400000;
             status.textContent = 'Loading…';
             try {
+                // New-format logs: sorted/ranged on the `ts` field (Firestore indexes single fields
+                // automatically, so no custom index is needed). Logs written before activity
+                // tracking existed have no `ts`, so they're fetched separately by document id
+                // (ascending order, also index-free) and only if the range reaches that far back.
                 const idPath = firebase.firestore.FieldPath.documentId();
-                const [logSnap, presSnap] = await Promise.all([
-                    db.collection('logs').where(idPath, '>=', 'l' + start).where(idPath, '<=', 'l' + now + '')
-                        .orderBy(idPath, 'desc').limit(ACT_FETCH_CAP).get({ source: 'server' }),
+                const queries = [
+                    db.collection('logs').where('ts', '>=', start).where('ts', '<=', now).orderBy('ts', 'desc').limit(ACT_FETCH_CAP).get({ source: 'server' }),
                     db.collection('presence').get({ source: 'server' })
-                ]);
+                ];
+                if (start < LEGACY_LOGS_BEFORE_TS) {
+                    queries.push(db.collection('logs').where(idPath, '>=', 'l' + start).where(idPath, '<=', 'l' + Math.min(now, LEGACY_LOGS_BEFORE_TS) + '\uf8ff').orderBy(idPath).limit(500).get({ source: 'server' }));
+                }
+                const [logSnap, presSnap, legacySnap] = await Promise.all(queries);
                 const presence = {};
                 presSnap.docs.forEach(d => { presence[d.id] = d.data(); });
-                actData = { logs: logSnap.docs.map(d => normalizeLog(d.data())), presence, capped: logSnap.size >= ACT_FETCH_CAP, loadedAt: now, shown: ACT_PAGE, rangeDays };
+                const legacy = legacySnap ? legacySnap.docs.map(d => d.data()).filter(l => !l.ts) : [];
+                const all = logSnap.docs.map(d => d.data()).concat(legacy).map(normalizeLog).sort((a, b) => b.ts - a.ts);
+                actData = { logs: all, presence, capped: logSnap.size >= ACT_FETCH_CAP, loadedAt: now, shown: ACT_PAGE, rangeDays };
                 status.textContent = `Loaded ${actData.logs.length.toLocaleString()} events from the last ${rangeDays === 1 ? '24 hours' : rangeDays + ' days'}.` +
                     (actData.capped ? ` Showing only the newest ${ACT_FETCH_CAP.toLocaleString()} - choose a shorter range to see everything.` : '') +
                     ' Each load reads these from Firestore, so refresh when you need it rather than constantly.';
