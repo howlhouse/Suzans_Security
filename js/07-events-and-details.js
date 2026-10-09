@@ -11,39 +11,77 @@
             try { localStorage.setItem('ss_hideCommunity', on ? '1' : '0'); } catch (err) { /* storage blocked - applies until reload */ window._hideCommunityFallback = on; }
             renderEvents();
         }
+        // Quick filter above the feed: all / shifts with open spots / shifts the user is on.
+        let eventsFilter = 'all';
+        function setEventsFilter(f) { eventsFilter = f; renderEvents(); }
+
+        function evDateParts(e) {
+            const [y, m, d] = String(e.date || '').split('-').map(Number);
+            const dt = new Date(y, (m || 1) - 1, d);
+            if (!y || isNaN(dt.getTime())) return null;
+            return { day: d, mon: dt.toLocaleDateString([], { month: 'short' }).toUpperCase(), wk: dt.toLocaleDateString([], { weekday: 'short' }).toUpperCase(), full: dt.toLocaleDateString([], { month: 'long', year: 'numeric' }).toUpperCase() };
+        }
+        // "When" heading each tile is grouped under.
+        function evGroupLabel(e) {
+            const until = -daysSinceEvent(e);
+            if (!isFinite(until)) return 'UPCOMING';
+            if (until < 0) return 'RECENT';
+            if (until === 0) return 'TONIGHT';
+            if (until === 1) return 'TOMORROW';
+            if (until <= 6) return 'THIS WEEK';
+            if (until <= 13) return 'NEXT WEEK';
+            const p = evDateParts(e);
+            return p ? p.full : 'LATER';
+        }
         function renderEvents() {
             const hideCommunity = getHideCommunity() || !!window._hideCommunityFallback;
             const toggle = document.getElementById('hideCommunityToggle');
             if (toggle) toggle.checked = hideCommunity;
-            const evs = getDB('events').filter(e => !e.archived && !e.hidden && !(hideCommunity && e.communityOnly)).sort((a, b) => new Date(a.date) - new Date(b.date));
             const u = currUser();
-            document.getElementById('userEventsFeedList').innerHTML = evs.map(e => {
-                const openSlots = eventOpenSlots(e);
-                const isSignedUp = (e.guards || []).includes(u?.name);
-                const evtChan = 'evt_' + e.id;
-                const unreadChat = (isSignedUp || u?.isAdmin) ? unreadCount(evtChan) : 0;
-                const statusText = isSignedUp
-                    ? `<span style="color:var(--neon-saguaro); font-weight:600;">✓ You're In</span>`
-                    : (openSlots === 0 ? 'Filled' : `${openSlots} Open`);
-                return `
-                <div class="glass-card event-tile" onclick="openEventDetail('${e.id}')">
-                    ${e.communityOnly ? `<div class="community-banner">📋 Community Listing Only — Not a Contracted Event</div>` : ''}
-                    ${unreadChat > 0 ? `<div class="new-msg-banner">💬 ${unreadChat} new message${unreadChat > 1 ? 's' : ''} in shift chat</div>` : ''}
-                    <div style="display:flex; gap:14px; align-items:center; padding:14px 16px;">
-                        <div class="event-img-wrap" style="width:68px; height:68px; flex-shrink:0; border-radius:14px;">
-                            <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+            const all = getDB('events').filter(e => !e.archived && !e.hidden && !(hideCommunity && e.communityOnly)).sort((a, b) => new Date(a.date) - new Date(b.date));
+            const mine = all.filter(e => (e.guards || []).includes(u?.name));
+            const openTotal = all.reduce((n, e) => n + ((e.guards || []).includes(u?.name) ? 0 : eventOpenSlots(e)), 0);
+            const summary = document.getElementById('evSummary');
+            if (summary) summary.innerHTML = all.length ? `<strong style="color:var(--text-primary);">${all.length}</strong> shift${all.length === 1 ? '' : 's'} &middot; you're on <strong style="color:var(--neon-saguaro);">${mine.length}</strong> &middot; <strong style="color:var(--neon-teal);">${openTotal}</strong> open spot${openTotal === 1 ? '' : 's'}` : 'Venues, circuit parties &amp; community events';
+            document.querySelectorAll('#evFilters .ev-chip').forEach(c => c.classList.toggle('active', c.dataset.f === eventsFilter));
+            const evs = all.filter(e => eventsFilter === 'mine' ? (e.guards || []).includes(u?.name) : (eventsFilter === 'open' ? (!(e.guards || []).includes(u?.name) && eventOpenSlots(e) > 0) : true));
+
+            let lastGroup = null, html = '';
+            evs.forEach((e, i) => {
+                const group = evGroupLabel(e);
+                if (group !== lastGroup) {
+                    lastGroup = group;
+                    const n = evs.filter(x => evGroupLabel(x) === group).length;
+                    html += `<div class="ev2-group">${escapeHtml(group)} <small>${n} shift${n === 1 ? '' : 's'}</small></div>`;
+                }
+                const open = eventOpenSlots(e), filled = (e.guards || []).length, total = filled + open;
+                const isIn = (e.guards || []).includes(u?.name);
+                const unread = (isIn || u?.isAdmin) ? unreadCount('evt_' + e.id) : 0;
+                const st = isIn ? ['in', "✓ YOU'RE IN"] : open === 0 ? ['full', 'FILLED'] : open === 1 ? ['last', '1 SPOT LEFT'] : ['open', `${open} OPEN`];
+                const dp = evDateParts(e);
+                const hours = shiftHoursLabel(e);
+                const cls = ['ev2', 'event-tile', isIn ? 'is-in' : '', !isIn && open === 0 ? 'is-full' : '', e.communityOnly ? 'is-community' : '', group === 'TONIGHT' ? 'is-tonight' : ''].filter(Boolean).join(' ');
+                html += `
+                <div class="${cls}" style="animation-delay:${Math.min(i, 8) * 45}ms" role="button" tabindex="0" onclick="openEventDetail('${e.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEventDetail('${e.id}');}">
+                    <div class="ev2-in">
+                        <div class="ev2-media">
+                            <img src="${escapeHtml(e.image || '')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                            ${dp ? `<div class="ev2-date"><span class="w">${dp.wk}</span><span class="d">${dp.day}</span><span class="m">${dp.mon}</span></div>` : ''}
+                            <div class="ev2-status ${st[0]}"><i></i>${st[1]}</div>
+                            ${unread > 0 ? `<div class="ev2-chat">💬 ${unread} new</div>` : ''}
+                            <h3 class="ev2-name">${escapeHtml(e.title)}</h3>
                         </div>
-                        <div style="flex:1; min-width:0;">
-                            <h3 style="font-family:'Outfit',sans-serif; font-size:1.05rem; font-weight:700; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.title}</h3>
-                            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🗓️ ${e.date}${e.startTime ? ' · ' + e.startTime : ''} · ${statusText}</div>
-                            <div class="tags-container" style="margin:0;">
-                                ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
-                            </div>
+                        <div class="ev2-body">
+                            <div class="ev2-meta"><span>🕘 ${escapeHtml(shiftTimeLabel(e))}${hours ? ' &middot; ' + escapeHtml(hours) : ''}</span><span class="go">View shift ›</span></div>
+                            ${total > 0 ? `<div class="ev2-fill"><div class="ev2-bar"><i style="width:${Math.round(filled / total * 100)}%"></i></div><span>${filled} of ${total} filled</span></div>` : ''}
+                            ${e.communityOnly ? `<div class="ev2-community">📋 Community listing only &mdash; not a contracted event</div>` : ''}
+                            ${(e.tags || []).length ? `<div class="tags-container" style="margin:0;">${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                         </div>
-                        <span style="color:var(--text-muted); font-size:1.3rem; flex-shrink:0;">›</span>
                     </div>
-                </div>
-            `; }).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">${hideCommunity ? 'No shift postings match this filter — uncheck "Hide community events" to see everything.' : 'No shift postings right now — check back soon.'}</p>`;
+                </div>`;
+            });
+            const empty = eventsFilter === 'mine' ? "You haven't claimed any shifts yet - tap All to find one." : eventsFilter === 'open' ? 'No shifts with open spots right now.' : (hideCommunity ? 'No shift postings match this filter — uncheck "Hide community events" to see everything.' : 'No shift postings right now — check back soon.');
+            document.getElementById('userEventsFeedList').innerHTML = html || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">${empty}</p>`;
         }
 
         function toggleSignUp(id, eEvent = null) {

@@ -86,11 +86,15 @@
     <div class="container">
         <!-- VIEW 1: UPCOMING EVENTS FEED -->
         <section id="eventsFeedView">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
-                <div>
-                    <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">Upcoming Shift Postings</h2>
-                    <p style="color:var(--text-muted); font-size:0.85rem;">Phoenix nightlife details, venues &amp; circuit parties</p>
-                </div>
+            <div class="ev-head">
+                <div class="ev-eyebrow">Phoenix nightlife</div>
+                <h2 class="ev-title">Upcoming Shift Postings</h2>
+                <p class="ev-summary" id="evSummary">Venues, circuit parties &amp; community events</p>
+            </div>
+            <div class="ev-filters" id="evFilters" role="group" aria-label="Filter shifts">
+                <button class="ev-chip active" data-f="all" onclick="setEventsFilter('all')">All</button>
+                <button class="ev-chip" data-f="open" onclick="setEventsFilter('open')">Open spots</button>
+                <button class="ev-chip" data-f="mine" onclick="setEventsFilter('mine')">I'm on</button>
             </div>
             <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-secondary); margin-bottom:14px; cursor:pointer; width:fit-content;">
                 <input type="checkbox" id="hideCommunityToggle" onchange="setHideCommunity(this.checked)">
