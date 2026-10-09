@@ -203,6 +203,7 @@
                 const id = new URLSearchParams(location.search).get('event');
                 if (id && getDB('events').some(e => e.id === id)) {
                     history.replaceState(null, '', location.pathname);
+                    logEvent('push_open', 'Opened the app from a notification', { eventId: id });
                     openEventDetail(id);
                 }
             } catch (err) { console.warn('Deep link failed:', err); }

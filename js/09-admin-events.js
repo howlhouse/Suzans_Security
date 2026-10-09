@@ -20,7 +20,7 @@
             document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
             document.querySelectorAll('.admin-pane').forEach(el => el.style.display = 'none'); document.getElementById(t).style.display = 'block';
             if (t !== 'adminSystem') clearAnnouncementPreview(); // leaving the tab always drops any unsaved preview
-            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') { renderAdminTags(); renderAdminRoles(); } if (t === 'adminLogs') renderLogs(); if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts(); if (t === 'adminSystem') renderAdminSystem();
+            if (t === 'adminEvents') renderAdminEv(); if (t === 'adminArchive') renderArchive(); if (t === 'adminChats') renderAdminChats(); if (t === 'adminTags') { renderAdminTags(); renderAdminRoles(); } if (t === 'adminLogs') { if (actData.loadedAt && Date.now() - actData.loadedAt > 300000) loadActivityLogs(); else renderLogs(); } if (t === 'adminUsers') renderUsers(); if (t === 'adminContacts') renderContacts(); if (t === 'adminSystem') renderAdminSystem();
         }
 
         /* ADMIN EVENTS — staged draft + explicit Save button

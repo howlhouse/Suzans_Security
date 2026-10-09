@@ -7,8 +7,29 @@ service cloud.firestore {
     // which stops randoms with your public apiKey from reading/writing your
     // data directly against the Firestore API, while still letting your app
     // work normally for anyone actually logged in.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    //
+    // Everything EXCEPT the activity collections below is open to any
+    // signed-in user, exactly as before.
+    match /{col}/{docId=**} {
+      allow read, write: if request.auth != null && col != 'logs' && col != 'presence';
+    }
+
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Activity log: any signed-in user can ADD entries about themselves (the uid on
+    // the entry must be theirs, so nobody can write logs as someone else); only
+    // admins can read or delete them. Entries can never be edited.
+    match /logs/{id} {
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read, delete: if request.auth != null && isAdmin();
+    }
+
+    // "Last seen" doc per person: they maintain their own, admins can read all.
+    match /presence/{uid} {
+      allow create, update: if request.auth != null && uid == request.auth.uid;
+      allow read: if request.auth != null && (uid == request.auth.uid || isAdmin());
     }
   }
 }

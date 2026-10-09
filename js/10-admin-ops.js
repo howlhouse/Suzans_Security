@@ -69,7 +69,198 @@
         }
 
         /* LOGS, USERS, CONTACTS */
-        function renderLogs() { document.getElementById('logsBody').innerHTML = getDB('logs').sort((a, b) => b.id.localeCompare(a.id)).map(l => `<tr><td style="color:var(--text-muted);">${l.time}</td><td style="color:var(--neon-teal); font-weight:600;">${l.user}</td><td>${l.action}</td></tr>`).join(''); }
+        // --- ACTIVITY LOGS & ADOPTION DASHBOARD ---
+        // Logs are fetched on demand (never held in ss_state - see js/03). The date range
+        // is a server-side range query on the log document id (which starts with the
+        // timestamp); user/type/search filters then run in the browser on what was fetched.
+        const ACT_FETCH_CAP = 3000; // max log docs read per load (each doc read counts toward Firestore's daily quota)
+        const ACT_PAGE = 150;
+        let actData = { logs: [], presence: {}, capped: false, loadedAt: 0, shown: ACT_PAGE, rangeDays: 7 };
+        const ACT_GROUPS = {
+            sessions: ['session_start', 'session_resume', 'login', 'logout', 'push_open'],
+            nav: ['view'],
+            shifts: ['event_view', 'open_shifts_shown', 'shift_ack', 'shift_claim', 'shift_drop'],
+            chat: ['chat_send'],
+            admin: ['action', 'register']
+        };
+        const ACT_TYPE_LABELS = {
+            session_start: ['📱', 'Opened', 'var(--neon-teal)'], session_resume: ['🔄', 'Returned', 'var(--neon-teal)'],
+            login: ['🔑', 'Signed in', 'var(--neon-teal)'], logout: ['🚪', 'Signed out', 'var(--text-muted)'],
+            push_open: ['🔔', 'From notification', 'var(--neon-teal)'], view: ['👀', 'Viewed', 'var(--text-secondary)'],
+            event_view: ['📅', 'Shift viewed', '#7fd4ff'], open_shifts_shown: ['📣', 'Open shifts shown', '#ffb020'],
+            shift_ack: ['👍', 'Acknowledged', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
+            shift_drop: ['❌', 'Dropped', 'var(--danger-glow)'], chat_send: ['💬', 'Chat', 'var(--text-secondary)'],
+            register: ['🆕', 'Registered', 'var(--neon-pink)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
+        };
+        const ACT_SESSION_TYPES = ['session_start', 'session_resume'];
+
+        // Old logs (before this feature) have no ts/type/uid; their id is "l<timestamp>".
+        function normalizeLog(l) {
+            const ts = l.ts || Number(String(l.id || '').slice(1, 14)) || 0;
+            return { ...l, ts, type: l.type || 'action', day: l.day || (ts ? dayKey(new Date(ts)) : '') };
+        }
+        function actUserKey(l) { return l.uid || ('name:' + (l.user || '')); }
+        function actWhen(ts) { return ts ? new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'; }
+        function actAgo(ts) {
+            if (!ts) return 'Never';
+            const m = Math.floor((Date.now() - ts) / 60000);
+            if (m < 2) return 'Just now';
+            if (m < 60) return m + ' min ago';
+            const h = Math.floor(m / 60);
+            if (h < 24) return h + ' hr ago';
+            const d = Math.floor(h / 24);
+            return d + (d === 1 ? ' day ago' : ' days ago');
+        }
+
+        let actLoading = false;
+        async function loadActivityLogs() {
+            if (actLoading) return;
+            actLoading = true;
+            const status = document.getElementById('actStatus');
+            const rangeDays = Number(document.getElementById('actRange').value) || 7;
+            const now = Date.now(), start = now - rangeDays * 86400000;
+            status.textContent = 'Loading…';
+            try {
+                const idPath = firebase.firestore.FieldPath.documentId();
+                const [logSnap, presSnap] = await Promise.all([
+                    db.collection('logs').where(idPath, '>=', 'l' + start).where(idPath, '<=', 'l' + now + '')
+                        .orderBy(idPath, 'desc').limit(ACT_FETCH_CAP).get({ source: 'server' }),
+                    db.collection('presence').get({ source: 'server' })
+                ]);
+                const presence = {};
+                presSnap.docs.forEach(d => { presence[d.id] = d.data(); });
+                actData = { logs: logSnap.docs.map(d => normalizeLog(d.data())), presence, capped: logSnap.size >= ACT_FETCH_CAP, loadedAt: now, shown: ACT_PAGE, rangeDays };
+                status.textContent = `Loaded ${actData.logs.length.toLocaleString()} events from the last ${rangeDays === 1 ? '24 hours' : rangeDays + ' days'}.` +
+                    (actData.capped ? ` Showing only the newest ${ACT_FETCH_CAP.toLocaleString()} - choose a shorter range to see everything.` : '') +
+                    ' Each load reads these from Firestore, so refresh when you need it rather than constantly.';
+                renderLogs(true);
+            } catch (err) {
+                console.error('Activity load failed:', err);
+                actData.loadedAt = Date.now(); // stop the realtime refresh from retrying in a loop; the Refresh button still works
+                status.innerHTML = `<span style="color:var(--danger-glow);">Couldn't load activity (${escapeHtml(err.message)}). If this says "permission", publish the latest firestore.rules.</span>`;
+            } finally { actLoading = false; }
+        }
+
+        function computeActivityStats() {
+            const users = getDB('users');
+            const byKey = {};
+            const nameToUid = {};
+            users.forEach(u => { byKey[u.id] = { u, opens: 0, days: new Set(), claims: 0, drops: 0, acks: 0, lastTs: 0 }; nameToUid[u.name] = u.id; });
+            const dau = {}; // day -> Set(userKey)
+            const shownDays = new Set(), ackDays = new Set();
+            let totalOpens = 0, totalClaims = 0, totalDrops = 0;
+            actData.logs.forEach(l => {
+                const key = (l.uid && byKey[l.uid]) ? l.uid : nameToUid[l.user];
+                if (!key) return; // removed account / "System"
+                const r = byKey[key];
+                r.lastTs = Math.max(r.lastTs, l.ts);
+                if (l.day) { r.days.add(l.day); (dau[l.day] = dau[l.day] || new Set()).add(key); }
+                if (ACT_SESSION_TYPES.includes(l.type)) { r.opens++; totalOpens++; }
+                if (l.type === 'shift_claim') { r.claims++; totalClaims++; }
+                if (l.type === 'shift_drop') { r.drops++; totalDrops++; }
+                if (l.type === 'shift_ack') { r.acks++; ackDays.add(key + '|' + l.day); }
+                if (l.type === 'open_shifts_shown') shownDays.add(key + '|' + l.day);
+            });
+            const rows = users.map(u => {
+                const r = byKey[u.id], pr = actData.presence[u.id] || {};
+                return { u, ...r, days: r.days.size, lastSeen: Math.max(pr.lastSeen || 0, r.lastTs), pres: pr };
+            });
+            return { rows, dau, totalOpens, totalClaims, totalDrops, shownDays, ackDays };
+        }
+
+        function renderActivityDashboard() {
+            const { rows, dau, totalOpens, totalClaims, totalDrops, shownDays, ackDays } = computeActivityStats();
+            const staff = rows.length;
+            const active = rows.filter(r => r.opens > 0 || r.days > 0).length;
+            const pct = n => staff ? Math.round(n / staff * 100) : 0;
+            const installed = rows.filter(r => r.pres.installed).length;
+            const notif = rows.filter(r => r.pres.pushOn || r.pres.notif === 'granted').length;
+            const ackedShown = [...shownDays].filter(k => ackDays.has(k)).length;
+            const ackRate = shownDays.size ? Math.round(ackedShown / shownDays.size * 100) + '%' : '—';
+            const card = (big, label, sub) => `<div class="glass-card" style="padding:14px; margin:0;"><div style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--neon-teal);">${big}</div><div style="font-size:0.78rem; font-weight:600;">${label}</div><div style="font-size:0.7rem; color:var(--text-muted);">${sub}</div></div>`;
+            document.getElementById('actSummary').innerHTML =
+                card(`${active}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Active staff', `${pct(active)}% used the app`) +
+                card(totalOpens.toLocaleString(), 'App opens', active ? `~${(totalOpens / active).toFixed(1)} per active person` : 'in this range') +
+                card(totalClaims.toLocaleString(), 'Shifts claimed', `${totalDrops} dropped`) +
+                card(ackRate, 'Open-shift acks', `${ackedShown} of ${shownDays.size} daily popups acknowledged`) +
+                card(`${installed}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Installed to home screen', `${pct(installed)}% (as of last open)`) +
+                card(`${notif}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Notifications on', `${pct(notif)}% (as of last open)`);
+
+            // Daily-active bars for up to the last 30 days of the range.
+            const days = Math.min(actData.rangeDays, 30), bars = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const d = new Date(Date.now() - i * 86400000), k = dayKey(d);
+                bars.push({ k, n: dau[k] ? dau[k].size : 0, label: d.toLocaleDateString([], { month: 'short', day: 'numeric' }) });
+            }
+            const max = Math.max(1, ...bars.map(b => b.n));
+            document.getElementById('actDau').innerHTML = `<div style="display:flex; align-items:flex-end; gap:${days > 14 ? 3 : 8}px; height:90px;">` +
+                bars.map(b => `<div title="${escapeHtml(b.label)}: ${b.n} active" style="flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%;"><div style="font-size:0.65rem; color:var(--text-muted);">${b.n || ''}</div><div style="width:100%; max-width:34px; height:${Math.max(2, Math.round(b.n / max * 62))}px; background:${b.n ? 'linear-gradient(180deg, var(--neon-teal), var(--neon-saguaro))' : 'rgba(255,255,255,0.08)'}; border-radius:4px 4px 0 0;"></div></div>`).join('') + '</div>' +
+                `<div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--text-muted); margin-top:4px;"><span>${escapeHtml(bars[0].label)}</span><span>${escapeHtml(bars[bars.length - 1].label)}</span></div>`;
+
+            rows.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+            document.getElementById('actUsersBody').innerHTML = rows.map(r => {
+                const stale = !r.lastSeen ? 'var(--danger-glow)' : (Date.now() - r.lastSeen > 7 * 86400000 ? '#ffb020' : 'var(--neon-saguaro)');
+                const dev = r.pres.platform ? `${r.pres.installed ? '📲 App' : '🌐 Browser'} · ${escapeHtml(r.pres.platform)}${(r.pres.pushOn || r.pres.notif === 'granted') ? ' · 🔔' : ''}` : '<span style="color:var(--text-muted);">—</span>';
+                return `<tr style="cursor:pointer;" onclick="filterLogsByUser('${escapeHtml(jsStr(r.u.id))}')">
+                    <td><strong>${escapeHtml(r.u.name)}</strong>${r.u.isAdmin ? ' <span style="color:var(--text-muted); font-size:0.7rem;">admin</span>' : ''}<div style="font-size:0.7rem; color:var(--text-muted);">${escapeHtml(r.u.role || '')}</div></td>
+                    <td style="color:${stale}; font-weight:600; white-space:nowrap;">${actAgo(r.lastSeen)}</td>
+                    <td>${r.opens}</td><td>${r.days}</td><td>${r.claims}${r.drops ? ` <span style="color:var(--text-muted);">(−${r.drops})</span>` : ''}</td><td>${r.acks}</td>
+                    <td style="font-size:0.78rem; white-space:nowrap;">${dev}</td></tr>`;
+            }).join('') || '<tr><td colspan="7" style="color:var(--text-muted);">No staff yet.</td></tr>';
+        }
+
+        function filteredActivityLogs() {
+            const uSel = document.getElementById('actUserFilter').value;
+            const tSel = document.getElementById('actTypeFilter').value;
+            const q = document.getElementById('actSearch').value.trim().toLowerCase();
+            const nameOf = id => (getDB('users').find(u => u.id === id) || {}).name;
+            return actData.logs.filter(l => {
+                if (uSel && !(l.uid === uSel || (!l.uid && l.user === nameOf(uSel)))) return false;
+                if (tSel && !ACT_GROUPS[tSel].includes(l.type)) return false;
+                if (q && !((l.user || '') + ' ' + (l.action || '') + ' ' + l.type).toLowerCase().includes(q)) return false;
+                return true;
+            });
+        }
+
+        // Re-renders from the data already fetched - never refetches (this also runs on
+        // every realtime update elsewhere in the app, via refreshGlobalUI).
+        function renderLogs(resetPaging) {
+            const sel = document.getElementById('actUserFilter');
+            if (!sel) return;
+            if (resetPaging === true) actData.shown = ACT_PAGE;
+            const prev = sel.value;
+            sel.innerHTML = '<option value="">All staff</option>' + getDB('users').slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');
+            sel.value = prev;
+            if (!actData.loadedAt) { loadActivityLogs(); return; }
+            renderActivityDashboard();
+            const list = filteredActivityLogs();
+            document.getElementById('logsBody').innerHTML = list.slice(0, actData.shown).map(l => {
+                const t = ACT_TYPE_LABELS[l.type] || ACT_TYPE_LABELS.action;
+                return `<tr><td style="color:var(--text-muted); white-space:nowrap; font-size:0.78rem;">${actWhen(l.ts)}</td><td style="color:var(--neon-teal); font-weight:600;">${escapeHtml(l.user)}</td><td><span style="color:${t[2]}; font-size:0.72rem; font-weight:700; white-space:nowrap;">${t[0]} ${t[1]}</span> <span style="font-size:0.85rem;">${escapeHtml(l.action)}</span></td></tr>`;
+            }).join('') || '<tr><td colspan="3" style="color:var(--text-muted);">Nothing matches.</td></tr>';
+            const more = document.getElementById('actMoreBtn');
+            more.style.display = list.length > actData.shown ? 'inline-block' : 'none';
+            more.textContent = `Show more (${list.length - actData.shown} left)`;
+        }
+        function showMoreLogs() { actData.shown += ACT_PAGE; renderLogs(); }
+        function filterLogsByUser(id) {
+            document.getElementById('actUserFilter').value = id;
+            renderLogs(true);
+            document.getElementById('logsBody').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        function exportActivityCsv() {
+            const list = filteredActivityLogs();
+            if (!list.length) { alert('Nothing to export - load some activity first.'); return; }
+            // Leading apostrophe stops spreadsheet apps from running a cell that starts with = + - @ as a formula.
+            const cell = v => { let s = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+            const lines = [['Time', 'User', 'User ID', 'Type', 'Activity', 'Details', 'Session'].map(cell).join(',')].concat(
+                list.map(l => [new Date(l.ts).toISOString(), l.user, l.uid || '', l.type, l.action, l.meta ? JSON.stringify(l.meta) : '', l.sid || ''].map(cell).join(',')));
+            const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+            const a = document.createElement('a');
+            a.href = url; a.download = `suzans-security-activity-${dayKey(new Date())}.csv`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
 
         function renderUsers() {
             const me = currUser();
