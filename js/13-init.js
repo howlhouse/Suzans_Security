@@ -38,6 +38,12 @@
                         return;
                     }
                     window._currentUserProfile = profileSnap.data();
+                    if (IS_DEV_SITE && !window._currentUserProfile.isDev) {
+                        // The developer site is for developers only.
+                        window._currentUserProfile = null;
+                        location.replace(PROD_URL);
+                        return;
+                    }
                     document.getElementById('authModal').style.display = 'none';
                     document.getElementById('userGreeting').innerText = window._currentUserProfile.name;
                     updateDockForUser();

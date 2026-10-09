@@ -1,4 +1,8 @@
-const CACHE_NAME = 'suzans-security-v12';
+// PROD and DEV (served from /dev/) are separate service workers with separate caches. Each one
+// only ever cleans up its own caches, so installing one can't wipe the other's.
+const IS_DEV_SCOPE = self.registration.scope.includes('/dev/');
+const CACHE_PREFIX = IS_DEV_SCOPE ? 'suzans-security-dev-' : 'suzans-security-v';
+const CACHE_NAME = CACHE_PREFIX + '13';
 // index.html used to be one file with an inline <style>/<script> - now it
 // loads styles.css and js/*.js as separate requests, so they need to be
 // precached too for the same offline-cold-boot behavior as before.
@@ -23,7 +27,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
     e.waitUntil(
         caches.keys().then((keys) =>
-            Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+            Promise.all(keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME).map((k) => caches.delete(k)))
         )
     );
     self.clients.claim();
