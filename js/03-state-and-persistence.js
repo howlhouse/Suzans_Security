@@ -148,7 +148,7 @@
                 touchPresence(true, true);
             }
         });
-        const VIEW_NAMES = { eventsFeed: 'Events', eventsFeedView: 'Events', calendarView: 'Calendar', teamChatView: 'Comms', banListView: 'Ban List', myShiftsView: 'My Shifts', contactsDirectoryView: 'Promoter Directory', licensesView: 'Licenses', settingsView: 'Settings', adminConsoleView: 'Admin Console' };
+        const VIEW_NAMES = { eventsFeed: 'Events', eventsFeedView: 'Events', calendarView: 'Calendar', teamChatView: 'Comms', banListView: 'Ban List', myShiftsView: 'My Shifts', contactsDirectoryView: 'Promoter Directory', licensesView: 'Licenses', dashboardView: 'Dashboard', settingsView: 'Settings', adminConsoleView: 'Admin Console' };
         function trackView(v) {
             const name = VIEW_NAMES[v];
             if (!name || name === _lastTrackedView) return;

@@ -179,6 +179,7 @@
             if (document.getElementById('banListView').style.display !== 'none') renderBanList();
             if (document.getElementById('myShiftsView').style.display !== 'none') renderMyShiftsView();
             if (document.getElementById('settingsView').style.display !== 'none') renderSettings();
+            if (document.getElementById('dashboardView').style.display !== 'none') renderDashboardActivityIfShown();
             if (document.getElementById('adminConsoleView').style.display !== 'none') {
                 if (!currUser()?.isAdmin) { switchView('eventsFeed'); return; } // demoted mid-session - bounce out
                 if (document.getElementById('adminEvents').style.display === 'block') renderAdminEv();

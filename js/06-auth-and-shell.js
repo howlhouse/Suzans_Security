@@ -64,6 +64,8 @@
             const u = currUser();
             const btn = document.getElementById('dockAdminBtn');
             if (btn) btn.style.display = (u && u.isAdmin) ? '' : 'none';
+            const dashBtn = document.getElementById('dockDashboardBtn');
+            if (dashBtn) dashBtn.style.display = (IS_DEV_SITE && u && u.isDev) ? '' : 'none'; // Dashboard: DEV site + DEV users only
             // PROD | DEV switch: only for users with the DEV checkbox.
             const sw = document.getElementById('envSwitch');
             if (sw) {
@@ -326,8 +328,9 @@
             // directly (bypassing promptAdminPin), never actually show it to a
             // non-admin. The PIN prompt is the intended door in.
             if (v === 'adminConsoleView' && !currUser()?.isAdmin) { v = 'eventsFeed'; }
+            if (v === 'dashboardView' && !(IS_DEV_SITE && currUser()?.isDev)) { v = 'eventsFeed'; } // developer-only, DEV site only
             trackView(v);
-            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'licensesView', 'settingsView', 'adminConsoleView'].forEach(id => {
+            ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'licensesView', 'dashboardView', 'settingsView', 'adminConsoleView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === v + 'View' || id === v) ? 'block' : 'none';
             });
@@ -340,6 +343,7 @@
             if (v === 'banListView') renderBanList();
             if (v === 'myShiftsView') renderMyShiftsView();
             if (v === 'contactsDirectoryView') renderContactsDirectory();
+            if (v === 'dashboardView') renderDashboard(); else stopDashboard();
             if (v === 'settingsView') renderSettings();
             if (v === 'adminConsoleView') renderAdminEv();
             if (v !== 'adminConsoleView') clearAnnouncementPreview();
