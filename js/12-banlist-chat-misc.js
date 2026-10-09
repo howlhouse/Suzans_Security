@@ -91,7 +91,6 @@
         function tourDock(view) { return document.querySelector(`.dock-item[data-view="${view}"]`); }
         function tourMenuItem(view) { return document.querySelector(`#userMenuDropdown .user-menu-item[onclick*="${view}"]`); }
         function buildTourSteps() {
-            const u = currUser() || {};
             const steps = [
                 { title: "Welcome to Suzan's Security 👋", text: "Here's a quick tour of everything in the app. You can <strong>skip at any time</strong>, and replay it later from the ⓘ info button (top right) → <strong>Take the Tutorial</strong>.", view: 'eventsFeed' },
                 { title: '🪩 Events', text: "Every upcoming shift posting lives here. Tap the <strong>Events</strong> tab any time to come back to this feed. You may also see a quick \"open shifts\" popup now and then &mdash; just acknowledge it.", view: 'eventsFeed', target: () => tourDock('eventsFeed') },
@@ -100,8 +99,6 @@
                 { title: '📅 Calendar', text: "See every shift on a month grid. Use the arrows to change months and tap an event to open it.", view: 'calendarView', target: () => tourEl('calMonthText') && tourEl('calMonthText').parentElement },
                 { title: '💬 Comms', text: "Team chat. Pick a channel from the dropdown (each shift also gets its own chat), send messages, and attach files with the 📎 button. A red badge on this tab means something's unread.", view: 'eventsFeed', target: () => tourDock('teamChatView') },
                 { title: '🚫 Ban List', text: "Known problem patrons and incident history, shared by the whole team. <strong>Add a person</strong> or log an incident so everyone is informed.", view: 'banListView', target: () => document.querySelector('#banListView .btn') },
-                { title: '🔒 Admin', text: "Command Center for admins: post and edit shifts, manage users, chat, tags and ranks, logs and system settings. It asks for your admin PIN.", view: 'eventsFeed', target: () => tourDock('adminConsoleView'), when: () => !!u.isAdmin },
-                { title: '📊 Dashboard', text: "Developer tools: feedback from users, activity and logs. Only developers see this, and only on the DEV site.", view: 'eventsFeed', target: () => tourDock('dashboardView'), when: () => IS_DEV_SITE && !!u.isDev },
                 { title: '🛡️ Your menu', text: "Tap your name any time to open your menu. Here's what's inside, including <strong>Sign Out</strong> at the bottom.", view: 'eventsFeed', menu: true, target: () => tourEl('userPill') },
                 { title: '📋 My Shifts & Notes', text: "Everything you're scheduled for, with shift hours and your personal notes, at a glance.", view: 'myShiftsView', menu: true, target: () => tourMenuItem('myShiftsView') },
                 { title: '📇 Promoter Directory', text: "Client and promoter contacts, their links, and the shifts they're tied to.", view: 'contactsDirectoryView', menu: true, target: () => tourMenuItem('contactsDirectoryView') },
