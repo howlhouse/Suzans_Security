@@ -20,12 +20,15 @@ opens `/dev/` is sent back to PROD. The DEV version also shows an orange banner 
 
 ## Everyday workflow
 
-1. Create a branch from `dev` for the change, open a pull request **into `dev`**.
-2. Merge it. Within about a minute it's live at `/dev/` - try it there.
-3. When DEV looks good, **release to PROD**: open a pull request from `dev` into `main`
-   (`gh pr create --base main --head dev`) and merge it.
-4. Small urgent fixes can still go straight to `main`; afterwards merge `main` into
-   `dev` so the two don't drift (`git checkout dev && git merge main`).
+1. **Build on `dev`.** Commit and push changes straight to the `dev` branch. Within about a
+   minute they're live at `/dev/` - try them there with the PROD | DEV switch.
+2. **Release with "/publish to prod".** When DEV looks good, say that phrase. The branch
+   `dev` is merged into `main` through a pull request and the live app updates.
+3. Don't push feature work directly to `main`. If an urgent fix ever does go straight to
+   `main`, merge `main` back into `dev` afterwards so the two don't drift.
+
+Manual Firebase steps (publishing `firestore.rules`, creating an index) are never part of the
+automatic release - they're listed in the release report for you to do in the Firebase Console.
 
 ## How it's deployed
 
@@ -44,3 +47,6 @@ Activity logged from DEV is tagged `env: "dev"`. The adoption dashboard ignores 
   which version it's running as.
 - The two versions use separate service-worker caches (`sw.js`) so they don't clobber
   each other.
+- GitHub Pages ignores a second deployment of the *same commit*. If `dev` and `main` are at the
+  same commit, only the first deployment of that commit takes effect - a new commit on either
+  branch always deploys.
