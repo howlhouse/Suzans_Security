@@ -1,3 +1,9 @@
+        // --- ENVIRONMENT: PROD (the normal address) vs DEV (the same address + /dev/) ---
+        // Both run this same code against the same Firebase project. See docs/ENVIRONMENTS.md.
+        const IS_DEV_SITE = /\/dev(\/|$)/.test(location.pathname);
+        const PROD_URL = new URL(IS_DEV_SITE ? '../' : './', location.href).href;
+        const DEV_URL = new URL('dev/', PROD_URL).href;
+
         // --- 3. GLOBAL STATE ---
         window.ss_state = { events: [], users: [], channels: [], chats: [], promoters: [], banlist: [], tags: [], roles: [], announcement: [], pushes: [], settings: [] };
         const allCollections = ['events', 'users', 'channels', 'chats', 'promoters', 'banlist', 'tags', 'roles', 'announcement', 'pushes', 'settings'];
@@ -102,7 +108,7 @@
                 if (sig === _lastLogSig && now - _lastLogAt < 3000) return Promise.resolve(); // double-tap / double-fire guard
                 _lastLogSig = sig; _lastLogAt = now;
                 const id = 'l' + now + '_' + Math.random().toString(36).slice(2, 6);
-                const doc = { id, ts: now, day: dayKey(new Date(now)), time: new Date(now).toLocaleTimeString(), uid: actor.uid, user: actor.user, type, action, sid: SESSION_ID };
+                const doc = { id, ts: now, day: dayKey(new Date(now)), time: new Date(now).toLocaleTimeString(), uid: actor.uid, user: actor.user, type, action, sid: SESSION_ID, env: IS_DEV_SITE ? 'dev' : 'prod' };
                 if (meta) doc.meta = meta;
                 return withTimeout(db.collection('logs').doc(id).set(cleanData(doc)), 15000, 'activity log')
                     .catch(err => console.warn('Activity log write failed (ignored):', err.message));
@@ -114,6 +120,7 @@
         // "Last seen" doc for the adoption dashboard (one small doc per person).
         function touchPresence(force, countOpen) {
             try {
+                if (IS_DEV_SITE) return; // developer testing shouldn't change anyone's "last seen"
                 const actor = logActor();
                 if (!actor) return;
                 const now = Date.now();

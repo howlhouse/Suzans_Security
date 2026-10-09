@@ -81,7 +81,7 @@
             sessions: ['session_start', 'session_resume', 'login', 'logout', 'push_open', 'terms_accepted'],
             nav: ['view'],
             shifts: ['event_view', 'open_shifts_shown', 'shift_ack', 'shift_claim', 'shift_drop'],
-            chat: ['chat_send'],
+            chat: ['chat_send', 'feedback_submitted'],
             admin: ['action', 'register']
         };
         const ACT_TYPE_LABELS = {
@@ -91,7 +91,7 @@
             event_view: ['📅', 'Shift viewed', '#7fd4ff'], open_shifts_shown: ['📣', 'Open shifts shown', '#ffb020'],
             shift_ack: ['👍', 'Read open shifts', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
             shift_drop: ['❌', 'Dropped', 'var(--danger-glow)'], chat_send: ['💬', 'Chat', 'var(--text-secondary)'],
-            register: ['🆕', 'Registered', 'var(--neon-pink)'], terms_accepted: ['📜', 'Accepted terms', 'var(--neon-saguaro)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
+            register: ['🆕', 'Registered', 'var(--neon-pink)'], feedback_submitted: ['💬', 'Feedback', '#7fd4ff'], terms_accepted: ['📜', 'Accepted terms', 'var(--neon-saguaro)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
         };
         const ACT_SESSION_TYPES = ['session_start', 'session_resume'];
 
@@ -160,6 +160,7 @@
             const shownDays = new Set(), ackDays = new Set();
             let totalOpens = 0, totalClaims = 0, totalDrops = 0;
             actData.logs.forEach(l => {
+                if (l.env === 'dev') return; // developer testing doesn't count toward adoption numbers
                 const key = (l.uid && byKey[l.uid]) ? l.uid : nameToUid[l.user];
                 if (!key) return; // removed account / "System"
                 const r = byKey[key];
@@ -250,7 +251,7 @@
             const list = filteredActivityLogs();
             document.getElementById('logsBody').innerHTML = list.slice(0, actData.shown).map(l => {
                 const t = ACT_TYPE_LABELS[l.type] || ACT_TYPE_LABELS.action;
-                return `<tr><td style="color:var(--text-muted); white-space:nowrap; font-size:0.78rem;">${actWhen(l.ts)}</td><td style="color:var(--neon-teal); font-weight:600;">${escapeHtml(l.user)}</td><td><span style="color:${t[2]}; font-size:0.72rem; font-weight:700; white-space:nowrap;">${t[0]} ${t[1]}</span> <span style="font-size:0.85rem;">${escapeHtml(l.action)}</span></td></tr>`;
+                return `<tr><td style="color:var(--text-muted); white-space:nowrap; font-size:0.78rem;">${actWhen(l.ts)}</td><td style="color:var(--neon-teal); font-weight:600;">${escapeHtml(l.user)}</td><td><span style="color:${t[2]}; font-size:0.72rem; font-weight:700; white-space:nowrap;">${t[0]} ${t[1]}</span>${l.env === 'dev' ? ' <span style="color:#ffb020; font-size:0.65rem; font-weight:800;">DEV</span>' : ''} <span style="font-size:0.85rem;">${escapeHtml(l.action)}</span></td></tr>`;
             }).join('') || '<tr><td colspan="3" style="color:var(--text-muted);">Nothing matches.</td></tr>';
             const more = document.getElementById('actMoreBtn');
             more.style.display = list.length > actData.shown ? 'inline-block' : 'none';
@@ -306,7 +307,7 @@
             const me = currUser();
             renderOpenShiftsControls();
             document.getElementById('usersBody').innerHTML = getDB('users').map(u => `<tr>
-                <td><strong>${u.name}</strong></td>
+                <td><strong>${u.name}</strong>${u.isDev ? ' <span class="neon-tag" style="background:rgba(255,176,32,0.15); color:#ffb020; border:1px solid rgba(255,176,32,0.4); padding:1px 7px; font-size:0.62rem;">DEV</span>' : ''}</td>
                 <td style="font-size:0.8rem;">${u.email}<br>${u.phone || ''}</td>
                 <td style="font-size:0.8rem; color:var(--neon-teal); font-weight:600;">${u.role || '<span style="color:var(--text-muted); font-weight:400;">—</span>'}</td>
                 <td style="white-space:nowrap;">
@@ -362,6 +363,7 @@
             // New users default to Private - only override for an existing
             // user being edited, whose actual rank (or lack of one) we show as-is.
             document.getElementById('umRole').value = u ? (u.role || '') : 'Private';
+            document.getElementById('umIsDev').checked = u ? !!u.isDev : false;
             document.getElementById('umShowOpenShifts').checked = u ? !u.openShiftsPopupOff : true;
             document.getElementById('umIsAdmin').checked = u ? !!u.isAdmin : false;
             document.getElementById('umPinWrap').style.display = (u && u.isAdmin) ? 'block' : 'none';
@@ -389,6 +391,7 @@
             const pw = document.getElementById('umPassword').value;
             const isAdmin = document.getElementById('umIsAdmin').checked;
             const openShiftsPopupOff = !document.getElementById('umShowOpenShifts').checked;
+            const isDev = document.getElementById('umIsDev').checked;
             const pinInput = document.getElementById('umPin').value.trim();
             const errEl = document.getElementById('umErr');
             const showErr = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
@@ -408,7 +411,7 @@
                 // entered, they'll be prompted to set their own the first time
                 // they open the admin console (see promptAdminPin).
                 const pin = isAdmin ? (pinInput || existing.pin) : existing.pin;
-                const updated = { ...existing, name, phone, role, isAdmin, pin, openShiftsPopupOff };
+                const updated = { ...existing, name, phone, role, isAdmin, isDev, pin, openShiftsPopupOff };
                 saveDoc('users', editingUserId, updated).then(() => {
                     logAction('Updated user profile: ' + name);
                     const me = currUser();
@@ -429,7 +432,7 @@
                     const cred = await secAuth.createUserWithEmailAndPassword(email, pw);
                     const newUid = cred.user.uid;
                     await secAuth.signOut();
-                    const nu = { id: newUid, uid: newUid, name, email, phone, role, isAdmin, openShiftsPopupOff, pin: isAdmin ? pinInput : undefined };
+                    const nu = { id: newUid, uid: newUid, name, email, phone, role, isAdmin, isDev, openShiftsPopupOff, pin: isAdmin ? pinInput : undefined };
                     await saveDoc('users', newUid, nu);
                     logAction('Admin created new user: ' + name);
                     notifySystemAdminOfNewUser(nu);

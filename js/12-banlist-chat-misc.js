@@ -77,6 +77,58 @@
         // again after the user dismisses it. Falls back to sessionStorage (still
         // one-time per tab) if localStorage is unavailable (private browsing, etc.)
         // so the app never breaks just because storage is blocked.
+        // --- FEEDBACK (from the info popup) ---
+        // One doc per submission in `feedback`. Developers triage it from the Dashboard on the
+        // DEV site; `status` and an optional public `reply` are set there and shown back here.
+        const FEEDBACK_TYPES = { bug: '🐞 Something is broken', idea: '💡 Idea or request', question: '❓ Question', praise: '👍 Something I like', other: '💬 Other' };
+        const FEEDBACK_STATUSES = { new: ['New', '#7fd4ff'], reviewing: ['Reviewing', '#ffb020'], planned: ['Planned', 'var(--neon-teal)'], done: ['Done', 'var(--neon-saguaro)'], declined: ["Won't do", 'var(--text-muted)'] };
+        function openFeedback() {
+            document.getElementById('fbType').innerHTML = Object.keys(FEEDBACK_TYPES).map(k => `<option value="${k}">${FEEDBACK_TYPES[k]}</option>`).join('');
+            document.getElementById('fbMessage').value = '';
+            document.getElementById('fbCount').textContent = '0';
+            document.getElementById('fbThanks').style.display = 'none';
+            document.getElementById('feedbackModal').style.display = 'flex';
+            loadMyFeedback();
+        }
+        async function loadMyFeedback() {
+            const u = currUser();
+            if (!u) return;
+            try {
+                const snap = await db.collection('feedback').where('uid', '==', u.id).get();
+                const mine = snap.docs.map(d => d.data()).sort((a, b) => b.ts - a.ts).slice(0, 5);
+                document.getElementById('fbMineWrap').style.display = mine.length ? 'block' : 'none';
+                document.getElementById('fbMineList').innerHTML = mine.map(f => {
+                    const st = FEEDBACK_STATUSES[f.status] || FEEDBACK_STATUSES.new;
+                    return `<div style="padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); font-size:0.8rem;">
+                        <div style="display:flex; justify-content:space-between; gap:8px;"><span style="color:var(--text-muted);">${escapeHtml(FEEDBACK_TYPES[f.type] || '')} &middot; ${new Date(f.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span><span style="color:${st[1]}; font-weight:700;">${st[0]}</span></div>
+                        <div style="margin-top:3px;">${escapeHtml(String(f.message || '').slice(0, 160))}${String(f.message || '').length > 160 ? '…' : ''}</div>
+                        ${f.reply ? `<div style="margin-top:4px; padding:6px 8px; border-left:2px solid var(--neon-teal); background:rgba(0,245,212,0.06); color:var(--text-secondary);"><strong>Developer reply:</strong> ${escapeHtml(f.reply)}</div>` : ''}
+                    </div>`;
+                }).join('');
+            } catch (err) { console.warn('Could not load your feedback:', err.message); }
+        }
+        async function submitFeedback() {
+            const u = currUser();
+            if (!u) return;
+            const type = document.getElementById('fbType').value;
+            const message = document.getElementById('fbMessage').value.trim();
+            if (message.length < 5) { alert('Please write a little more so we can understand.'); return; }
+            const btn = document.getElementById('fbSubmitBtn');
+            btn.disabled = true; btn.textContent = 'Sending…';
+            const dev = deviceInfo();
+            const id = 'f' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            const doc = { id, ts: Date.now(), uid: u.id, user: u.name || '', role: u.role || '', type, message: message.slice(0, 2000), status: 'new', view: _lastTrackedView || '', platform: dev.platform, installed: dev.installed, env: IS_DEV_SITE ? 'dev' : 'prod' };
+            try {
+                await saveDoc('feedback', id, doc);
+                logEvent('feedback_submitted', 'Submitted feedback: ' + (FEEDBACK_TYPES[type] || type).replace(/^\S+\s/, ''), { feedbackId: id });
+                document.getElementById('fbMessage').value = '';
+                document.getElementById('fbCount').textContent = '0';
+                document.getElementById('fbThanks').style.display = 'block';
+                loadMyFeedback();
+            } catch (err) { /* saveDoc already alerted */ }
+            finally { btn.disabled = false; btn.textContent = 'Send Feedback'; }
+        }
+
         function maybeShowWelcome() {
             if (maybeRequireTerms()) return; // updated Terms come first; accepting them calls this again
             try {

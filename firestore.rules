@@ -8,28 +8,48 @@ service cloud.firestore {
     // data directly against the Firestore API, while still letting your app
     // work normally for anyone actually logged in.
     //
-    // Everything EXCEPT the activity collections below is open to any
-    // signed-in user, exactly as before.
+    // Everything EXCEPT the collections below is open to any signed-in user,
+    // exactly as before.
     match /{col}/{docId=**} {
-      allow read, write: if request.auth != null && col != 'logs' && col != 'presence';
+      allow read, write: if request.auth != null && col != 'logs' && col != 'presence' && col != 'feedback';
     }
 
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
+    // Developers (the DEV checkbox on a user). .get() with a default so users who
+    // have never had the field don't cause an error.
+    function isDev() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isDev', false) == true;
+    }
+    function isAdminOrDev() {
+      return isAdmin() || isDev();
+    }
 
     // Activity log: any signed-in user can ADD entries about themselves (the uid on
     // the entry must be theirs, so nobody can write logs as someone else); only
-    // admins can read or delete them. Entries can never be edited.
+    // admins and developers can read or delete them. Entries can never be edited.
     match /logs/{id} {
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow read, delete: if request.auth != null && isAdmin();
+      allow read, delete: if request.auth != null && isAdminOrDev();
     }
 
-    // "Last seen" doc per person: they maintain their own, admins can read all.
+    // "Last seen" doc per person: they maintain their own; admins/developers can read all.
     match /presence/{uid} {
       allow create, update: if request.auth != null && uid == request.auth.uid;
-      allow read: if request.auth != null && (uid == request.auth.uid || isAdmin());
+      allow read: if request.auth != null && (uid == request.auth.uid || isAdminOrDev());
+    }
+
+    // Feedback from the info popup: anyone signed in can submit their own (new status,
+    // sensible length); they can read their own back; admins/developers can read all,
+    // change status/notes/replies, and delete.
+    match /feedback/{id} {
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.status == 'new'
+                    && request.resource.data.message.size() <= 2000;
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdminOrDev());
+      allow update, delete: if request.auth != null && isAdminOrDev();
     }
   }
 }

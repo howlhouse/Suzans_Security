@@ -1,0 +1,59 @@
+# Publishes TWO versions of the app from one GitHub Pages site:
+#   /       <- the `main` branch  (PROD - what the team uses)
+#   /dev/   <- the `dev` branch   (DEV  - developer preview, reachable from the PROD/DEV toggle)
+# Runs whenever either branch changes. If the `dev` branch doesn't exist yet, only PROD is published.
+# See docs/ENVIRONMENTS.md.
+name: Deploy site
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out PROD (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+          fetch-depth: 0
+
+      - name: Add DEV (dev branch) under /dev/
+        run: |
+          mkdir -p site/dev
+          if git -C site ls-remote --exit-code --heads origin dev >/dev/null 2>&1; then
+            git -C site fetch --depth 1 origin dev
+            git -C site archive FETCH_HEAD | tar -x -C site/dev
+            echo "Published dev branch at /dev/"
+          else
+            echo "No dev branch yet - publishing PROD only"
+            rmdir site/dev
+          fi
+          rm -rf site/.git site/.github site/dev/.github
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

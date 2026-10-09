@@ -64,6 +64,23 @@
             const u = currUser();
             const btn = document.getElementById('dockAdminBtn');
             if (btn) btn.style.display = (u && u.isAdmin) ? '' : 'none';
+            // PROD | DEV switch: only for users with the DEV checkbox.
+            const sw = document.getElementById('envSwitch');
+            if (sw) {
+                sw.style.display = (u && u.isDev) ? 'inline-flex' : 'none';
+                document.getElementById('envProdBtn').className = IS_DEV_SITE ? '' : 'active-prod';
+                document.getElementById('envDevBtn').className = IS_DEV_SITE ? 'active-dev' : '';
+            }
+        }
+        function goToEnv(which) {
+            const u = currUser();
+            if (!u || !u.isDev) return;
+            if ((which === 'dev') === IS_DEV_SITE) return; // already there
+            location.href = which === 'dev' ? DEV_URL : PROD_URL;
+        }
+        if (IS_DEV_SITE) {
+            document.getElementById('devSiteBanner').style.display = 'block';
+            document.title = '[DEV] ' + document.title;
         }
 
         // Secondary Firebase app instance, used ONLY for admin-created accounts.

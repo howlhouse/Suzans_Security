@@ -47,6 +47,7 @@
     <div class="watermark-pattern"></div>
     <div class="pride-strip"></div>
 
+    <div class="dev-site-banner" id="devSiteBanner">🛠 DEV VERSION &mdash; developer preview. Uses live data; changes here aren't released to the team until merged to PROD.</div>
     <header>
         <div class="brand-container">
             <img src="Suzans_Security_Logo.png" alt="Suzan's Security" class="brand-icon" onerror="this.outerHTML='<span class=&quot;brand-icon&quot;>🌵</span>'">
@@ -56,6 +57,9 @@
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="env-switch" id="envSwitch" title="Switch between the live app (PROD) and the developer version (DEV)">
+                <button id="envProdBtn" onclick="goToEnv('prod')">PROD</button><button id="envDevBtn" onclick="goToEnv('dev')">DEV</button>
+            </div>
             <div class="user-menu-wrap" id="userMenuWrap" style="position:relative;">
                 <div class="user-pill" id="userPill" onclick="toggleUserMenu(event)" style="cursor:pointer;" title="Tap for options"><span>🛡️</span><span id="userGreeting">Officer</span><span style="opacity:0.6; font-size:0.7rem; margin-left:4px;">▾</span></div>
                 <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none;">
@@ -346,7 +350,7 @@
                             <option value="sessions">Opens &amp; sign-ins</option>
                             <option value="nav">Screens viewed</option>
                             <option value="shifts">Shifts (viewed, claimed, acknowledged)</option>
-                            <option value="chat">Chat</option>
+                            <option value="chat">Chat &amp; feedback</option>
                             <option value="admin">Admin &amp; other actions</option>
                         </select>
                         <input type="text" id="actSearch" class="input-field" style="width:auto; flex:1; min-width:140px; margin:0;" placeholder="Search…" oninput="renderLogs(true)" data-1p-ignore>
@@ -498,6 +502,28 @@
         </div>
     </div>
 
+    <!-- FEEDBACK: opened from the info (i) popup. Saved to the `feedback` collection for developers. -->
+    <div class="modal" id="feedbackModal" style="z-index:2700;">
+        <div class="modal-sheet">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal);">💬 Send Feedback</h3>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 8px;" onclick="closeModal('feedbackModal')">✕</button>
+            </div>
+            <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5; margin-bottom:12px;">Found a bug, have an idea, or something confusing? Tell the developers. We read everything and update the status so you can see what happened.</p>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">What kind of feedback?</label>
+            <select id="fbType" class="input-field" data-1p-ignore></select>
+            <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Your message</label>
+            <textarea id="fbMessage" class="input-field" rows="5" maxlength="2000" placeholder="What happened, or what would you like to see?" oninput="document.getElementById('fbCount').textContent = this.value.length" data-1p-ignore></textarea>
+            <p style="font-size:0.7rem; color:var(--text-muted); margin:-8px 0 12px; text-align:right;"><span id="fbCount">0</span> / 2000 &middot; We automatically include the screen you were on and your device type.</p>
+            <button class="btn" id="fbSubmitBtn" style="width:100%;" onclick="submitFeedback()">Send Feedback</button>
+            <p id="fbThanks" style="display:none; text-align:center; color:var(--neon-saguaro); font-size:0.85rem; margin-top:12px;">Thank you - your feedback was sent.</p>
+            <div id="fbMineWrap" style="display:none; margin-top:18px; padding-top:14px; border-top:1px solid var(--border-glass);">
+                <h4 style="font-family:'Outfit'; font-size:0.9rem; margin-bottom:8px;">Your recent feedback</h4>
+                <div id="fbMineList"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- NOTIFICATION HELP: web pages can't open device settings, so this walks the user there -->
     <div class="modal" id="notifHelpModal">
         <div class="modal-sheet">
@@ -533,6 +559,7 @@
                     <p>Your personal data will never be sold, but may be shared with business partners as described in the Terms &amp; Conditions.</p>
                 </div>
                 <button class="terms-review-link" style="display:block; width:100%; text-align:center; margin-bottom: 10px; font-size:0.85rem;" onclick="viewTermsModal()">View full Terms &amp; Conditions</button>
+                <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="openFeedback()">💬 Send Feedback</button>
                 <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="showAboutPage(2)">📖 How to Use This App</button>
                 <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal')">Close</button>
             </div>
@@ -815,6 +842,11 @@
             <div id="umResetWrap" style="display:none; margin-bottom:14px;">
                 <button type="button" class="btn btn-outline btn-sm" style="width:100%;" onclick="sendResetFromModal()">✉️ Send Password Reset Email</button>
             </div>
+            <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 4px; cursor:pointer;">
+                <input type="checkbox" id="umIsDev" style="width:auto; margin:0;">
+                <span style="font-size:0.85rem;">Developer (DEV)</span>
+            </label>
+            <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 12px;">Shows the PROD / DEV switch at the top of the app and allows access to the developer site and Dashboard.</p>
             <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 4px; cursor:pointer;">
                 <input type="checkbox" id="umShowOpenShifts" style="width:auto; margin:0;">
                 <span style="font-size:0.85rem;">Show the open-shifts popup</span>
