@@ -79,7 +79,7 @@
         let actData = { logs: [], presence: {}, capped: false, loadedAt: 0, shown: ACT_PAGE, rangeDays: 7 };
         const ACT_GROUPS = {
             sessions: ['session_start', 'session_resume', 'login', 'logout', 'push_open', 'terms_accepted'],
-            nav: ['view'],
+            nav: ['view', 'tutorial_started', 'tutorial_completed', 'tutorial_skipped'],
             shifts: ['event_view', 'open_shifts_shown', 'shift_ack', 'shift_claim', 'shift_drop'],
             chat: ['chat_send', 'feedback_submitted'],
             admin: ['action', 'register']
@@ -91,7 +91,7 @@
             event_view: ['📅', 'Shift viewed', '#7fd4ff'], open_shifts_shown: ['📣', 'Open shifts shown', '#ffb020'],
             shift_ack: ['👍', 'Read open shifts', 'var(--neon-saguaro)'], shift_claim: ['✅', 'Claimed', 'var(--neon-saguaro)'],
             shift_drop: ['❌', 'Dropped', 'var(--danger-glow)'], chat_send: ['💬', 'Chat', 'var(--text-secondary)'],
-            register: ['🆕', 'Registered', 'var(--neon-pink)'], feedback_submitted: ['💬', 'Feedback', '#7fd4ff'], terms_accepted: ['📜', 'Accepted terms', 'var(--neon-saguaro)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
+            register: ['🆕', 'Registered', 'var(--neon-pink)'], feedback_submitted: ['💬', 'Feedback', '#7fd4ff'], tutorial_started: ['🧭', 'Tutorial', 'var(--text-secondary)'], tutorial_completed: ['🎓', 'Tutorial done', 'var(--neon-saguaro)'], tutorial_skipped: ['⏭️', 'Tutorial skipped', 'var(--text-muted)'], terms_accepted: ['📜', 'Accepted terms', 'var(--neon-saguaro)'], action: ['⚙️', 'Action', 'var(--text-secondary)']
         };
         const ACT_SESSION_TYPES = ['session_start', 'session_resume'];
 
@@ -654,6 +654,7 @@
                 ovTile(upcoming.length, 'Upcoming shifts', `${openSlots} open positions · ${fillPct}% filled`, openSlots ? '#ffb020' : 'var(--neon-saguaro)') +
                 ovTile(`${installed}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Installed to home screen', `${pct(installed, staff)}% of staff`) +
                 ovTile(`${notif}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Notifications on', `${pct(notif, staff)}% of staff`) +
+                ovTile(`${rows.filter(r => r.u.tutorialDone).length}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Finished the tutorial', 'completed or skipped') +
                 ovTile(`${termsOk}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'On current Terms', `${staff - termsOk} still to accept`, termsOk === staff ? 'var(--neon-saguaro)' : '#ffb020');
 
             // screens + shifts viewed

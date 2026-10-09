@@ -596,6 +596,7 @@
                     <p>Your personal data will never be sold, but may be shared with business partners as described in the Terms &amp; Conditions.</p>
                 </div>
                 <button class="terms-review-link" style="display:block; width:100%; text-align:center; margin-bottom: 10px; font-size:0.85rem;" onclick="viewTermsModal()">View full Terms &amp; Conditions</button>
+                <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal'); startTour(true)">🧭 Take the Tutorial</button>
                 <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="openFeedback()">💬 Send Feedback</button>
                 <button class="btn btn-outline" style="width: 100%; margin-top: 10px;" onclick="showAboutPage(2)">📖 How to Use This App</button>
                 <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeModal('aboutModal')">Close</button>
@@ -952,6 +953,25 @@
             <textarea id="pNoteIn" class="input-field" rows="2" placeholder="Record incident note..." data-1p-ignore></textarea>
             <button class="btn btn-sm" onclick="addPNote()">Add Note</button>
             <button class="btn btn-sm btn-magenta" style="width:100%; margin-top:10px;" onclick="delPromoterFromModal()">Delete This Contact</button>
+        </div>
+    </div>
+
+    <!-- GUIDED TOUR (first-run tutorial, replayable from the info popup). Driven by js/12-banlist-chat-misc.js -->
+    <div id="tourLayer" style="display:none;">
+        <div id="tourBlocker"></div>
+        <div id="tourSpot"></div>
+        <div id="tourBubble" role="dialog" aria-live="polite" aria-labelledby="tourTitle">
+            <div id="tourArrow"></div>
+            <div id="tourStepNum"></div>
+            <h4 id="tourTitle"></h4>
+            <p id="tourText"></p>
+            <div class="tour-actions">
+                <button class="tour-skip" onclick="endTour('skipped')">Skip tour</button>
+                <span>
+                    <button class="btn btn-outline btn-sm" id="tourBack" onclick="tourBack()">Back</button>
+                    <button class="btn btn-sm" id="tourNext" onclick="tourNext()">Next</button>
+                </span>
+            </div>
         </div>
     </div>
 

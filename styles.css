@@ -199,3 +199,19 @@
         #loadProgressPct { color: var(--neon-teal); }
         #loadStepText { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; min-height: 1.2em; text-align: center; }
         #loadWarnText { font-size: 0.72rem; color: var(--danger-glow); margin-top: 10px; text-align: center; display: none; max-width: 300px; }
+
+        /* GUIDED TOUR: a dimmed backdrop with a "spotlight" around the thing being explained and
+           a speech-bubble card next to it. #tourBlocker stops taps reaching the app mid-tour. */
+        #tourLayer { position: fixed; inset: 0; z-index: 3500; }
+        #tourBlocker { position: absolute; inset: 0; background: transparent; }
+        #tourLayer.centered #tourBlocker { background: rgba(0, 0, 0, 0.74); }
+        #tourSpot { position: fixed; border-radius: 16px; pointer-events: none; display: none; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.74), 0 0 0 3px var(--neon-teal), 0 0 22px 4px rgba(0, 245, 212, 0.45); transition: top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease; }
+        #tourBubble { position: fixed; width: min(330px, calc(100vw - 24px)); background: rgba(14, 14, 22, 0.97); border: 1px solid rgba(0, 245, 212, 0.55); border-radius: 18px; padding: 16px 16px 12px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6); color: var(--text-primary); transition: opacity 0.15s ease; }
+        #tourArrow { position: absolute; width: 14px; height: 14px; background: rgba(14, 14, 22, 0.97); border-left: 1px solid rgba(0, 245, 212, 0.55); border-top: 1px solid rgba(0, 245, 212, 0.55); transform: rotate(45deg); }
+        #tourStepNum { font-family: 'Outfit', sans-serif; font-size: 0.65rem; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+        #tourTitle { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 800; color: var(--neon-teal); margin-bottom: 6px; }
+        #tourText { font-size: 0.86rem; line-height: 1.55; color: var(--text-secondary); margin-bottom: 12px; }
+        .tour-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .tour-actions > span { display: inline-flex; gap: 6px; }
+        .tour-skip { background: none; border: none; color: var(--text-muted); font-family: inherit; font-size: 0.78rem; text-decoration: underline; cursor: pointer; padding: 6px 2px; }
+        @media (prefers-reduced-motion: reduce) { #tourSpot { transition: none; } }
