@@ -227,12 +227,16 @@
         .ev-chip { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.3px; padding: 8px 16px; border-radius: 999px; cursor: pointer; background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--border-glass); transition: all 0.2s ease; }
         .ev-chip.active { background: var(--neon-teal); color: #08080c; border-color: var(--neon-teal); box-shadow: 0 0 16px rgba(0,245,212,0.35); }
 
-        .ev2-group { display: flex; align-items: center; gap: 10px; margin: 24px 0 12px; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 0.72rem; letter-spacing: 2.4px; text-transform: uppercase; color: var(--neon-teal); }
-        .ev2-group:first-child { margin-top: 8px; }
+        #userEventsFeedList { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: stretch; }
+        #userEventsFeedList > .ev2 { display: flex; }
+        #userEventsFeedList > .ev2 > .ev2-in { flex: 1; min-width: 0; }
+        #userEventsFeedList > p { grid-column: 1 / -1; }
+        .ev2-group { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: 14px 0 0; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 0.72rem; letter-spacing: 2.4px; text-transform: uppercase; color: var(--neon-teal); }
+        .ev2-group:first-child { margin-top: 0; }
         .ev2-group::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(0,245,212,0.5), transparent); }
         .ev2-group small { font-weight: 600; letter-spacing: 0.5px; color: var(--text-muted); text-transform: none; }
 
-        .ev2 { --cut: 18px; position: relative; margin-bottom: 16px; padding: 1px; cursor: pointer;
+        .ev2 { --cut: 18px; position: relative; padding: 1px; cursor: pointer;
                background: linear-gradient(135deg, rgba(0,245,212,0.7), rgba(255,255,255,0.08) 42%, rgba(255,42,133,0.55));
                clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
                transition: transform 0.3s var(--apple-spring), filter 0.3s ease; animation: ev2In 0.45s var(--apple-spring) both; outline: none; }
@@ -244,7 +248,7 @@
         .ev2.is-full .ev2-media img { filter: grayscale(0.8) brightness(0.8); }
         .ev2.is-community { background: linear-gradient(135deg, rgba(212,160,23,0.6), rgba(255,255,255,0.06)); }
         .ev2-in { background: #101018; clip-path: polygon(0 0, calc(100% - var(--cut) + 1px) 0, 100% calc(var(--cut) - 1px), 100% 100%, calc(var(--cut) - 1px) 100%, 0 calc(100% - var(--cut) + 1px)); overflow: hidden; }
-        .ev2-media { position: relative; height: 172px; background: linear-gradient(135deg, #1b1030, #0c1a24); }
+        .ev2-media { position: relative; aspect-ratio: 16 / 9; max-height: 240px; width: 100%; background: linear-gradient(135deg, #1b1030, #0c1a24); }
         .ev2-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--apple-spring); }
         .ev2:hover .ev2-media img { transform: scale(1.05); }
         .ev2-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,8,12,0.35) 0%, rgba(8,8,12,0) 32%, rgba(8,8,12,0.55) 62%, rgba(8,8,12,0.96) 100%); }
@@ -272,5 +276,15 @@
         @keyframes ev2In { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
         @keyframes ev2Pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
         @keyframes ev2Glow { 0%, 100% { box-shadow: 0 0 14px rgba(0,245,212,0.45); } 50% { box-shadow: 0 0 30px rgba(0,245,212,0.85); } }
-        @media (max-width: 420px) { .ev2-media { height: 156px; } .ev2-name { font-size: 1.25rem; } }
+        @media (max-width: 420px) { .ev2-name { font-size: 1.25rem; } }
         @media (prefers-reduced-motion: reduce) { .ev2, .ev2-status i, .ev2.is-tonight .ev2-date { animation: none !important; } .ev2, .ev2-media img { transition: none; } }
+
+        /* Image fit: "poster" mode = whole flyer on a blurred backdrop, title below the art. */
+        .ev2-bg { display: none; position: absolute; inset: -24px; background-size: cover; background-position: center; filter: blur(22px) brightness(0.5) saturate(1.35); }
+        .ev2.is-poster .ev2-bg { display: block; }
+        .ev2.is-poster .ev2-media { aspect-ratio: 4 / 3; max-height: 300px; }
+        .ev2.is-poster .ev2-media img { object-fit: contain; padding: 10px 0; }
+        .ev2.is-poster:hover .ev2-media img { transform: scale(1.02); }
+        .ev2.is-poster .ev2-media::after { background: linear-gradient(180deg, rgba(8,8,12,0.3) 0%, rgba(8,8,12,0) 28%, rgba(8,8,12,0) 70%, rgba(8,8,12,0.55) 100%); }
+        .ev2.is-poster .ev2-name { position: static; margin: 0; font-size: 1.3rem; text-shadow: none; }
+        .ev2.is-poster .ev2-chat { bottom: 12px; }

@@ -33,6 +33,42 @@
             const p = evDateParts(e);
             return p ? p.full : 'LATER';
         }
+        // --- IMAGE FIT ---
+        // Flyers come in every shape. Wide, sharp photos fill the banner ("cover"); portrait/square
+        // flyers and low-res images are shown whole over a blurred copy of themselves ("poster"),
+        // with the title moved below so it never sits on top of the flyer's own text.
+        // Natural sizes are remembered per URL so later renders pick the right mode immediately.
+        const evImgInfo = {};
+        // Size of a tile's banner (16:9, capped at 240px tall) given the feed width - mirrors the CSS grid.
+        function evBox(listW) {
+            const cols = Math.max(1, Math.floor((listW + 16) / (340 + 16)));
+            const w = (listW - 16 * (cols - 1)) / cols - 2;
+            return { w, h: Math.min(w * 9 / 16, 240) };
+        }
+        function evMode(url, boxW, boxH) {
+            const d = evImgInfo[url];
+            if (!d || !boxW || !boxH) return 'cover';
+            const cardRatio = boxW / boxH, imgRatio = d.w / d.h;
+            const upscale = Math.max(boxW / d.w, boxH / d.h);
+            // poster when cropping would lose too much (portrait/square, or ultra-wide) or the image would be stretched a lot
+            return (imgRatio < cardRatio * 0.75 || imgRatio > cardRatio * 1.6 || upscale > 1.4) ? 'poster' : 'cover';
+        }
+        function evSetMode(tile, mode) {
+            const poster = mode === 'poster';
+            if (tile.classList.contains('is-poster') === poster) return;
+            tile.classList.toggle('is-poster', poster);
+            const title = tile.querySelector('.ev2-name'), media = tile.querySelector('.ev2-media'), body = tile.querySelector('.ev2-body');
+            if (title && media && body) { if (poster) body.insertBefore(title, body.firstChild); else media.appendChild(title); }
+        }
+        function evImgLoaded(img) {
+            const tile = img.closest('.ev2'), media = img.closest('.ev2-media');
+            if (!tile || !img.naturalWidth) return;
+            evImgInfo[img.getAttribute('src')] = { w: img.naturalWidth, h: img.naturalHeight };
+            const box = evBox(document.getElementById('userEventsFeedList').clientWidth);
+            evSetMode(tile, evMode(img.getAttribute('src'), box.w, box.h));
+        }
+        function evCssUrl(u) { return encodeURI(String(u || '')).replace(/"/g, '%22').replace(/\(/g, '%28').replace(/\)/g, '%29'); }
+
         function renderEvents() {
             const hideCommunity = getHideCommunity() || !!window._hideCommunityFallback;
             const toggle = document.getElementById('hideCommunityToggle');
@@ -46,6 +82,8 @@
             document.querySelectorAll('#evFilters .ev-chip').forEach(c => c.classList.toggle('active', c.dataset.f === eventsFilter));
             const evs = all.filter(e => eventsFilter === 'mine' ? (e.guards || []).includes(u?.name) : (eventsFilter === 'open' ? (!(e.guards || []).includes(u?.name) && eventOpenSlots(e) > 0) : true));
 
+            const listEl = document.getElementById('userEventsFeedList');
+            const boxW = listEl ? listEl.clientWidth : 0;
             let lastGroup = null, html = '';
             evs.forEach((e, i) => {
                 const group = evGroupLabel(e);
@@ -60,18 +98,22 @@
                 const st = isIn ? ['in', "✓ YOU'RE IN"] : open === 0 ? ['full', 'FILLED'] : open === 1 ? ['last', '1 SPOT LEFT'] : ['open', `${open} OPEN`];
                 const dp = evDateParts(e);
                 const hours = shiftHoursLabel(e);
-                const cls = ['ev2', 'event-tile', isIn ? 'is-in' : '', !isIn && open === 0 ? 'is-full' : '', e.communityOnly ? 'is-community' : '', group === 'TONIGHT' ? 'is-tonight' : ''].filter(Boolean).join(' ');
+                const box = evBox(boxW), mode = evMode(e.image, box.w, box.h);
+                const titleHtml = `<h3 class="ev2-name">${escapeHtml(e.title)}</h3>`;
+                const cls = ['ev2', 'event-tile', mode === 'poster' ? 'is-poster' : '', isIn ? 'is-in' : '', !isIn && open === 0 ? 'is-full' : '', e.communityOnly ? 'is-community' : '', group === 'TONIGHT' ? 'is-tonight' : ''].filter(Boolean).join(' ');
                 html += `
                 <div class="${cls}" style="animation-delay:${Math.min(i, 8) * 45}ms" role="button" tabindex="0" onclick="openEventDetail('${e.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEventDetail('${e.id}');}">
                     <div class="ev2-in">
                         <div class="ev2-media">
-                            <img src="${escapeHtml(e.image || '')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                            <div class="ev2-bg" style="background-image:url(&quot;${escapeHtml(evCssUrl(e.image))}&quot;)"></div>
+                            <img src="${escapeHtml(e.image || '')}" alt="" loading="lazy" onload="evImgLoaded(this)" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                             ${dp ? `<div class="ev2-date"><span class="w">${dp.wk}</span><span class="d">${dp.day}</span><span class="m">${dp.mon}</span></div>` : ''}
                             <div class="ev2-status ${st[0]}"><i></i>${st[1]}</div>
                             ${unread > 0 ? `<div class="ev2-chat">💬 ${unread} new</div>` : ''}
-                            <h3 class="ev2-name">${escapeHtml(e.title)}</h3>
+                            ${mode === 'poster' ? '' : titleHtml}
                         </div>
                         <div class="ev2-body">
+                            ${mode === 'poster' ? titleHtml : ''}
                             <div class="ev2-meta"><span>🕘 ${escapeHtml(shiftTimeLabel(e))}${hours ? ' &middot; ' + escapeHtml(hours) : ''}</span><span class="go">View shift ›</span></div>
                             ${total > 0 ? `<div class="ev2-fill"><div class="ev2-bar"><i style="width:${Math.round(filled / total * 100)}%"></i></div><span>${filled} of ${total} filled</span></div>` : ''}
                             ${e.communityOnly ? `<div class="ev2-community">📋 Community listing only &mdash; not a contracted event</div>` : ''}
