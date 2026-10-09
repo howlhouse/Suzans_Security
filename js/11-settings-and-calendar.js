@@ -115,29 +115,17 @@
         function isIOSDevice() {
             return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         }
-        // How an iPhone hands a calendar file to the Calendar app depends on where the app is running:
-        //  - Plain Safari tab: navigating to a text/calendar data: URI opens Apple's "Add to Calendar"
-        //    sheet directly (verified on iOS 26).
-        //  - Installed Home Screen app, Chrome/Firefox/Edge on iPhone, and in-app browsers (Instagram,
-        //    Facebook, Gmail...): those block or ignore that navigation, so the file goes through the
-        //    iOS Share sheet instead (choose Calendar), which works everywhere.
-        function iosNeedsShareSheet() {
-            const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-            const notSafari = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|Instagram|FBAN|FBAV|Line\/|Snapchat|Twitter|MicroMessenger|GMAIL/i.test(navigator.userAgent);
-            return standalone || notSafari;
+        // How an iPhone hands a calendar file to the Calendar app depends on where the app runs
+        // (each verified on an iOS 26.5 simulator):
+        //  - Plain Safari tab: navigating to a text/calendar data: URI opens Apple's "Add to
+        //    Calendar" sheet directly.
+        //  - Installed Home Screen app: that same data: URI silently does nothing, but navigating to a
+        //    blob: URL of the same file opens the sheet. (The iOS Share sheet is NOT an option: it
+        //    treats the file as a generic document and never offers Calendar.)
+        function isStandaloneApp() {
+            return navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
         }
-        // Resolves true if the sheet was shown (even if the user then closed it), false if sharing isn't possible here.
-        async function shareIcsFile(ics, fileName, title) {
-            try {
-                const file = new File([ics], fileName, { type: 'text/calendar' });
-                if (!(navigator.canShare && navigator.canShare({ files: [file] }))) return false;
-                await navigator.share({ files: [file], title });
-                return true;
-            } catch (err) {
-                return !!(err && err.name === 'AbortError'); // user dismissed the sheet - not a failure
-            }
-        }
-        async function addToAppleOutlookCalendar(id) {
+        function addToAppleOutlookCalendar(id) {
             const e = getDB('events').find(x => x.id === id);
             if (!e) return;
             const range = eventCalendarRange(e);
@@ -145,10 +133,14 @@
 
             const ics = buildEventIcs(e, range);
             const fileName = `${(e.title || 'event').replace(/[^\w\-]+/g, '_')}.ics`;
+            if (isIOSDevice() && isStandaloneApp()) {
+                const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+                window.location.href = url;
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                return;
+            }
             const dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
             if (isIOSDevice()) {
-                // navigator.share must be called straight from the tap, so nothing async runs before it.
-                if (iosNeedsShareSheet() && await shareIcsFile(ics, fileName, e.title || 'Shift')) return;
                 window.location.href = dataUri;
             } else {
                 const a = document.createElement('a');
