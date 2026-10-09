@@ -8,6 +8,10 @@ name: Deploy site
 on:
   push:
     branches: [main, dev]
+    # Docs/markdown-only changes don't change the app, so don't redeploy for them.
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
   workflow_dispatch:
 
 permissions:
@@ -31,7 +35,7 @@ jobs:
         with:
           ref: main
           path: site
-          fetch-depth: 0
+          fetch-depth: 1   # only the latest commit is needed to publish
 
       - name: Add DEV (dev branch) under /dev/
         run: |
@@ -45,6 +49,13 @@ jobs:
             rmdir site/dev
           fi
           rm -rf site/.git site/.github site/dev/.github
+          # Keep the upload small: Pages deploy time grows with site size, and everything is
+          # published twice (live + /dev/). These files stay in git but aren't served because
+          # nothing in the app references them. To serve one again, delete its line here.
+          for f in dancing_cowboy_video.mp4 Suzans_security_logo.jpeg docs README.md; do
+            rm -rf "site/$f" "site/dev/$f"
+          done
+          du -sh site | sed 's/^/Published size: /'
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
