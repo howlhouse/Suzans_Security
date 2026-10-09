@@ -192,7 +192,7 @@
                 card(`${active}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Active staff', `${pct(active)}% used the app`) +
                 card(totalOpens.toLocaleString(), 'App opens', active ? `~${(totalOpens / active).toFixed(1)} per active person` : 'in this range') +
                 card(totalClaims.toLocaleString(), 'Shifts claimed', `${totalDrops} dropped`) +
-                card(ackRate, 'Read the open-shifts popup', `${ackedShown} of ${shownDays.size} daily popups were acknowledged`) +
+                card(ackRate, 'Read the open-shifts popup', `${ackedShown} of ${shownDays.size} popups shown were acknowledged`) +
                 card(`${installed}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Installed to home screen', `${pct(installed)}% (as of last open)`) +
                 card(`${notif}<span style="font-size:0.9rem; color:var(--text-muted);"> / ${staff}</span>`, 'Notifications on', `${pct(notif)}% (as of last open)`);
 
@@ -276,8 +276,35 @@
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
 
+        // Team-wide open-shifts popup controls at the top of the Users tab.
+        function renderOpenShiftsControls() {
+            const st = getOpenShiftsSettings();
+            const btn = document.getElementById('osToggleBtn'), sel = document.getElementById('osFrequency');
+            if (!btn || !sel) return;
+            btn.textContent = st.enabled ? '🔴 Turn Off' : '🟢 Turn On';
+            btn.className = 'btn btn-sm' + (st.enabled ? ' btn-magenta' : '');
+            sel.value = st.frequency;
+            sel.disabled = !st.enabled;
+            document.getElementById('osStatus').textContent = st.enabled
+                ? `On for the whole team - shown ${OPEN_SHIFTS_FREQUENCIES[st.frequency].label.toLowerCase()}, until each person acknowledges it.`
+                : 'Off for the whole team - nobody sees the popup.';
+        }
+        function saveOpenShiftsSettings(patch, logText) {
+            const next = { id: 'openShifts', ...getOpenShiftsSettings(), ...patch, updatedAt: Date.now(), updatedBy: (currUser() || {}).name || '' };
+            return saveDoc('settings', 'openShifts', next).then(() => logAction(logText)).catch(() => renderOpenShiftsControls());
+        }
+        function toggleOpenShiftsPopup() {
+            const turnOn = !getOpenShiftsSettings().enabled;
+            saveOpenShiftsSettings({ enabled: turnOn }, turnOn ? 'Turned ON the open-shifts popup for everyone' : 'Turned OFF the open-shifts popup for everyone');
+        }
+        function saveOpenShiftsFrequency() {
+            const freq = document.getElementById('osFrequency').value;
+            saveOpenShiftsSettings({ frequency: freq }, 'Set the open-shifts popup to ' + OPEN_SHIFTS_FREQUENCIES[freq].label.toLowerCase());
+        }
+
         function renderUsers() {
             const me = currUser();
+            renderOpenShiftsControls();
             document.getElementById('usersBody').innerHTML = getDB('users').map(u => `<tr>
                 <td><strong>${u.name}</strong></td>
                 <td style="font-size:0.8rem;">${u.email}<br>${u.phone || ''}</td>
