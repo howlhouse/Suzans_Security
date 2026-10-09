@@ -140,9 +140,10 @@
                 const legacy = legacySnap ? legacySnap.docs.map(d => d.data()).filter(l => !l.ts) : [];
                 const all = logSnap.docs.map(d => d.data()).concat(legacy).map(normalizeLog).sort((a, b) => b.ts - a.ts);
                 actData = { logs: all, presence, capped: logSnap.size >= ACT_FETCH_CAP, loadedAt: now, shown: ACT_PAGE, rangeDays };
-                status.textContent = `Loaded ${actData.logs.length.toLocaleString()} events from the last ${rangeDays === 1 ? '24 hours' : rangeDays + ' days'}.` +
+                actData.statusBase = `Loaded ${actData.logs.length.toLocaleString()} events from the last ${rangeDays === 1 ? '24 hours' : rangeDays + ' days'}.` +
                     (actData.capped ? ` Showing only the newest ${ACT_FETCH_CAP.toLocaleString()} - choose a shorter range to see everything.` : '') +
                     ' Each load reads these from Firestore, so refresh when you need it rather than constantly.';
+                status.textContent = actData.statusBase + devHiddenNote();
                 renderLogs(true);
             } catch (err) {
                 console.error('Activity load failed:', err);
@@ -151,8 +152,29 @@
             } finally { actLoading = false; }
         }
 
+        // Developer accounts (the DEV checkbox) are left out of the adoption numbers, staff table,
+        // overview and history by default - their testing isn't "team usage". The "Include
+        // developers" checkbox brings them back, e.g. to debug your own activity.
+        let actIncludeDevs = false;
+        function devSets() {
+            const ids = new Set(), names = new Set();
+            getDB('users').forEach(u => { if (u.isDev) { ids.add(u.id); names.add(u.name); } });
+            return { ids, names };
+        }
+        function isDevLog(l, sets) { return sets.ids.has(l.uid) || (!l.uid && sets.names.has(l.user)); }
+        function logVisible(l, sets) { return actIncludeDevs || !isDevLog(l, sets || devSets()); }
+        function toggleIncludeDevs(on) {
+            actIncludeDevs = !!on;
+            document.querySelectorAll('.act-include-devs').forEach(c => { c.checked = actIncludeDevs; });
+            if (actData.statusBase) document.getElementById('actStatus').textContent = actData.statusBase + devHiddenNote();
+            renderLogs(true);
+            renderOverviewBodyIfShown();
+        }
+
+        function devHiddenNote() { const n = devSets().ids.size; return n && !actIncludeDevs ? ` ${n} developer account${n === 1 ? ' is' : 's are'} hidden.` : ''; }
+
         function computeActivityStats() {
-            const users = getDB('users');
+            const users = getDB('users').filter(u => actIncludeDevs || !u.isDev);
             const byKey = {};
             const nameToUid = {};
             users.forEach(u => { byKey[u.id] = { u, opens: 0, days: new Set(), claims: 0, drops: 0, acks: 0, lastTs: 0 }; nameToUid[u.name] = u.id; });
@@ -160,7 +182,7 @@
             const shownDays = new Set(), ackDays = new Set();
             let totalOpens = 0, totalClaims = 0, totalDrops = 0;
             actData.logs.forEach(l => {
-                if (l.env === 'dev') return; // developer testing doesn't count toward adoption numbers
+                if (l.env === 'dev' && !actIncludeDevs) return; // developer testing doesn't count toward adoption numbers
                 const key = (l.uid && byKey[l.uid]) ? l.uid : nameToUid[l.user];
                 if (!key) return; // removed account / "System"
                 const r = byKey[key];
@@ -233,7 +255,9 @@
             const tSel = document.getElementById('actTypeFilter').value;
             const q = document.getElementById('actSearch').value.trim().toLowerCase();
             const nameOf = id => (getDB('users').find(u => u.id === id) || {}).name;
+            const sets = devSets();
             return actData.logs.filter(l => {
+                if (!logVisible(l, sets)) return false;
                 if (uSel && !(l.uid === uSel || (!l.uid && l.user === nameOf(uSel)))) return false;
                 if (tSel && !ACT_GROUPS[tSel].includes(l.type)) return false;
                 if (q && !((l.user || '') + ' ' + (l.action || '') + ' ' + l.type).toLowerCase().includes(q)) return false;
@@ -248,7 +272,7 @@
             if (!sel) return;
             if (resetPaging === true) actData.shown = ACT_PAGE;
             const prev = sel.value;
-            sel.innerHTML = '<option value="">All staff</option>' + getDB('users').slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');
+            sel.innerHTML = '<option value="">All staff</option>' + getDB('users').filter(u => actIncludeDevs || !u.isDev).slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');
             sel.value = prev;
             if (!actData.loadedAt) { loadActivityLogs(); return; }
             renderActivityDashboard();
@@ -617,6 +641,7 @@
         }
         function ovTop(map, n) { return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n); }
 
+        function renderOverviewBodyIfShown() { if (dashTab === 'overview' && document.getElementById('dashboardView').style.display !== 'none') renderOverviewBody(); }
         function renderOverviewBody() {
             const el = document.getElementById('dashOverviewBody');
             if (!el) return;
@@ -627,7 +652,9 @@
 
             const { rows, dau, totalOpens } = computeActivityStats();
             const staff = rows.length;
-            const real = actData.logs.filter(l => l.env !== 'dev');
+            const sets = devSets();
+            const shown = actData.logs.filter(l => logVisible(l, sets));
+            const real = actIncludeDevs ? shown : shown.filter(l => l.env !== 'dev');
             const today = dayKey(new Date());
             const opensToday = real.filter(l => ACT_SESSION_TYPES.includes(l.type) && l.day === today).length;
             const active = rows.filter(r => r.opens > 0 || r.days > 0).length;
@@ -675,7 +702,7 @@
             }).filter(Boolean);
 
             // feed + latest feedback
-            const feed = actData.logs.slice(0, 12).map(l => {
+            const feed = shown.slice(0, 12).map(l => {
                 const t = ACT_TYPE_LABELS[l.type] || ACT_TYPE_LABELS.action;
                 return `<div style="display:flex; gap:8px; font-size:0.78rem; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:var(--text-muted); white-space:nowrap;">${actAgo(l.ts)}</span><span style="min-width:0;"><strong style="color:var(--neon-teal);">${escapeHtml(l.user)}</strong> <span style="color:${t[2]};">${t[0]}</span> ${escapeHtml(l.action)}${l.env === 'dev' ? ' <span style="color:#ffb020; font-weight:800;">DEV</span>' : ''}</span></div>`;
             }).join('') || '<p style="font-size:0.78rem; color:var(--text-muted);">No activity in this range.</p>';

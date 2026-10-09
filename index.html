@@ -183,6 +183,7 @@
                     <button class="btn btn-sm" id="ovRange7" onclick="setOverviewRange(7)">Last 7 days</button>
                     <button class="btn btn-outline btn-sm" id="ovRange30" onclick="setOverviewRange(30)">Last 30 days</button>
                     <button class="btn btn-outline btn-sm" onclick="refreshOverview()">🔄 Refresh</button>
+                    <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer;"><input type="checkbox" class="act-include-devs" style="width:auto; margin:0;" onchange="toggleIncludeDevs(this.checked)"> Include developers</label>
                     <span id="ovStatus" style="font-size:0.72rem; color:var(--text-muted);"></span>
                 </div>
                 <div id="dashOverviewBody"></div>
@@ -361,6 +362,7 @@
                         </select>
                         <button class="btn btn-sm" onclick="loadActivityLogs()">🔄 Refresh</button>
                         <button class="btn btn-outline btn-sm" onclick="exportActivityCsv()">⬇️ Export CSV</button>
+                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer;"><input type="checkbox" class="act-include-devs" style="width:auto; margin:0;" onchange="toggleIncludeDevs(this.checked)"> Include developers</label>
                     </div>
                     <p id="actStatus" style="font-size:0.75rem; color:var(--text-muted); margin-top:8px;"></p>
                 </div>
