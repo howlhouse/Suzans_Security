@@ -359,6 +359,20 @@
             </div>
 
             <div id="adminUsers" class="admin-pane" style="display: none;">
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">📣 Open-Shifts Popup</h4>
+                    <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">A popup that lists the shifts a person can still sign up for and asks them to acknowledge it. These settings apply to the whole team. To skip it for one person, use <strong>Edit</strong> on their row below. Changes reach people the next time they open the app.</p>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <button class="btn btn-sm" id="osToggleBtn" onclick="toggleOpenShiftsPopup()">Turn Off</button>
+                        <select id="osFrequency" class="input-field" style="width:auto; margin:0;" onchange="saveOpenShiftsFrequency()">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly (resets Monday)</option>
+                            <option value="monthly">Monthly (resets on the 1st)</option>
+                        </select>
+                    </div>
+                    <p id="osStatus" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
+                </div>
+
                 <button class="btn btn-sm" style="margin-bottom:15px;" onclick="openUserModal(null)">+ Add User</button>
                 <div class="glass-card" style="padding:12px; overflow-x:auto;">
                     <table class="data-table"><thead><tr><th>Name</th><th>Contact</th><th>Rank</th><th>Role/Reset</th></tr></thead><tbody id="usersBody"></tbody></table>
@@ -577,7 +591,7 @@
         </div>
     </div>
 
-    <!-- DAILY OPEN-SHIFTS POPUP: shown once per calendar day (per user, per device).
+    <!-- OPEN-SHIFTS POPUP: shown once per period - daily, weekly or monthly, set in Command Center > Users (per user, per device).
          Deliberately has no close button and no backdrop-dismiss - the only way out
          is scrolling to the bottom and tapping "Acknowledge open shifts". -->
     <div class="modal" id="openShiftsModal" style="z-index:2600;">
@@ -588,7 +602,7 @@
                 <p style="font-size:0.85rem; color:var(--text-muted);">Here's what's still open that you haven't signed up for. Tap <strong>View &amp; Sign Up</strong> to jump to a shift.</p>
             </div>
             <div id="openShiftsList" style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;"></div>
-            <p style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-bottom:10px;">This summary shows once a day.</p>
+            <p id="openShiftsFreqNote" style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-bottom:10px;">This summary shows once a day.</p>
             <button class="btn" style="width:100%;" onclick="acknowledgeOpenShifts()">Acknowledge open shifts</button>
         </div>
     </div>
@@ -803,9 +817,9 @@
             </div>
             <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 4px; cursor:pointer;">
                 <input type="checkbox" id="umShowOpenShifts" style="width:auto; margin:0;">
-                <span style="font-size:0.85rem;">Show the daily open-shifts popup</span>
+                <span style="font-size:0.85rem;">Show the open-shifts popup</span>
             </label>
-            <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 14px;">When on, this person sees a popup once a day listing shifts they can still sign up for, and must acknowledge it. Turn it off to stop it for this person.</p>
+            <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 14px;">When on, this person sees a popup (on the daily, weekly or monthly schedule set at the top of the Users tab) listing shifts they can still sign up for, and must acknowledge it. Turn it off to stop it for this person only.</p>
             <label style="display:flex; align-items:center; gap:8px; margin: 4px 0 12px; cursor:pointer;">
                 <input type="checkbox" id="umIsAdmin" style="width:auto; margin:0;" onchange="document.getElementById('umPinWrap').style.display=this.checked?'block':'none'">
                 <span style="font-size:0.85rem;">Admin (Admin Console access)</span>

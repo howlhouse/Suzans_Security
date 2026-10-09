@@ -99,10 +99,41 @@
             maybeShowOpenShifts();
         }
 
-        // DAILY OPEN-SHIFTS SUMMARY: once per local calendar day per user, list every
+        // OPEN-SHIFTS SUMMARY: once per period (daily / weekly / monthly - see settings below) per user, list every
         // upcoming shift/position the user could still claim. Only marked as seen when
         // they press "Acknowledge open shifts" (no X, no backdrop dismiss), so a
         // refresh mid-popup brings it back. Nothing shows when there's nothing open.
+        // Team-wide settings (Command Center > Users): on/off and how often it reappears.
+        // Stored in settings/openShifts; defaults to on + daily when nothing has been saved.
+        const OPEN_SHIFTS_FREQUENCIES = {
+            daily: { label: 'Daily', note: 'This summary shows once a day.' },
+            weekly: { label: 'Weekly', note: 'This summary shows once a week.' },
+            monthly: { label: 'Monthly', note: 'This summary shows once a month.' }
+        };
+        function getOpenShiftsSettings() {
+            const s = getDB('settings').find(x => x.id === 'openShifts') || {};
+            return { enabled: s.enabled !== false, frequency: OPEN_SHIFTS_FREQUENCIES[s.frequency] ? s.frequency : 'daily' };
+        }
+        // Start of the current period in the person's local time: today 12:00 AM, this
+        // Monday 12:00 AM, or the 1st of this month 12:00 AM.
+        function openShiftsPeriodStart(freq) {
+            const now = new Date();
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            if (freq === 'weekly') d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+            else if (freq === 'monthly') d.setDate(1);
+            return d.getTime();
+        }
+        function openShiftsAckAtKey(u) { return 'ss_openShiftsAckAt_' + (u.id || u.name); }
+        // When this device last acknowledged (ms). Also understands the old "YYYY-MM-DD" format.
+        function lastOpenShiftsAck(u) {
+            try {
+                const v = Number(localStorage.getItem(openShiftsAckAtKey(u)));
+                if (v) return v;
+                const legacy = localStorage.getItem(openShiftsKey(u));
+                if (/^\d{4}-\d{2}-\d{2}$/.test(legacy || '')) { const [y, m, d] = legacy.split('-').map(Number); return new Date(y, m - 1, d).getTime(); }
+            } catch (err) { /* storage blocked */ }
+            return 0;
+        }
         function openShiftsKey(u) { return 'ss_openShiftsAck_' + (u.id || u.name); }
         function todayKey() {
             const d = new Date();
@@ -133,12 +164,12 @@
                 const u = currUser();
                 if (!u) return;
                 if (window._termsPending) return;
-                if (u.openShiftsPopupOff) return; // an admin turned the daily popup off for this person
+                if (u.openShiftsPopupOff) return; // an admin turned the popup off for this person
+                const osSettings = getOpenShiftsSettings();
+                if (!osSettings.enabled) return; // ...or for the whole team
                 const welcome = document.getElementById('welcomeModal');
                 if (welcome && welcome.style.display === 'flex') return; // dismissWelcome() calls us again
-                let seen = false;
-                try { seen = (localStorage.getItem(openShiftsKey(u)) === todayKey()); } catch (err) { seen = false; }
-                if (seen) return;
+                if (lastOpenShiftsAck(u) >= openShiftsPeriodStart(osSettings.frequency)) return; // already acknowledged this period
                 const shifts = getOpenShiftsForUser(u);
                 if (!shifts.length) return;
                 document.getElementById('openShiftsList').innerHTML = shifts.map(({ e, items }) => `
@@ -148,6 +179,7 @@
                         <ul style="margin:0 0 12px 18px; padding:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.6;">${items.map(i => `<li>${i}</li>`).join('')}</ul>
                         <button class="btn btn-sm" onclick="goToOpenShift('${e.id}')">View &amp; Sign Up</button>
                     </div>`).join('');
+                document.getElementById('openShiftsFreqNote').textContent = OPEN_SHIFTS_FREQUENCIES[osSettings.frequency].note;
                 document.getElementById('openShiftsModal').style.display = 'flex';
                 logEvent('open_shifts_shown', 'Open-shifts summary shown', { shifts: shifts.length });
                 document.getElementById('openShiftsSheet').scrollTop = 0;
@@ -162,7 +194,7 @@
         function acknowledgeOpenShifts(via, eventId) {
             const u = currUser();
             logEvent('shift_ack', 'Acknowledged open shifts', { via: via || 'button', eventId: eventId || '' });
-            try { if (u) localStorage.setItem(openShiftsKey(u), todayKey()); } catch (err) { /* storage blocked - shows again next load */ }
+            try { if (u) localStorage.setItem(openShiftsAckAtKey(u), String(Date.now())); } catch (err) { /* storage blocked - shows again next load */ }
             closeModal('openShiftsModal');
         }
         function changePin() {
