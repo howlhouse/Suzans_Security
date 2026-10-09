@@ -162,6 +162,42 @@
             <div id="contactsDirectoryList"></div>
         </section>
 
+        <!-- VIEW: DASHBOARD (DEV site only, for users with the DEV flag) -->
+        <section id="dashboardView" style="display: none;">
+            <div style="margin-bottom: 16px;">
+                <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700;">📊 Dashboard</h2>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Developer tools: user feedback, activity and logs</p>
+            </div>
+            <div class="segmented-control">
+                <button class="segment-btn active" id="dashTabOverviewBtn" onclick="switchDashTab('overview')">Overview</button>
+                <button class="segment-btn" id="dashTabFeedbackBtn" onclick="switchDashTab('feedback')">Feedback <span id="dashFeedbackCount"></span></button>
+                <button class="segment-btn" id="dashTabActivityBtn" onclick="switchDashTab('activity')">Activity &amp; Logs</button>
+            </div>
+
+            <div id="dashOverviewPane">
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+                    <button class="btn btn-sm" id="ovRange7" onclick="setOverviewRange(7)">Last 7 days</button>
+                    <button class="btn btn-outline btn-sm" id="ovRange30" onclick="setOverviewRange(30)">Last 30 days</button>
+                    <button class="btn btn-outline btn-sm" onclick="refreshOverview()">🔄 Refresh</button>
+                    <span id="ovStatus" style="font-size:0.72rem; color:var(--text-muted);"></span>
+                </div>
+                <div id="dashOverviewBody"></div>
+            </div>
+
+            <div id="dashFeedbackPane" style="display:none;">
+                <div id="dashFeedbackChips" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;"></div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                    <select id="dashFbType" class="input-field" style="width:auto; margin:0;" onchange="renderFeedbackPanel(true)"></select>
+                    <input type="text" id="dashFbSearch" class="input-field" style="width:auto; flex:1; min-width:140px; margin:0;" placeholder="Search feedback…" oninput="renderFeedbackPanel(true)" data-1p-ignore>
+                </div>
+                <div id="dashFeedbackList"></div>
+            </div>
+
+            <div id="dashActivityPane" style="display:none;">
+                <div id="dashActivityHost"></div>
+            </div>
+        </section>
+
         <!-- VIEW: LICENSES -->
         <section id="licensesView" style="display: none;">
             <div style="margin-bottom: 20px;">
@@ -453,6 +489,7 @@
 
     <!-- Apple Floating Dock Bar -->
     <nav class="dock-nav">
+        <button class="dock-item" data-view="dashboardView" id="dockDashboardBtn" style="display:none;" onclick="switchView('dashboardView')"><span style="position:relative;">📊<span id="dashFeedbackBadge" class="dock-badge" style="display:none;">0</span></span><span>Dashboard</span></button>
         <button class="dock-item active" data-view="eventsFeed" onclick="switchView('eventsFeed')"><span>🪩</span><span>Events</span></button>
         <button class="dock-item" data-view="calendarView" onclick="switchView('calendarView')"><span>📅</span><span>Calendar</span></button>
         <button class="dock-item" data-view="teamChatView" onclick="switchView('teamChatView')"><span style="position:relative;">💬<span id="commsBadge" class="dock-badge" style="display:none;">0</span></span><span>Comms</span></button>
