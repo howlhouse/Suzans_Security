@@ -34,6 +34,8 @@
         // never disagree about when the shift actually is. Times are kept as
         // floating local time (no timezone conversion) so they show up at the
         // same wall-clock time regardless of the device's own timezone.
+        // Local-date YYYYMMDD (never via toISOString, which shifts the date in some timezones).
+        function ymdDigits(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); }
         function eventCalendarRange(e) {
             const dateDigits = (e.date || '').replace(/-/g, '');
             if (!/^\d{8}$/.test(dateDigits)) return null;
@@ -52,22 +54,24 @@
                 // Still nothing to go on - fall back to an all-day event.
                 const endDate = new Date(e.date + 'T00:00:00');
                 endDate.setDate(endDate.getDate() + 1);
-                const endDigits = endDate.toISOString().slice(0, 10).replace(/-/g, '');
-                return { allDay: true, start: dateDigits, end: endDigits };
+                return { allDay: true, start: dateDigits, end: ymdDigits(endDate) };
             }
 
-            const startDigits = startTime.replace(':', '') + '00';
-            let endDigits;
-            if (endTimeRaw) {
-                endDigits = endTimeRaw.replace(':', '') + '00';
-            } else {
-                // No end time specified - default to a 4-hour shift.
-                const [h, m] = startTime.split(':').map(Number);
-                const end = new Date(2000, 0, 1, h, m);
-                end.setHours(end.getHours() + 4);
-                endDigits = String(end.getHours()).padStart(2, '0') + String(end.getMinutes()).padStart(2, '0') + '00';
-            }
-            return { allDay: false, start: `${dateDigits}T${startDigits}`, end: `${dateDigits}T${endDigits}` };
+            // Shifts very often run past midnight (9 PM -> 3 AM). The end then lands on the NEXT
+            // day; an end earlier than the start is invalid and Apple Calendar rejects the file
+            // outright ("Safari cannot download this file"), while Google quietly tolerates it.
+            // Same rule shiftHoursLabel() uses: an end at or before the start means next day.
+            const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+            const startMin = toMin(startTime);
+            if (startMin === null) return { allDay: true, start: dateDigits, end: ymdDigits(new Date(new Date(e.date + 'T00:00:00').getTime() + 36 * 3600000)) };
+            let endMin = endTimeRaw ? toMin(endTimeRaw) : null;
+            if (endMin === null) endMin = startMin + 4 * 60; // no end time specified - default to a 4-hour shift
+            else if (endMin <= startMin) endMin += 24 * 60;
+            const endDay = new Date(e.date + 'T00:00:00');
+            endDay.setDate(endDay.getDate() + Math.floor(endMin / 1440));
+            const em = endMin % 1440;
+            const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + String(m % 60).padStart(2, '0') + '00';
+            return { allDay: false, start: `${dateDigits}T${hhmm(startMin)}`, end: `${ymdDigits(endDay)}T${hhmm(em)}` };
         }
         function eventCalendarDetails(e) {
             const descParts = [e.desc || ''];
@@ -88,16 +92,11 @@
             if (e.address) params.set('location', e.address);
             window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
         }
-        function addToAppleOutlookCalendar(id) {
-            const e = getDB('events').find(x => x.id === id);
-            if (!e) return;
-            const range = eventCalendarRange(e);
-            if (!range) { alert('This event has no valid date to add to a calendar.'); return; }
-
+        function buildEventIcs(e, range) {
             const dtLines = range.allDay
                 ? `DTSTART;VALUE=DATE:${range.start}\r\nDTEND;VALUE=DATE:${range.end}`
                 : `DTSTART:${range.start}\r\nDTEND:${range.end}`;
-            const ics = [
+            return [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
                 'PRODID:-//Suzans Security//Event Calendar//EN',
@@ -112,21 +111,49 @@
                 'END:VEVENT',
                 'END:VCALENDAR'
             ].filter(Boolean).join('\r\n');
+        }
+        function isIOSDevice() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        }
+        // How an iPhone hands a calendar file to the Calendar app depends on where the app is running:
+        //  - Plain Safari tab: navigating to a text/calendar data: URI opens Apple's "Add to Calendar"
+        //    sheet directly (verified on iOS 26).
+        //  - Installed Home Screen app, Chrome/Firefox/Edge on iPhone, and in-app browsers (Instagram,
+        //    Facebook, Gmail...): those block or ignore that navigation, so the file goes through the
+        //    iOS Share sheet instead (choose Calendar), which works everywhere.
+        function iosNeedsShareSheet() {
+            const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+            const notSafari = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|Instagram|FBAN|FBAV|Line\/|Snapchat|Twitter|MicroMessenger|GMAIL/i.test(navigator.userAgent);
+            return standalone || notSafari;
+        }
+        // Resolves true if the sheet was shown (even if the user then closed it), false if sharing isn't possible here.
+        async function shareIcsFile(ics, fileName, title) {
+            try {
+                const file = new File([ics], fileName, { type: 'text/calendar' });
+                if (!(navigator.canShare && navigator.canShare({ files: [file] }))) return false;
+                await navigator.share({ files: [file], title });
+                return true;
+            } catch (err) {
+                return !!(err && err.name === 'AbortError'); // user dismissed the sheet - not a failure
+            }
+        }
+        async function addToAppleOutlookCalendar(id) {
+            const e = getDB('events').find(x => x.id === id);
+            if (!e) return;
+            const range = eventCalendarRange(e);
+            if (!range) { alert('This event has no valid date to add to a calendar.'); return; }
 
-            // iOS Safari (including installed home-screen PWAs) throws
-            // "Safari cannot download this file" for a Blob URL triggered via
-            // a synthetic <a download> click - it has no download manager to
-            // hand the file to. Navigating straight to a text/calendar data:
-            // URI instead makes Safari recognize the MIME type and open its
-            // native "Add Event" sheet directly, no download involved.
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const ics = buildEventIcs(e, range);
+            const fileName = `${(e.title || 'event').replace(/[^\w\-]+/g, '_')}.ics`;
             const dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
-            if (isIOS) {
+            if (isIOSDevice()) {
+                // navigator.share must be called straight from the tap, so nothing async runs before it.
+                if (iosNeedsShareSheet() && await shareIcsFile(ics, fileName, e.title || 'Shift')) return;
                 window.location.href = dataUri;
             } else {
                 const a = document.createElement('a');
                 a.href = dataUri;
-                a.download = `${(e.title || 'event').replace(/[^\w\-]+/g, '_')}.ics`;
+                a.download = fileName;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
