@@ -85,12 +85,12 @@
             }
             attachRealtimeListeners(); // live updates going forward, regardless of outcome above
 
-            // Catch anything that's already 2+ days past its date the moment
-            // we have data to check, then keep checking hourly for events that
-            // cross that threshold while the app stays open. Guarded so a
-            // second initialLoad() call (there isn't one today, but just in
-            // case) can't stack up duplicate intervals.
-            try { runAutoArchiveSweep(); } catch (err) { console.error('Initial auto-archive sweep failed:', err); }
+            // The first sweep runs from the events listener's first server
+            // snapshot (see attachRealtimeListeners); from here on, keep
+            // checking hourly for events that cross the auto-retire cutoff
+            // while the app stays open. Guarded so a second initialLoad()
+            // call (there isn't one today, but just in case) can't stack up
+            // duplicate intervals.
             if (!window._archiveSweepIntervalStarted) {
                 window._archiveSweepIntervalStarted = true;
                 setInterval(() => { try { runAutoArchiveSweep(); } catch (err) { console.error('Auto-archive sweep failed:', err); } }, 60 * 60 * 1000);
@@ -116,33 +116,56 @@
             }
         }
 
+        // "New X" notifications must only fire for documents that genuinely
+        // appeared after we loaded - never for ones we already had. A listener's
+        // very first callback can be a partial view built from the local cache
+        // (e.g. just the one document this device is in the middle of writing,
+        // such as the auto-archive sweep's), with the full server result
+        // arriving right after as a burst of 'added' changes. Treating those as
+        // new posts is what re-announced every existing event whenever one
+        // auto-retired. So: remember every id we've seen (seeded from the
+        // server read in initialLoad), and treat the first non-cache snapshot
+        // as the baseline rather than as news.
         function attachRealtimeListeners() {
             allCollections.forEach(col => {
-                let firstFire = true;
+                const known = new Set(getDB(col).map(d => col === 'channels' ? d : d.id));
+                let baselined = false;
                 db.collection(col).onSnapshot(snap => {
-                    if (!firstFire) {
-                        snap.docChanges().forEach(change => {
-                            if (change.type === 'added') {
-                                const data = change.doc.data();
-                                if (col === 'events' && !data.hidden) notifyUser("🚨 New Deployment Posted", data.title, 'shifts');
-                                if (col === 'chats' && data.user !== currUser()?.name) {
-                                    let chanClean = data.channel.replace('evt_', 'Event ');
-                                    notifyUser(`💬 ${data.user} in #${chanClean}`, data.text, 'chat');
-                                }
-                                // New-user notice, restricted to Commanders. This fires
-                                // independently on every open client - each one just
-                                // checks its own signed-in user's rank before showing
-                                // anything, so only Commanders actually see it, and only
-                                // while they have the app open (same as every other
-                                // notification here - there's no server-side push).
-                                if (col === 'users' && data.id !== currUser()?.id && currUser()?.role === 'Commander') {
-                                    notifyUser('New User Added', `${data.name || data.email} joined as ${data.role || 'no rank assigned'}.`, 'admin');
-                                }
-                            }
-                        });
+                    const fromServer = !snap.metadata.fromCache;
+                    snap.docChanges().forEach(change => {
+                        const data = change.doc.data();
+                        const key = col === 'channels' ? change.doc.id : (data.id || change.doc.id);
+                        if (change.type !== 'added') { known.add(key); return; }
+                        const isNew = baselined && !known.has(key);
+                        known.add(key);
+                        if (!isNew) return;
+                        if (col === 'events' && !data.hidden) notifyUser("🚨 New Deployment Posted", data.title, 'shifts');
+                        if (col === 'chats' && data.user !== currUser()?.name) {
+                            let chanClean = data.channel.replace('evt_', 'Event ');
+                            notifyUser(`💬 ${data.user} in #${chanClean}`, data.text, 'chat');
+                        }
+                        // New-user notice, restricted to Commanders. This fires
+                        // independently on every open client - each one just
+                        // checks its own signed-in user's rank before showing
+                        // anything, so only Commanders actually see it, and only
+                        // while they have the app open (same as every other
+                        // notification here - there's no server-side push).
+                        if (col === 'users' && data.id !== currUser()?.id && currUser()?.role === 'Commander') {
+                            notifyUser('New User Added', `${data.name || data.email} joined as ${data.role || 'no rank assigned'}.`, 'admin');
+                        }
+                    });
+                    if (fromServer) baselined = true;
+                    // A cache-only first view smaller than what the server read
+                    // already gave us (just a pending local write) must not
+                    // replace it - the UI would show a single event until the
+                    // real snapshot lands.
+                    if (!(!fromServer && !baselined && getDB(col).length > snap.size)) {
+                        window.ss_state[col] = snap.docs.map(d => col === 'channels' ? d.id : d.data());
                     }
-                    firstFire = false;
-                    window.ss_state[col] = snap.docs.map(d => col === 'channels' ? d.id : d.data());
+                    if (col === 'events' && fromServer && !window._eventsServerSynced) {
+                        window._eventsServerSynced = true; // the auto-archive sweep may write from here on
+                        try { runAutoArchiveSweep(); } catch (err) { console.error('Auto-archive sweep failed:', err); }
+                    }
                     refreshGlobalUI();
                 }, err => console.error(`Listener error [${col}]:`, err));
             });

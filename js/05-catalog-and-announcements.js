@@ -29,15 +29,24 @@
             return e.openSlots || 0;
         }
 
-        // --- EVENT ARCHIVE ---
-        // Events auto-archive AUTO_ARCHIVE_DAYS after their date, and admins can
-        // also archive one manually at any time (intended for cancellations).
+        // --- EVENT ARCHIVE ("retire") ---
+        // Events auto-retire a configurable number of hours after they END
+        // (Command Center > System > Auto-Retire Events, stored in
+        // settings/autoArchive), and admins can also retire one manually at
+        // any time - either as a cancellation or just to tidy it away.
         // Archived events drop out of the guard-facing feed/calendar and the
         // active Events tab, and live on in a dedicated Archive tab instead.
         // Older events simply won't have `archived`/`cancelled` set at all,
         // which is falsy and treated the same as `false` everywhere below -
         // no migration needed for existing data.
-        const AUTO_ARCHIVE_DAYS = 2;
+        // archiveReason: 'auto' (timed sweep) | 'manual' (cancelled) | 'retired' (manual, not a cancellation)
+        const DEFAULT_AUTO_ARCHIVE_HOURS = 24;
+        const MAX_AUTO_ARCHIVE_HOURS = 24 * 365;
+        function getAutoArchiveHours() {
+            const s = getDB('settings').find(x => x.id === 'autoArchive') || {};
+            const h = Number(s.hours);
+            return Number.isFinite(h) && h >= 0 ? Math.min(h, MAX_AUTO_ARCHIVE_HOURS) : DEFAULT_AUTO_ARCHIVE_HOURS;
+        }
 
         // Compares calendar dates only (ignores time of day) so this behaves
         // predictably regardless of what timezone/hour the sweep happens to
@@ -51,19 +60,42 @@
             return Math.round((startOfToday - eventDate) / 86400000);
         }
 
+        // When the event is over, in ms: its end time on its date (rolling to
+        // the next day for an overnight shift), or the end of that date when no
+        // end time is set. NaN for a malformed date, which never auto-retires.
+        function eventEndMs(e) {
+            const day = new Date(e.date + 'T00:00:00');
+            if (isNaN(day.getTime())) return NaN;
+            const t = /^(\d{1,2}):(\d{2})/.exec(e.endTime || '');
+            if (!t) return new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
+            const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), +t[1], +t[2]);
+            const s = /^(\d{1,2}):(\d{2})/.exec(e.startTime || '');
+            if (s && (+t[1] * 60 + +t[2]) <= (+s[1] * 60 + +s[2])) end.setDate(end.getDate() + 1);
+            return end.getTime();
+        }
+        function isPastAutoArchive(e, hours) {
+            const end = eventEndMs(e);
+            return !isNaN(end) && Date.now() >= end + hours * 3600000;
+        }
+
         // Best-effort background sweep. Wrapped defensively end-to-end: nothing
         // in here should ever be able to break the rest of the app, so any
         // failure (a bad doc, an offline write, whatever) is just logged and
         // skipped rather than thrown.
+        // Waits for the events listener's first server snapshot (see
+        // attachRealtimeListeners): writing before then made the listener's
+        // first snapshot a one-document cache view, and the real data arriving
+        // right after looked like every other event had just been posted.
         let _archiveSweepRunning = false;
         function runAutoArchiveSweep() {
-            if (_archiveSweepRunning) return;
+            if (_archiveSweepRunning || !window._eventsServerSynced) return;
             _archiveSweepRunning = true;
             try {
+                const hours = getAutoArchiveHours();
                 getDB('events').forEach(e => {
                     try {
                         if (e.archived) return;
-                        if (daysSinceEvent(e) >= AUTO_ARCHIVE_DAYS) {
+                        if (isPastAutoArchive(e, hours)) {
                             saveDoc('events', e.id, { ...e, archived: true, archivedAt: Date.now(), archiveReason: 'auto' })
                                 .then(() => logAction('Auto-archived shift posting: ' + e.title))
                                 .catch(err => console.error('Auto-archive failed for', e.id, err));
@@ -75,6 +107,32 @@
             } finally {
                 _archiveSweepRunning = false;
             }
+        }
+
+        // Command Center > System > Auto-Retire Events
+        function renderAutoArchiveControls() {
+            const input = document.getElementById('autoArchiveHours');
+            if (!input) return;
+            const hours = getAutoArchiveHours();
+            input.value = hours;
+            document.getElementById('autoArchiveNote').textContent =
+                `Currently retiring events ${hours} hour${hours === 1 ? '' : 's'} after they end.`;
+        }
+        function saveAutoArchiveHours() {
+            const raw = document.getElementById('autoArchiveHours').value.trim();
+            const hours = Number(raw);
+            if (raw === '' || !Number.isInteger(hours) || hours < 0 || hours > MAX_AUTO_ARCHIVE_HOURS) {
+                alert(`Enter a whole number of hours between 0 and ${MAX_AUTO_ARCHIVE_HOURS}.`);
+                return;
+            }
+            const due = getDB('events').filter(e => !e.archived && isPastAutoArchive(e, hours));
+            if (due.length && !confirm(`With ${hours} hour${hours === 1 ? '' : 's'}, ${due.length} event${due.length === 1 ? ' is' : 's are'} already past the cutoff and will be retired right away:\n\n${due.map(e => '• ' + e.title).join('\n')}\n\nContinue?`)) return;
+            const next = { id: 'autoArchive', hours, updatedAt: Date.now(), updatedBy: (currUser() || {}).name || '' };
+            saveDoc('settings', 'autoArchive', next).then(() => {
+                logAction(`Set auto-retire to ${hours} hour${hours === 1 ? '' : 's'} after the event`);
+                renderAutoArchiveControls();
+                runAutoArchiveSweep();
+            }).catch(() => renderAutoArchiveControls());
         }
 
         /* SYSTEM ANNOUNCEMENT BANNER
@@ -135,6 +193,7 @@
 
         function renderAdminSystem() {
             try { renderPushForm(); } catch (err) { console.error('Push form render failed:', err); } // first, so nothing below can stop it
+            try { renderAutoArchiveControls(); } catch (err) { console.error('Auto-retire controls render failed:', err); }
             const ann = getAnnouncement();
             document.getElementById('annText').value = ann.text || '';
             document.getElementById('annExpires').value = ann.expiresAt || '';
@@ -302,14 +361,27 @@
             catch (err) { return ''; } // never let a display flourish break a render
         }
 
+        // "Just retire" checkbox next to the Archive / Cancel button in the event
+        // editor. Lives on window (not the draft) so it survives the editor
+        // re-rendering without ever being saved onto the event itself.
+        window._retireOnly = false;
+        function setRetireOnly(on, id) {
+            window._retireOnly = !!on;
+            const btn = document.getElementById('archiveBtn_' + id);
+            if (btn) btn.textContent = window._retireOnly ? '📦 Retire' : '🚫 Archive / Cancel';
+        }
         function archiveEvent(id) {
             const e = getDB('events').find(x => x.id === id);
             if (!e) return;
-            if (!confirm(`Archive "${e.title}"?\n\nThis is meant for cancellations - it will move the event to the Archive tab, mark it CANCELLED there, and take it off the active feed/calendar immediately. You can restore it later from the Archive tab if needed.`)) return;
+            const retireOnly = !!window._retireOnly;
+            const msg = retireOnly
+                ? `Retire "${e.title}"?\n\nIt will move to the Archive tab and come off the active feed/calendar immediately, but it will NOT be marked as cancelled. You can restore it later from the Archive tab if needed.`
+                : `Archive "${e.title}"?\n\nThis is meant for cancellations - it will move the event to the Archive tab, mark it CANCELLED there, and take it off the active feed/calendar immediately. You can restore it later from the Archive tab if needed.\n\n(To retire it without marking it cancelled, tick "Just retire" first.)`;
+            if (!confirm(msg)) return;
             delete window._eventDrafts[id]; // it's leaving the active list - drop any unsaved draft for it
             if (window._activeEventEditId === id) closeEventEditor(true);
-            saveDoc('events', id, { ...e, archived: true, cancelled: true, archivedAt: Date.now(), archiveReason: 'manual' })
-                .then(() => logAction('Archived (cancelled) shift posting: ' + e.title))
+            saveDoc('events', id, { ...e, archived: true, cancelled: !retireOnly, archivedAt: Date.now(), archiveReason: retireOnly ? 'retired' : 'manual' })
+                .then(() => logAction((retireOnly ? 'Retired shift posting: ' : 'Archived (cancelled) shift posting: ') + e.title))
                 .catch(err => alert('Could not archive event: ' + err.message));
         }
         // Hides a posting from the guard-facing Events feed and Calendar tab
@@ -341,6 +413,9 @@
             runAutoArchiveSweep();
             const listEl = document.getElementById('adminArchiveList');
             if (!listEl) return;
+            const autoHours = getAutoArchiveHours();
+            const note = document.getElementById('archiveAutoNote');
+            if (note) note.textContent = `Events auto-retire here ${autoHours} hour${autoHours === 1 ? '' : 's'} after they end (change this under System). You can also retire one manually from its editor in the Events tab - tick "Just retire" to skip marking it cancelled. Archived events no longer show up in the guard-facing feed or calendar.`;
             const evs = getDB('events').filter(e => e.archived).sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
             listEl.innerHTML = evs.map(e => `
                 <div class="glass-card" style="padding:15px; display:flex; gap:14px; align-items:flex-start;">
@@ -351,7 +426,7 @@
                     <div style="flex:1; min-width:0;">
                         <div style="font-weight:700; color:var(--neon-teal);">${e.title}</div>
                         <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-                            🗓️ ${e.date} · ${e.archiveReason === 'manual' ? '🚫 Cancelled' : '📦 Auto-archived'}${e.archivedAt ? ' · ' + new Date(e.archivedAt).toLocaleDateString() : ''}
+                            🗓️ ${e.date} · ${e.archiveReason === 'manual' || (e.cancelled && e.archiveReason !== 'auto') ? '🚫 Cancelled' : e.archiveReason === 'retired' ? '📦 Retired' : '📦 Auto-archived'}${e.archivedAt ? ' · ' + new Date(e.archivedAt).toLocaleDateString() : ''}
                         </div>
                         <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
                             <button class="btn btn-sm btn-outline" onclick="restoreEvent('${e.id}')">↩️ Restore</button>
@@ -359,7 +434,7 @@
                         </div>
                     </div>
                 </div>
-            `).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">No archived events yet. Events auto-archive ${AUTO_ARCHIVE_DAYS} days after their date, or archive one manually from the Events tab for a cancellation.</p>`;
+            `).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">No archived events yet. Events auto-retire ${autoHours} hour${autoHours === 1 ? '' : 's'} after they end, or you can retire one manually from its editor in the Events tab.</p>`;
         }
 
         let isReg = false;

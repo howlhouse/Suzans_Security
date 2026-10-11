@@ -74,6 +74,7 @@
             const e = getDB('events').find(x => x.id === id);
             if (!e) return;
             window._activeEventEditId = id;
+            window._retireOnly = false; // start every editor session on the plain Archive / Cancel action
             window._eventDrafts[id] = JSON.parse(JSON.stringify(e));
             renderTile(id);
             document.getElementById('eventEditorModal').style.display = 'flex';
@@ -113,8 +114,9 @@
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
                     <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${id}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? 'Show on Feed' : 'Hide from Feed'}</button>
-                    <button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="For cancellations - moves this to the Archive tab">🚫 Archive / Cancel</button>
+                    <button class="btn btn-sm btn-outline" id="archiveBtn_${id}" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="Moves this to the Archive tab - marked as cancelled unless 'Just retire' is ticked">${window._retireOnly ? '📦 Retire' : '🚫 Archive / Cancel'}</button>
                     <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
+                    <label style="flex-basis:100%; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.78rem; color:var(--text-muted);"><input type="checkbox" ${window._retireOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="setRetireOnly(this.checked, '${id}')"><span>Just retire it - don't mark it as cancelled</span></label>
                 </div>
                 <div id="drag_${id}">
                     ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
