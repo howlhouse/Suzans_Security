@@ -319,7 +319,7 @@
             </div>
 
             <div id="adminArchive" class="admin-pane" style="display: none;">
-                <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Events auto-archive here 2 days after their date. You can also archive one manually from the Events tab (🚫 Archive / Cancel) - use that for cancellations. Archived events no longer show up in the guard-facing feed or calendar.</p>
+                <p id="archiveAutoNote" style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">Events auto-retire here after they end. You can also retire one manually from its editor in the Events tab. Archived events no longer show up in the guard-facing feed or calendar.</p>
                 <div id="adminArchiveList"></div>
             </div>
 
@@ -456,6 +456,17 @@
                     <p id="annStatusNote" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
                 </div>
             
+
+                <div class="glass-card" style="padding: 20px; max-width: 520px; margin-top: 16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">📦 Auto-Retire Events</h4>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">Events move to the Archive tab on their own this many hours after they end (an event with no end time counts as ending at midnight that night). Use 0 to retire an event the moment it ends. Retired events can be restored from the Archive tab.</p>
+                    <label style="font-size:0.75rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500; text-transform:uppercase;">Hours after the event</label>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <input type="number" id="autoArchiveHours" class="input-field" style="width:120px; margin:0;" min="0" max="8760" step="1" inputmode="numeric" data-1p-ignore>
+                        <button class="btn btn-sm" onclick="saveAutoArchiveHours()">💾 Save</button>
+                    </div>
+                    <p id="autoArchiveNote" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
+                </div>
 
                 <div class="glass-card" style="padding: 20px; max-width: 520px; margin-top: 16px;">
                     <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">🔔 Push Notifications</h4>
