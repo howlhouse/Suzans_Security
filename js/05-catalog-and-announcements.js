@@ -135,6 +135,80 @@
             }).catch(() => renderAutoArchiveControls());
         }
 
+        /* APP THEME
+           A single system setting (settings/theme) picks the look of the whole app
+           for everyone; it's applied as <html data-theme="...">, which the theme
+           blocks at the bottom of styles.css key off. "default" is the original
+           look and has no overrides. The saved choice is cached in localStorage so
+           the next load paints in the right theme before any data arrives (see the
+           small script in index.html's <head>). An admin's pick on the System tab is
+           only a local preview (window._themeDraft) until they press Apply. */
+        const APP_THEMES = {
+            default: { label: 'Neon Desert', icon: '🌵', blurb: 'The original look: teal and pink neon on black.', swatch: ['#08080c', '#00f5d4', '#ff2a85', '#00ff87'] },
+            halloween: { label: 'Halloween', icon: '🎃', blurb: 'Pumpkin orange, witchy purple and slime green, with spooky icons, bats and cobwebs in the background.', swatch: ['#0b0612', '#ff8a1f', '#b266ff', '#9dff2e'] }
+        };
+        window._themeDraft = null;
+        function getSavedTheme() {
+            const s = getDB('settings').find(x => x.id === 'theme') || {};
+            return APP_THEMES[s.theme] ? s.theme : 'default';
+        }
+        function applyTheme(name) {
+            if (!APP_THEMES[name]) name = 'default';
+            if (document.documentElement.getAttribute('data-theme') !== name) document.documentElement.setAttribute('data-theme', name);
+            if (name === 'halloween' && !document.getElementById('themeFontLink')) {
+                const f = document.createElement('link');
+                f.id = 'themeFontLink'; f.rel = 'stylesheet'; f.href = 'https://fonts.googleapis.com/css2?family=Creepster&display=swap';
+                document.head.appendChild(f);
+            }
+        }
+        // Called from every data refresh: show the saved theme (or the admin's preview) and cache the saved one.
+        // Does nothing until the settings collection has actually loaded, so a slow load can't flip people to default.
+        function syncTheme() {
+            if (!window._settingsReady) return;
+            const saved = getSavedTheme();
+            try { localStorage.setItem('ss_theme', saved); } catch (err) { /* storage blocked */ }
+            applyTheme(window._themeDraft || saved);
+        }
+        function renderThemeControls() {
+            const box = document.getElementById('themeOptions');
+            if (!box) return;
+            const saved = getSavedTheme(), sel = window._themeDraft || saved;
+            box.innerHTML = Object.keys(APP_THEMES).map(id => {
+                const t = APP_THEMES[id];
+                return `<button type="button" class="theme-option ${id === sel ? 'selected' : ''}" onclick="selectThemeOption('${id}')">
+                    <span class="theme-swatches">${t.swatch.map(c => `<i style="background:${c}"></i>`).join('')}</span>
+                    <span class="theme-option-text"><span><strong>${t.icon} ${t.label}</strong>${id === saved ? '<em>Live</em>' : ''}</span><small>${t.blurb}</small></span>
+                </button>`;
+            }).join('');
+            const previewing = sel !== saved;
+            document.getElementById('themeApplyBtn').disabled = !previewing;
+            document.getElementById('themeRevertBtn').style.display = previewing ? 'inline-block' : 'none';
+            document.getElementById('themeNote').textContent = previewing
+                ? `Previewing ${APP_THEMES[sel].label} on your screen only. Apply it to switch the whole team over.`
+                : `${APP_THEMES[saved].label} is live for everyone.`;
+        }
+        function selectThemeOption(id) {
+            if (!APP_THEMES[id]) return;
+            window._themeDraft = id === getSavedTheme() ? null : id;
+            syncTheme();
+            renderThemeControls();
+        }
+        function clearThemePreview() {
+            if (!window._themeDraft) return;
+            window._themeDraft = null;
+            syncTheme();
+        }
+        function saveTheme() {
+            const theme = window._themeDraft;
+            if (!theme || !APP_THEMES[theme]) return;
+            saveDoc('settings', 'theme', { id: 'theme', theme, updatedAt: Date.now(), updatedBy: (currUser() || {}).name || '' }).then(() => {
+                window._themeDraft = null;
+                logAction(`Set the app theme to ${APP_THEMES[theme].label} for everyone`);
+                syncTheme();
+                renderThemeControls();
+            }).catch(() => renderThemeControls());
+        }
+
         /* SYSTEM ANNOUNCEMENT BANNER
            A single doc (announcement/main) drives a banner shown above every
            view for every signed-in user. Admins edit it from Command Center >
@@ -193,6 +267,7 @@
 
         function renderAdminSystem() {
             try { renderPushForm(); } catch (err) { console.error('Push form render failed:', err); } // first, so nothing below can stop it
+            try { renderThemeControls(); } catch (err) { console.error('Theme controls render failed:', err); }
             try { renderAutoArchiveControls(); } catch (err) { console.error('Auto-retire controls render failed:', err); }
             const ann = getAnnouncement();
             document.getElementById('annText').value = ann.text || '';

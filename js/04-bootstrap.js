@@ -52,6 +52,8 @@
                     })
                 ));
 
+                window._settingsReady = true; // theme etc. can now be applied from real data
+
                 if (!alreadySeeded) {
                     await seedDatabase();
                     await db.collection('_meta').doc('seedStatus').set({ seeded: true, at: Date.now() });
@@ -162,6 +164,7 @@
                     if (!(!fromServer && !baselined && getDB(col).length > snap.size)) {
                         window.ss_state[col] = snap.docs.map(d => col === 'channels' ? d.id : d.data());
                     }
+                    if (col === 'settings' && fromServer) window._settingsReady = true;
                     if (col === 'events' && fromServer && !window._eventsServerSynced) {
                         window._eventsServerSynced = true; // the auto-archive sweep may write from here on
                         try { runAutoArchiveSweep(); } catch (err) { console.error('Auto-archive sweep failed:', err); }
@@ -188,6 +191,7 @@
         }
 
         function refreshGlobalUI() {
+            try { syncTheme(); } catch (err) { console.error('Theme sync failed:', err); }
             validateSession();
             updateDockForUser();
             updateCommsBadge();

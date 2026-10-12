@@ -218,7 +218,7 @@
                     </div>
                     ${e.address ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:10px;">📍 ${e.address}</p>` : ''}
                     ${myNote ? `
-                    <div style="background:rgba(255,42,133,0.1); border:1px solid rgba(255,42,133,0.4); border-radius:12px; padding:12px; margin-top:12px;">
+                    <div style="background:rgba(var(--pink-rgb),0.1); border:1px solid rgba(var(--pink-rgb),0.4); border-radius:12px; padding:12px; margin-top:12px;">
                         <h4 style="color:var(--neon-pink); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">📝 Note for you from Command</h4>
                         <p style="font-size:0.85rem; color:var(--text-primary);">${myNote}</p>
                     </div>` : ''}

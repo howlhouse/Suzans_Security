@@ -18,6 +18,19 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
+    <script>
+        // Apply the last-known app theme before first paint so there's no flash of the wrong look.
+        // js/05 (applyTheme/syncTheme) takes over once the real setting is loaded.
+        try {
+            var t = localStorage.getItem('ss_theme');
+            if (t && t !== 'default') document.documentElement.setAttribute('data-theme', t);
+            if (t === 'halloween') {
+                var f = document.createElement('link'); f.id = 'themeFontLink'; f.rel = 'stylesheet';
+                f.href = 'https://fonts.googleapis.com/css2?family=Creepster&display=swap';
+                document.head.appendChild(f);
+            }
+        } catch (e) { /* storage blocked - default theme */ }
+    </script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -45,6 +58,7 @@
     </div>
 
     <div class="watermark-pattern"></div>
+    <div class="theme-decor" aria-hidden="true"></div>
     <div class="pride-strip"></div>
 
     <div class="dev-site-banner" id="devSiteBanner">🛠 DEV VERSION &mdash; developer preview. Uses live data; changes here aren't released to the team until merged to PROD.</div>
@@ -210,7 +224,7 @@
                 <p style="color:var(--text-muted); font-size:0.85rem;">Recommended certifications for the Suzan's Security team</p>
             </div>
 
-            <div class="glass-card" style="padding: 20px; border: 1px solid rgba(0,245,212,0.4);">
+            <div class="glass-card" style="padding: 20px; border: 1px solid rgba(var(--teal-rgb),0.4);">
                 <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:10px;">⭐ Highly Recommended</h4>
                 <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">All Suzan's Security team members are <strong>HIGHLY recommended</strong> to maintain a basic <strong>Title IV license</strong>. It can be completed online:</p>
                 <a class="btn btn-outline" style="text-decoration:none; text-align:center; display:block;" href="https://www.360training.com/learn2serve/alcohol/arizona" target="_blank" rel="noopener noreferrer">🍸 Title IV License &mdash; Learn2Serve (Arizona)</a>
@@ -431,6 +445,17 @@
             </div>
 
             <div id="adminSystem" class="admin-pane" style="display: none;">
+                <div class="glass-card" style="padding: 20px; max-width: 520px; margin-bottom: 16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">🎨 App Theme</h4>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">The look of the whole app for everyone. Pick one to preview it on your screen only, then apply it to the team. Layout and features stay exactly the same.</p>
+                    <div id="themeOptions"></div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                        <button class="btn btn-sm" id="themeApplyBtn" onclick="saveTheme()">✅ Apply to everyone</button>
+                        <button class="btn btn-outline btn-sm" id="themeRevertBtn" onclick="clearThemePreview(); renderThemeControls();">↩️ Stop preview</button>
+                    </div>
+                    <p id="themeNote" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
+                </div>
+
                 <div class="glass-card" style="padding: 20px; max-width: 520px;">
                     <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">📢 Announcement Banner</h4>
                     <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">Shows a banner at the top of the app, above every view, for every signed-in user. Turn it on and off whenever you like - it also turns itself off automatically for everyone once the expiration date/time passes.</p>

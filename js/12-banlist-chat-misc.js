@@ -178,8 +178,8 @@
             bubble.style.left = left + 'px'; bubble.style.top = top + 'px';
             arrow.style.display = 'block';
             arrow.style.left = Math.min(Math.max(16, r.left + r.width / 2 - left - 7), bw - 30) + 'px';
-            if (below) { arrow.style.top = '-8px'; arrow.style.bottom = ''; arrow.style.transform = 'rotate(45deg)'; arrow.style.borderLeft = arrow.style.borderTop = '1px solid rgba(0,245,212,0.55)'; arrow.style.borderRight = arrow.style.borderBottom = '0'; }
-            else { arrow.style.bottom = '-8px'; arrow.style.top = ''; arrow.style.transform = 'rotate(225deg)'; arrow.style.borderLeft = arrow.style.borderTop = '1px solid rgba(0,245,212,0.55)'; arrow.style.borderRight = arrow.style.borderBottom = '0'; }
+            if (below) { arrow.style.top = '-8px'; arrow.style.bottom = ''; arrow.style.transform = 'rotate(45deg)'; arrow.style.borderLeft = arrow.style.borderTop = '1px solid rgba(var(--teal-rgb),0.55)'; arrow.style.borderRight = arrow.style.borderBottom = '0'; }
+            else { arrow.style.bottom = '-8px'; arrow.style.top = ''; arrow.style.transform = 'rotate(225deg)'; arrow.style.borderLeft = arrow.style.borderTop = '1px solid rgba(var(--teal-rgb),0.55)'; arrow.style.borderRight = arrow.style.borderBottom = '0'; }
         }
 
         // Taps inside the tour must not reach the app's "tap outside closes the user menu" handler.
@@ -233,7 +233,7 @@
                     return `<div style="padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); font-size:0.8rem;">
                         <div style="display:flex; justify-content:space-between; gap:8px;"><span style="color:var(--text-muted);">${escapeHtml(FEEDBACK_TYPES[f.type] || '')} &middot; ${new Date(f.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span><span style="color:${st[1]}; font-weight:700;">${st[0]}</span></div>
                         <div style="margin-top:3px;">${escapeHtml(String(f.message || '').slice(0, 160))}${String(f.message || '').length > 160 ? '…' : ''}</div>
-                        ${f.reply ? `<div style="margin-top:4px; padding:6px 8px; border-left:2px solid var(--neon-teal); background:rgba(0,245,212,0.06); color:var(--text-secondary);"><strong>Developer reply:</strong> ${escapeHtml(f.reply)}</div>` : ''}
+                        ${f.reply ? `<div style="margin-top:4px; padding:6px 8px; border-left:2px solid var(--neon-teal); background:rgba(var(--teal-rgb),0.06); color:var(--text-secondary);"><strong>Developer reply:</strong> ${escapeHtml(f.reply)}</div>` : ''}
                     </div>`;
                 }).join('');
             } catch (err) { console.warn('Could not load your feedback:', err.message); }
