@@ -271,7 +271,7 @@
                         ${e.ticketLink ? `<a href="${e.ticketLink}" target="_blank" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
 
                         ${myNote ? `
-                        <div style="background:rgba(255,42,133,0.1); border:1px solid rgba(255,42,133,0.4); border-radius:12px; padding:14px; margin: 16px 0;">
+                        <div style="background:rgba(var(--pink-rgb),0.1); border:1px solid rgba(var(--pink-rgb),0.4); border-radius:12px; padding:14px; margin: 16px 0;">
                             <h4 style="color:var(--neon-pink); font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">📝 Note for you from Command</h4>
                             <p style="font-size:0.9rem; color:var(--text-primary);">${myNote}</p>
                         </div>` : ''}

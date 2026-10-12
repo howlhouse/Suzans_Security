@@ -346,7 +346,7 @@
             if (v === 'dashboardView') renderDashboard(); else stopDashboard();
             if (v === 'settingsView') renderSettings();
             if (v === 'adminConsoleView') renderAdminEv();
-            if (v !== 'adminConsoleView') clearAnnouncementPreview();
+            if (v !== 'adminConsoleView') { clearAnnouncementPreview(); clearThemePreview(); }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
