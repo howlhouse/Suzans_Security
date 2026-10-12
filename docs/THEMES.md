@@ -32,6 +32,6 @@ applies to everyone and changes live on open devices.
    The names are historical - they just carry whatever the theme's accent colors are.
 3. Optional decoration: `.watermark-pattern` (tiled background icons) and `.theme-decor`
    (`::before` / `::after` layers behind the content). Both are purely visual (`pointer-events: none`).
-4. Allow the new id in the `if (t === 'halloween')` bits of the `<head>` script in `index.html`
-   if it needs an early font load (otherwise the attribute alone is enough - extend that script to
-   set it for any id found in `localStorage`).
+4. If the theme needs a web font, load it in `applyTheme()` and in the `<head>` script in
+   `index.html` (the Halloween font is done this way). The `data-theme` attribute itself is set
+   for any theme id, so nothing else needs to change there.

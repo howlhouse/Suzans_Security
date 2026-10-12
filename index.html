@@ -23,8 +23,8 @@
         // js/05 (applyTheme/syncTheme) takes over once the real setting is loaded.
         try {
             var t = localStorage.getItem('ss_theme');
+            if (t && t !== 'default') document.documentElement.setAttribute('data-theme', t);
             if (t === 'halloween') {
-                document.documentElement.setAttribute('data-theme', t);
                 var f = document.createElement('link'); f.id = 'themeFontLink'; f.rel = 'stylesheet';
                 f.href = 'https://fonts.googleapis.com/css2?family=Creepster&display=swap';
                 document.head.appendChild(f);
