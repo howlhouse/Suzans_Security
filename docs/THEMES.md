@@ -5,8 +5,11 @@ system setting (one document, `settings/theme` = `{ theme: "default" | "hallowee
 applies to everyone and changes live on open devices.
 
 - **Neon Desert** (`default`) is the baseline. It has no overrides - it *is* `styles.css`.
-- **Halloween** (`halloween`) is a block of overrides at the bottom of `styles.css`, keyed off
-  `<html data-theme="halloween">`.
+- **Halloween** (`halloween`), **Christmas** (`christmas`) and **Thanksgiving** (`thanksgiving`) are
+  blocks of overrides at the bottom of `styles.css`, keyed off `<html data-theme="...">`.
+  - Halloween: orange / purple / slime green, cobwebs, spider, bats, fog.
+  - Christmas: green / red / gold on evergreen, twinkling lights and falling snow.
+  - Thanksgiving: harvest gold / cranberry / sage on warm brown, leaf garland and drifting leaves.
 
 ## How it works
 
@@ -18,7 +21,8 @@ applies to everyone and changes live on open devices.
 - The saved theme is cached in `localStorage` (`ss_theme`) and applied by a small script in
   `index.html`'s `<head>`, so the next load paints in the right theme (login screen included)
   with no flash.
-- The theme font (Creepster) is only fetched while the Halloween theme is on.
+- Each theme can name one web font (`font` in `APP_THEMES`); it's only fetched while that theme is on, and the
+  link is swapped when previewing between themes.
 - PROD and DEV share one Firebase project, so the setting is shared too. Use the local preview to
   try a theme without changing it for the team.
 
@@ -32,6 +36,7 @@ applies to everyone and changes live on open devices.
    The names are historical - they just carry whatever the theme's accent colors are.
 3. Optional decoration: `.watermark-pattern` (tiled background icons) and `.theme-decor`
    (`::before` / `::after` layers behind the content). Both are purely visual (`pointer-events: none`).
-4. If the theme needs a web font, load it in `applyTheme()` and in the `<head>` script in
-   `index.html` (the Halloween font is done this way). The `data-theme` attribute itself is set
-   for any theme id, so nothing else needs to change there.
+4. If the theme needs a web font, set `font` on its `APP_THEMES` entry (a Google Fonts family spec, e.g.
+   `'Lobster'`) and add the same id/spec to the small `fonts` map in the `<head>` script in `index.html`
+   (that script runs before the app, so it can't read `APP_THEMES`). The `data-theme` attribute itself is
+   set for any theme id, so nothing else needs to change there.

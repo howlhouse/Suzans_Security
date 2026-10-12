@@ -145,7 +145,9 @@
            only a local preview (window._themeDraft) until they press Apply. */
         const APP_THEMES = {
             default: { label: 'Neon Desert', icon: '🌵', blurb: 'The original look: teal and pink neon on black.', swatch: ['#08080c', '#00f5d4', '#ff2a85', '#00ff87'] },
-            halloween: { label: 'Halloween', icon: '🎃', blurb: 'Pumpkin orange, witchy purple and slime green, with spooky icons, bats and cobwebs in the background.', swatch: ['#0b0612', '#ff8a1f', '#b266ff', '#9dff2e'] }
+            halloween: { label: 'Halloween', icon: '🎃', blurb: 'Pumpkin orange, witchy purple and slime green, with spooky icons, bats and cobwebs in the background.', swatch: ['#0b0612', '#ff8a1f', '#b266ff', '#9dff2e'], font: 'Creepster' },
+            christmas: { label: 'Christmas', icon: '🎄', blurb: 'Evergreen, candy red and gold, with falling snow, twinkling lights and festive icons in the background.', swatch: ['#06100b', '#3ddc84', '#ff4b5c', '#ffd54a'], font: 'Mountains+of+Christmas:wght@700' },
+            thanksgiving: { label: 'Thanksgiving', icon: '🦃', blurb: 'Harvest gold, cranberry and sage on warm brown, with drifting autumn leaves, a leaf garland and harvest icons.', swatch: ['#0e0804', '#f5b83d', '#e4506a', '#a6c957'], font: 'Lobster' }
         };
         window._themeDraft = null;
         function getSavedTheme() {
@@ -155,11 +157,19 @@
         function applyTheme(name) {
             if (!APP_THEMES[name]) name = 'default';
             if (document.documentElement.getAttribute('data-theme') !== name) document.documentElement.setAttribute('data-theme', name);
-            if (name === 'halloween' && !document.getElementById('themeFontLink')) {
-                const f = document.createElement('link');
-                f.id = 'themeFontLink'; f.rel = 'stylesheet'; f.href = 'https://fonts.googleapis.com/css2?family=Creepster&display=swap';
-                document.head.appendChild(f);
-            }
+            // Each theme may load one web font (APP_THEMES[x].font = a Google Fonts family spec).
+            // Keep this and the early <head> script in index.html in step.
+            const spec = APP_THEMES[name].font;
+            const url = spec ? 'https://fonts.googleapis.com/css2?family=' + spec + '&display=swap' : '';
+            let link = document.getElementById('themeFontLink');
+            if (url) {
+                if (!link) {
+                    link = document.createElement('link');
+                    link.id = 'themeFontLink'; link.rel = 'stylesheet';
+                    document.head.appendChild(link);
+                }
+                if (link.getAttribute('href') !== url) link.setAttribute('href', url);
+            } else if (link) link.remove();
         }
         // Called from every data refresh: show the saved theme (or the admin's preview) and cache the saved one.
         // Does nothing until the settings collection has actually loaded, so a slow load can't flip people to default.

@@ -359,3 +359,97 @@
         .theme-option-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.9rem; }
         .theme-option-text small { color: var(--text-muted); font-size: 0.75rem; line-height: 1.4; }
         .theme-option-text em { font-style: normal; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--neon-saguaro); margin-left: 6px; }
+
+        /* --- Christmas --- */
+        html[data-theme="christmas"] {
+            --bg-obsidian: #06100b; --bg-card: rgba(12, 31, 23, 0.74); --glass-sheet: rgba(9, 25, 18, 0.88); --border-glass: rgba(150, 255, 200, 0.15);
+            /* Variable names are historical: here teal=green, pink=red, saguaro=gold. */
+            --neon-teal: #3ddc84; --neon-teal-deep: #1fa65a; --teal-rgb: 61, 220, 132;
+            --neon-pink: #ff4b5c; --neon-pink-deep: #b3122a; --pink-rgb: 255, 75, 92;
+            --neon-saguaro: #ffd54a; --green-rgb: 255, 213, 74;
+            --danger-glow: #ff5d5d;
+            --text-secondary: rgba(235, 255, 245, 0.75); --text-muted: rgba(220, 250, 235, 0.5);
+        }
+        html[data-theme="christmas"] body::before { background: radial-gradient(circle, rgba(255, 75, 92, 0.22) 0%, rgba(61, 220, 132, 0.14) 45%, transparent 70%); }
+        html[data-theme="christmas"] body::after { background: radial-gradient(circle, rgba(255, 213, 74, 0.16) 0%, rgba(61, 220, 132, 0.12) 40%, transparent 70%); }
+        html[data-theme="christmas"] .watermark-pattern { background-image: url("data:image/svg+xml,%3Csvg width='360' height='360' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='24' y='64' font-size='34' transform='rotate(-10 24 64)'%3E🎄%3C/text%3E%3Ctext x='150' y='52' font-size='34' transform='rotate(8 150 52)'%3E⛄%3C/text%3E%3Ctext x='268' y='96' font-size='34' transform='rotate(-14 268 96)'%3E🎁%3C/text%3E%3Ctext x='70' y='168' font-size='34' transform='rotate(12 70 168)'%3E❄️%3C/text%3E%3Ctext x='190' y='150' font-size='34' transform='rotate(-8 190 150)'%3E🔔%3C/text%3E%3Ctext x='296' y='236' font-size='34' transform='rotate(10 296 236)'%3E🦌%3C/text%3E%3Ctext x='28' y='292' font-size='34' transform='rotate(-16 28 292)'%3E🍪%3C/text%3E%3Ctext x='136' y='262' font-size='34' transform='rotate(6 136 262)'%3E⭐%3C/text%3E%3Ctext x='246' y='330' font-size='34' transform='rotate(-8 246 330)'%3E🎅%3C/text%3E%3Ctext x='92' y='338' font-size='34' transform='rotate(12 92 338)'%3E🧦%3C/text%3E%3Ctext x='214' y='232' font-size='34' transform='rotate(-10 214 232)'%3E🕯️%3C/text%3E%3Ctext x='316' y='40' font-size='34' transform='rotate(10 316 40)'%3E🧣%3C/text%3E%3C/svg%3E"); background-size: 360px 360px; filter: opacity(0.17) saturate(1.1); }
+        html[data-theme="christmas"] .pride-strip { background: linear-gradient(90deg, #ff4b5c, #ffd54a, #3ddc84, #ffffff, #ff4b5c); background-size: 300% 100%; }
+        html[data-theme="christmas"] #authModal .modal-sheet { background-image: linear-gradient(var(--glass-sheet), var(--glass-sheet)), linear-gradient(90deg, #ff4b5c, #ffd54a, #3ddc84, #ffffff, #ff4b5c); }
+        html[data-theme="christmas"] header { background: rgba(7, 22, 15, 0.8); }
+        html[data-theme="christmas"] .dock-nav { background: rgba(8, 24, 17, 0.88); }
+        html[data-theme="christmas"] .input-field, html[data-theme="christmas"] select, html[data-theme="christmas"] textarea { background: rgba(8, 22, 16, 0.72); }
+        html[data-theme="christmas"] .chat-container { background: rgba(8, 22, 16, 0.62); }
+        html[data-theme="christmas"] .chat-bubble { background: rgba(24, 54, 39, 0.78); }
+        html[data-theme="christmas"] .chat-bubble.mine { background: linear-gradient(135deg, #1fa65a 0%, #0b5d2e 100%); }
+        html[data-theme="christmas"] .segmented-control { background: rgba(8, 22, 16, 0.82); }
+        html[data-theme="christmas"] .cal-day { background: rgba(14, 36, 26, 0.62); }
+        html[data-theme="christmas"] .draggable-section { background: rgba(14, 38, 28, 0.88); }
+        html[data-theme="christmas"] .ev2-in { background: #08150f; }
+        html[data-theme="christmas"] .ev2-media { background: linear-gradient(135deg, #12331f, #2a0c10); }
+        html[data-theme="christmas"] .event-detail-img-wrap { background: #06100b; }
+        html[data-theme="christmas"] #tourBubble, html[data-theme="christmas"] #tourArrow { background: rgba(8, 24, 17, 0.97); }
+
+        html[data-theme="christmas"] .brand-text { font-family: 'Mountains of Christmas', 'Outfit', cursive; font-weight: 700; font-size: 1.4rem; letter-spacing: 0.4px; }
+        html[data-theme="christmas"] .ev-title { font-family: 'Mountains of Christmas', 'Outfit', cursive; font-weight: 700; }
+        html[data-theme="christmas"] .brand-container { position: relative; }
+        html[data-theme="christmas"] .brand-container::after { content: '🎄'; position: absolute; left: 20px; top: -9px; font-size: 1.05rem; transform: rotate(12deg); filter: drop-shadow(0 0 6px rgba(61, 220, 132, 0.7)); pointer-events: none; }
+
+        /* --- Thanksgiving --- */
+        html[data-theme="thanksgiving"] {
+            --bg-obsidian: #0e0804; --bg-card: rgba(38, 23, 12, 0.74); --glass-sheet: rgba(30, 18, 9, 0.88); --border-glass: rgba(255, 190, 110, 0.17);
+            /* Variable names are historical: here teal=harvest gold, pink=cranberry, saguaro=sage. */
+            --neon-teal: #f5b83d; --neon-teal-deep: #d98a12; --teal-rgb: 245, 184, 61;
+            --neon-pink: #e4506a; --neon-pink-deep: #a3203a; --pink-rgb: 228, 80, 106;
+            --neon-saguaro: #a6c957; --green-rgb: 166, 201, 87;
+            --danger-glow: #ff5a4a;
+            --text-secondary: rgba(255, 240, 222, 0.75); --text-muted: rgba(255, 232, 205, 0.5);
+        }
+        html[data-theme="thanksgiving"] body::before { background: radial-gradient(circle, rgba(214, 90, 20, 0.3) 0%, rgba(228, 80, 106, 0.12) 45%, transparent 70%); }
+        html[data-theme="thanksgiving"] body::after { background: radial-gradient(circle, rgba(245, 184, 61, 0.2) 0%, rgba(166, 201, 87, 0.1) 40%, transparent 70%); }
+        html[data-theme="thanksgiving"] .watermark-pattern { background-image: url("data:image/svg+xml,%3Csvg width='360' height='360' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='24' y='64' font-size='34' transform='rotate(-10 24 64)'%3E🦃%3C/text%3E%3Ctext x='150' y='52' font-size='34' transform='rotate(8 150 52)'%3E🥧%3C/text%3E%3Ctext x='268' y='96' font-size='34' transform='rotate(-18 268 96)'%3E🍂%3C/text%3E%3Ctext x='70' y='168' font-size='34' transform='rotate(12 70 168)'%3E🌽%3C/text%3E%3Ctext x='190' y='150' font-size='34' transform='rotate(-8 190 150)'%3E🍁%3C/text%3E%3Ctext x='296' y='236' font-size='34' transform='rotate(14 296 236)'%3E🌰%3C/text%3E%3Ctext x='28' y='292' font-size='34' transform='rotate(-16 28 292)'%3E🍎%3C/text%3E%3Ctext x='136' y='262' font-size='34' transform='rotate(6 136 262)'%3E🍞%3C/text%3E%3Ctext x='246' y='330' font-size='34' transform='rotate(-10 246 330)'%3E🕯️%3C/text%3E%3Ctext x='92' y='338' font-size='34' transform='rotate(10 92 338)'%3E🌾%3C/text%3E%3Ctext x='214' y='232' font-size='34' transform='rotate(-8 214 232)'%3E🍠%3C/text%3E%3Ctext x='316' y='40' font-size='34' transform='rotate(10 316 40)'%3E🧺%3C/text%3E%3C/svg%3E"); background-size: 360px 360px; filter: opacity(0.17) saturate(1.1); }
+        html[data-theme="thanksgiving"] .pride-strip { background: linear-gradient(90deg, #d98a12, #f5b83d, #e4506a, #a6c957, #8a5a2b, #d98a12); background-size: 300% 100%; }
+        html[data-theme="thanksgiving"] #authModal .modal-sheet { background-image: linear-gradient(var(--glass-sheet), var(--glass-sheet)), linear-gradient(90deg, #d98a12, #f5b83d, #e4506a, #a6c957, #8a5a2b, #d98a12); }
+        html[data-theme="thanksgiving"] header { background: rgba(24, 13, 6, 0.8); }
+        html[data-theme="thanksgiving"] .dock-nav { background: rgba(28, 16, 8, 0.88); }
+        html[data-theme="thanksgiving"] .input-field, html[data-theme="thanksgiving"] select, html[data-theme="thanksgiving"] textarea { background: rgba(26, 14, 7, 0.72); }
+        html[data-theme="thanksgiving"] .chat-container { background: rgba(26, 14, 7, 0.62); }
+        html[data-theme="thanksgiving"] .chat-bubble { background: rgba(62, 38, 20, 0.78); }
+        html[data-theme="thanksgiving"] .chat-bubble.mine { background: linear-gradient(135deg, #b8452e 0%, #6b1d12 100%); }
+        html[data-theme="thanksgiving"] .segmented-control { background: rgba(28, 15, 8, 0.82); }
+        html[data-theme="thanksgiving"] .cal-day { background: rgba(40, 24, 12, 0.62); }
+        html[data-theme="thanksgiving"] .draggable-section { background: rgba(42, 25, 13, 0.88); }
+        html[data-theme="thanksgiving"] .ev2-in { background: #170d06; }
+        html[data-theme="thanksgiving"] .ev2-media { background: linear-gradient(135deg, #3a1c0c, #2a2008); }
+        html[data-theme="thanksgiving"] .event-detail-img-wrap { background: #0e0804; }
+        html[data-theme="thanksgiving"] #tourBubble, html[data-theme="thanksgiving"] #tourArrow { background: rgba(28, 16, 8, 0.97); }
+
+        html[data-theme="thanksgiving"] .brand-text { font-family: 'Lobster', 'Outfit', cursive; font-weight: 400; font-size: 1.3rem; letter-spacing: 0.5px; }
+        html[data-theme="thanksgiving"] .ev-title { font-family: 'Lobster', 'Outfit', cursive; font-weight: 400; }
+        html[data-theme="thanksgiving"] .brand-container { position: relative; }
+        html[data-theme="thanksgiving"] .brand-container::after { content: '🦃'; position: absolute; left: 20px; top: -9px; font-size: 1.05rem; transform: rotate(12deg); filter: drop-shadow(0 0 6px rgba(245, 184, 61, 0.7)); pointer-events: none; }
+
+        /* Shared decoration layer for the seasonal themes (purely visual, behind all content). */
+        html[data-theme="christmas"] .theme-decor, html[data-theme="thanksgiving"] .theme-decor { display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+        html[data-theme="christmas"] .theme-decor::before, html[data-theme="christmas"] .theme-decor::after,
+        html[data-theme="thanksgiving"] .theme-decor::before, html[data-theme="thanksgiving"] .theme-decor::after { content: ""; position: absolute; left: 0; right: 0; }
+
+        /* Christmas: a string of lights under the header (gently twinkling) and snow drifting down over a low drift of snow. */
+        html[data-theme="christmas"] .theme-decor::before { top: 66px; height: 42px; background: url("data:image/svg+xml,%3Csvg width='120' height='42' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 6 Q30 22 60 6 Q90 22 120 6' fill='none' stroke='%232c3a31' stroke-width='1.6'/%3E%3Ccircle cx='15' cy='18' r='9' fill='%23ff4b5c' fill-opacity='0.22'/%3E%3Crect x='13' y='10' width='4' height='5' fill='%231d2b22'/%3E%3Cellipse cx='15' cy='18' rx='3.6' ry='5.2' fill='%23ff4b5c'/%3E%3Ccircle cx='45' cy='18' r='9' fill='%23ffd54a' fill-opacity='0.22'/%3E%3Crect x='43' y='10' width='4' height='5' fill='%231d2b22'/%3E%3Cellipse cx='45' cy='18' rx='3.6' ry='5.2' fill='%23ffd54a'/%3E%3Ccircle cx='75' cy='18' r='9' fill='%233ddc84' fill-opacity='0.22'/%3E%3Crect x='73' y='10' width='4' height='5' fill='%231d2b22'/%3E%3Cellipse cx='75' cy='18' rx='3.6' ry='5.2' fill='%233ddc84'/%3E%3Ccircle cx='105' cy='18' r='9' fill='%234db8ff' fill-opacity='0.22'/%3E%3Crect x='103' y='10' width='4' height='5' fill='%231d2b22'/%3E%3Cellipse cx='105' cy='18' rx='3.6' ry='5.2' fill='%234db8ff'/%3E%3C/svg%3E") repeat-x 0 0 / 120px 42px; animation: xmasTwinkle 3.2s ease-in-out infinite alternate; }
+        html[data-theme="christmas"] .theme-decor::after { top: 0; bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg width='240' height='240' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='66' cy='157' r='3.2' fill-opacity='0.55'/%3E%3Ccircle cx='100' cy='160' r='2.4000000000000004' fill-opacity='0.9'/%3E%3Ccircle cx='154' cy='22' r='3.2' fill-opacity='0.55'/%3E%3Ccircle cx='220' cy='126' r='2.4000000000000004' fill-opacity='0.9'/%3E%3Ccircle cx='65' cy='55' r='3.2' fill-opacity='0.75'/%3E%3Ccircle cx='144' cy='220' r='3.2' fill-opacity='0.75'/%3E%3Ccircle cx='107' cy='169' r='1.6' fill-opacity='0.55'/%3E%3Ccircle cx='168' cy='44' r='3.2' fill-opacity='0.75'/%3E%3Ccircle cx='195' cy='9' r='3.2' fill-opacity='0.55'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg width='160' height='160' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='64' cy='100' r='1.5' fill-opacity='0.55'/%3E%3Ccircle cx='55' cy='17' r='1.0' fill-opacity='0.55'/%3E%3Ccircle cx='69' cy='135' r='1.0' fill-opacity='0.75'/%3E%3Ccircle cx='13' cy='123' r='1.5' fill-opacity='0.75'/%3E%3Ccircle cx='105' cy='132' r='2.0' fill-opacity='0.55'/%3E%3Ccircle cx='109' cy='28' r='1.5' fill-opacity='0.55'/%3E%3Ccircle cx='11' cy='74' r='2.0' fill-opacity='0.75'/%3E%3Ccircle cx='127' cy='103' r='2.0' fill-opacity='0.55'/%3E%3Ccircle cx='72' cy='30' r='1.0' fill-opacity='0.75'/%3E%3Ccircle cx='102' cy='33' r='2.0' fill-opacity='0.55'/%3E%3C/g%3E%3C/svg%3E"), radial-gradient(ellipse 70% 100% at 50% 100%, rgba(255, 255, 255, 0.16), transparent);
+            background-repeat: repeat, repeat, no-repeat; background-position: 0 0, 0 0, 50% 100%; background-size: 240px 240px, 160px 160px, 100% 110px;
+            animation: xmasSnow 26s linear infinite; }
+        @keyframes xmasTwinkle { from { opacity: 0.6; } to { opacity: 1; } }
+        @keyframes xmasSnow { to { background-position: 0 240px, 50px 160px, 50% 100%; } }
+
+        /* Thanksgiving: a leaf garland under the header, leaves drifting down, and a warm glow along the bottom. */
+        html[data-theme="thanksgiving"] .theme-decor::before { top: 66px; height: 64px; opacity: 0.9; background: url("data:image/svg+xml,%3Csvg width='170' height='64' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 6 Q42 26 85 6 Q127 26 170 6' fill='none' stroke='%238a5a2b' stroke-width='2.2' stroke-linecap='round'/%3E%3Ctext x='22' y='36' font-size='24' transform='rotate(-14 22 36)'%3E🍁%3C/text%3E%3Ctext x='62' y='42' font-size='22' transform='rotate(10 62 42)'%3E🍂%3C/text%3E%3Ctext x='104' y='38' font-size='24' transform='rotate(-8 104 38)'%3E🍁%3C/text%3E%3Ctext x='140' y='34' font-size='22' transform='rotate(14 140 34)'%3E🌾%3C/text%3E%3C/svg%3E") repeat-x 0 0 / 170px 64px; }
+        html[data-theme="thanksgiving"] .theme-decor::after { top: 0; bottom: 0; opacity: 0.55;
+            background-image: url("data:image/svg+xml,%3Csvg width='340' height='340' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='40' y='60' font-size='26' transform='rotate(-20 40 60)'%3E🍂%3C/text%3E%3Ctext x='220' y='130' font-size='24' transform='rotate(18 220 130)'%3E🍁%3C/text%3E%3Ctext x='110' y='250' font-size='22' transform='rotate(10 110 250)'%3E🍂%3C/text%3E%3Ctext x='290' y='300' font-size='26' transform='rotate(-12 290 300)'%3E🍁%3C/text%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg width='230' height='230' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='30' y='80' font-size='20' transform='rotate(12 30 80)'%3E🍁%3C/text%3E%3Ctext x='150' y='60' font-size='22' transform='rotate(-16 150 60)'%3E🍂%3C/text%3E%3Ctext x='90' y='190' font-size='20' transform='rotate(20 90 190)'%3E🍂%3C/text%3E%3Ctext x='200' y='210' font-size='18' transform='rotate(-8 200 210)'%3E🍁%3C/text%3E%3C/svg%3E"), linear-gradient(0deg, rgba(214, 100, 20, 0.34), transparent);
+            background-repeat: repeat, repeat, no-repeat; background-position: 0 0, 0 0, 50% 100%; background-size: 340px 340px, 230px 230px, 100% 200px;
+            animation: thxLeaves 48s linear infinite; }
+        @keyframes thxLeaves { to { background-position: -170px 340px, -115px 230px, 50% 100%; } }
+        @media (prefers-reduced-motion: reduce) {
+            html[data-theme="christmas"] .theme-decor::before, html[data-theme="christmas"] .theme-decor::after,
+            html[data-theme="thanksgiving"] .theme-decor::after { animation: none; }
+        }
