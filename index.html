@@ -24,9 +24,10 @@
         try {
             var t = localStorage.getItem('ss_theme');
             if (t && t !== 'default') document.documentElement.setAttribute('data-theme', t);
-            if (t === 'halloween') {
+            var fonts = { halloween: 'Creepster', christmas: 'Mountains+of+Christmas:wght@700', thanksgiving: 'Lobster' };
+            if (fonts[t]) {
                 var f = document.createElement('link'); f.id = 'themeFontLink'; f.rel = 'stylesheet';
-                f.href = 'https://fonts.googleapis.com/css2?family=Creepster&display=swap';
+                f.href = 'https://fonts.googleapis.com/css2?family=' + fonts[t] + '&display=swap';
                 document.head.appendChild(f);
             }
         } catch (e) { /* storage blocked - default theme */ }
