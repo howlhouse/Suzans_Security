@@ -522,17 +522,6 @@
                 </div>
 
                 <div class="glass-card" style="padding:16px;">
-                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">🔊 Scanner Sounds</h4>
-                    <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:10px;">Every scan plays a short jingle and says a phrase out loud, in both the camera and external scanner modes: one sound for a pass, one for anything else (a check or a turn-away). Staff can mute it on their own screen. The voice comes from the device, so it sounds a little different on each phone. Leave a phrase blank for just the jingle.</p>
-                    <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">When the ID passes</label>
-                    <div style="display:flex; gap:8px; align-items:center;"><input type="text" id="idsPhrasePass" class="input-field" maxlength="40" style="margin:6px 0 10px;" data-1p-ignore><button class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="idsTestSound('pass')">▶ Test</button></div>
-                    <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">When it doesn't (check this ID / do not admit)</label>
-                    <div style="display:flex; gap:8px; align-items:center;"><input type="text" id="idsPhraseAlert" class="input-field" maxlength="40" style="margin:6px 0 10px;" data-1p-ignore><button class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="idsTestSound('alert')">▶ Test</button></div>
-                    <button class="btn btn-sm" onclick="idsSavePhrases()">Save</button>
-                    <span id="idsPhraseStatus" style="font-size:0.78rem; margin-left:10px;"></span>
-                </div>
-
-                <div class="glass-card" style="padding:16px;">
                     <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">Data Retention</h4>
                     <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:10px;">Delete scan records and photos automatically after this many days. 0 keeps them until an admin deletes them. The cleanup runs when an admin opens this tab.</p>
                     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">

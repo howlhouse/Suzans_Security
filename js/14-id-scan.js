@@ -228,8 +228,6 @@
             document.getElementById('idsRegEvent').innerHTML = '<option value="">All events</option>' + idsEventOptions(document.getElementById('idsRegEvent').value, false, true);
             document.getElementById('idsRetention').value = idsGlobal.retentionDays || 0;
             document.getElementById('idsFullHours').value = idsGlobal.fullDataHours || 0;
-            document.getElementById('idsPhrasePass').value = idsPhrase('pass');
-            document.getElementById('idsPhraseAlert').value = idsPhrase('alert');
             idsLoadFlags();
             idsFillRulesForm();
             if (!idsPurgedThisSession) { idsPurgedThisSession = true; idsPurgeExpired().catch(err => console.warn('ID scan purge failed:', err.message)); }
@@ -559,19 +557,12 @@
         const idsCam = { stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false, torchWanted: false, torchOk: false };
         const IDS_PAUSE_MS = 2000; // after an external-scanner scan, ignore input for this long so the same ID can't scan twice in a row
 
-        // Sounds, so staff don't have to watch the screen: a pass gets a sparkly rising jingle + a cheerful phrase, anything else
-        // (check this ID / do not admit) gets a "wah-wah" + a sassy one. The phrases are spoken by the device's own voice
-        // (no audio files) and an admin can change them in ID Scan > Scanner Sounds. Works in both camera and external scanner mode.
-        const IDS_DEFAULT_PHRASES = { pass: 'Yas, queen!', alert: 'Hold up, honey!' };
+        // Sounds, so staff don't have to watch the screen: a bell "ding" for a pass, a low "buzz" for anything else
+        // (check this ID / do not admit). Same in camera and external scanner mode; each device can mute itself.
         let idsSound = true, idsAudio = null;
         try { idsSound = localStorage.getItem('ss_idsSound') !== '0'; } catch (err) { /* storage blocked: sound stays on */ }
-        function idsPhrase(kind) {
-            const v = idsGlobal[kind === 'pass' ? 'passPhrase' : 'alertPhrase'];
-            return typeof v === 'string' ? v : IDS_DEFAULT_PHRASES[kind]; // a saved blank means "jingle only"
-        }
-        function idsPrimeAudio() { // must run from a tap, or phones keep the audio (and speech) muted
+        function idsPrimeAudio() { // must run from a tap, or phones keep the audio muted
             try { idsAudio = idsAudio || new (window.AudioContext || window.webkitAudioContext)(); if (idsAudio.state === 'suspended') idsAudio.resume(); } catch (err) { /* no audio: fine */ }
-            try { if ('speechSynthesis' in window) { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } } catch (err) { /* no speech: fine */ }
         }
         function idsSoundRender() { const b = document.getElementById('idsSoundBtn'); if (b) { b.textContent = idsSound ? '🔊' : '🔇'; b.title = idsSound ? 'Sound on' : 'Sound off'; } }
         function idsToggleSound() {
@@ -580,48 +571,21 @@
             idsSoundRender(); idsPrimeAudio();
             if (idsSound) idsBeep('pass');
         }
-        function idsSpeak(text, pitch, rate) {
+        // kind: 'pass' = ding; anything else = buzz.
+        function idsBeep(kind) {
+            if (!idsSound || !idsAudio) return;
             try {
-                if (!text || !('speechSynthesis' in window)) return;
-                speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(text);
-                u.pitch = pitch; u.rate = rate; u.volume = 1; u.lang = 'en-US';
-                const v = speechSynthesis.getVoices().filter(x => /^en[-_]US/i.test(x.lang));
-                u.voice = v.find(x => /samantha|aria|jenny|zira|google us english|female/i.test(x.name)) || v[0] || null;
-                speechSynthesis.speak(u);
-            } catch (err) { /* no speech: the jingle still played */ }
-        }
-        // kind: 'pass' = pass; anything else = the "not a pass" sound. force = play even if this screen is muted (the admin Test buttons).
-        function idsBeep(kind, force) {
-            if (!idsSound && !force) return;
-            const pass = kind === 'pass';
-            try {
-                if (idsAudio) {
-                    if (idsAudio.state === 'suspended') idsAudio.resume();
-                    const notes = pass ? [[784, 'triangle'], [988, 'triangle'], [1175, 'triangle'], [1568, 'triangle']] : [[466, 'sawtooth'], [349, 'sawtooth']];
-                    const d = pass ? 0.08 : 0.2;
-                    let t = idsAudio.currentTime;
-                    notes.forEach(([f, type]) => {
-                        const o = idsAudio.createOscillator(), g = idsAudio.createGain();
-                        o.type = type; o.frequency.value = f;
-                        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(pass ? 0.22 : 0.16, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-                        o.connect(g); g.connect(idsAudio.destination); o.start(t); o.stop(t + d + 0.02);
-                        t += d + 0.02;
-                    });
-                }
-            } catch (err) { /* no jingle is fine */ }
-            setTimeout(() => idsSpeak(idsPhrase(pass ? 'pass' : 'alert'), pass ? 1.5 : 0.85, pass ? 1.1 : 0.95), pass ? 380 : 480);
-        }
-        function idsTestSound(kind) { idsPrimeAudio(); idsBeep(kind, true); }
-        async function idsSavePhrases() {
-            const a = document.getElementById('idsPhrasePass').value.trim(), b = document.getElementById('idsPhraseAlert').value.trim();
-            const status = document.getElementById('idsPhraseStatus');
-            try {
-                await saveDoc('idscan_config', '_global', Object.assign({}, idsGlobal, { id: '_global', passPhrase: a, alertPhrase: b, updatedAt: Date.now(), updatedBy: currUser()?.name || '' }));
-                idsGlobal.passPhrase = a; idsGlobal.alertPhrase = b;
-                status.style.color = 'var(--neon-saguaro)'; status.textContent = '✅ Saved. Scanners pick it up the next time they open.';
-                logAction('Updated the ID scanner sound phrases');
-            } catch (err) { status.style.color = 'var(--danger-glow)'; status.textContent = '❌ Not saved: ' + err.message; }
+                if (idsAudio.state === 'suspended') idsAudio.resume();
+                const t = idsAudio.currentTime;
+                const tone = (freq, type, gain, dur) => {
+                    const o = idsAudio.createOscillator(), g = idsAudio.createGain();
+                    o.type = type; o.frequency.value = freq;
+                    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+                    o.connect(g); g.connect(idsAudio.destination); o.start(t); o.stop(t + dur + 0.02);
+                };
+                if (kind === 'pass') { tone(1318, 'sine', 0.3, 0.7); tone(2637, 'sine', 0.08, 0.35); } // bell: a note and a quiet overtone that dies away sooner
+                else { tone(140, 'square', 0.18, 0.5); tone(147, 'sawtooth', 0.1, 0.5); }          // buzzer: two close low notes beat against each other
+            } catch (err) { /* no sound is fine */ }
         }
 
         // Keep the screen awake while scanning, so a scanner left running at the door doesn't dim and lock.
