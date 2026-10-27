@@ -88,6 +88,7 @@ Gated behind a PIN, with the following management tabs:
 - **Logs** — chronological activity log (logins, shift claims/drops, registrations, post assignments)
 - **Users** — view all staff accounts, promote/demote admin ("Commander") status, reset passwords, delete accounts
 - **Contacts** — manage promoter/client records (including optional Instagram, website, and venue links), tags, and debrief notes; delete contacts
+- **ID Scan** — per-event ID checking rules, the registry of scanned IDs, and data retention (see [ID Scanning](#id-scanning))
 - **PIN** — change the admin PIN
 
 ### Accounts
@@ -215,7 +216,25 @@ Tap the 🔒 **Admin** icon in the bottom dock and enter the PIN (default `0000`
 - **Chat Mgmt:** Add/remove channels, clear a channel's history, or delete individual messages.
 - **Logs:** Read-only audit trail of login/claim/registration activity.
 - **Users:** Toggle a user between Guard and Commander (admin) status, send a user a password reset email, or delete an account.
+- **ID Scan:** See [ID Scanning](#id-scanning) below.
 - **Contacts:** Add promoters/clients, tag them, and log debrief notes after events. Optionally add Instagram, website, and venue links — these show up for everyone in the Promoter Directory (not on the event detail page itself). Delete contacts that are no longer active.
+
+### ID Scanning
+
+Staff tap the **ID Scan** icon in the bottom dock (or **ID Scanner** in their name menu), pick which event they're scanning for, and only then does the camera start. A **Light** button switches the phone's flashlight on where the browser allows it (Android Chrome does; iPhone Safari generally doesn't). Admins set the rules and read the registry in **Command Center → ID Scan**.
+
+- **Scanning:** the phone camera (reads the PDF417 barcode on the back of a US/Canadian driver license or ID card) or an external USB/Bluetooth scanner that acts like a keyboard. Chrome on Android uses the browser's built-in reader; iPhones and anything else download a WebAssembly reader (zxing-wasm from jsDelivr), so camera scanning needs a connection. An external scanner or pasted barcode text works offline.
+- **Continuous mode (external scanner):** with a USB/Bluetooth scanner the screen scans continuously. Passes and fails log themselves and the result stays on screen until the next scan; nobody has to tap unless an ID needs a decision (**Check this ID** → Admit/Deny, or a required photo). After each scan there is a 2-second pause (`IDS_PAUSE_MS`) during which scanner input is ignored, so one ID can't scan twice; scanning the same ID again after the pause is flagged as already scanned. A status line shows Ready / Pausing / Waiting. Optional photos are skipped in this mode, and the screen is kept awake while scanning.
+- **Colour and sound (camera and external scanner):** the whole scanner gets a thick frame and glow in the result's colour (green pass, orange check, red do-not-admit) and the result card has a solid colour banner. Every scan also plays a sound: a bell "ding" for a pass, a low "buzz" for anything else (a check or a turn-away). Staff can mute their own screen with the 🔊 button.
+- **What "verified" means:** there is no public database of driver licenses (they are protected by the federal Driver's Privacy Protection Act), so every check runs on the device against the barcode data: valid structure, issuing state, expiry, minimum age, a name match against the Ban List, and a repeat-scan check per event. Results are **Pass**, **Check this ID** (orange: a person decides Admit/Deny) or **Do not admit**. Real-time verification with the issuing state needs a paid vendor and a server-side API key; `idsVerifyExternal()` in `js/14-id-scan.js` is the one place to add it.
+- **All barcode data:** each scan card has a **View all barcode data** section listing every field the card carries (ID number, address, physical description, issue/revision dates, REAL ID status and so on) plus the raw barcode text. It is shown on screen only and is never saved.
+- **Per-event rules:** on/off, minimum age, turn away expired IDs, home state (IDs from any other state still pass but get a ⚠️ next to the state on the scan card and in the registry; defaults to AZ, blank turns it off), accepted states (a hard list: anything else is turned away), Ban List action, flag re-scans, flag unusual barcodes, and photo (off / optional / required).
+- **Registry:** first and last name (the middle name is never stored or shown), birth date, state, ID expiry, scan time, who scanned, result, notes from the check, and an optional photo taken at the door. Unless Full Card Data is turned on, the ID number and address are read but **never stored**. Admins can search by last name or birth date, filter by event and result, export CSV, and delete records. Scans made on the DEV site are tagged as tests and hidden by default.
+- **Flag for Ban List review:** any staff member can tap **🚩 Flag for Ban List review** on a scan, add a note, and send it. Nothing goes on the Ban List until an admin approves it in **Command Center → ID Scan → Flagged for Ban List** (add to the Ban List, which copies only the name and a note, or dismiss). Admins can also add someone straight from a registry record.
+- **Full card data (temporary):** an admin can set **Full Card Data** to a number of hours (1-72; 0 = off, the default). While it's on, everything on each scanned ID (ID number, address, the lot) is stored for admins only for that long, shown on the registry record with a countdown, then it's unreadable and deleted. Also set a Firestore TTL policy on the `expireAt` field of the `idscan_full` collection as a backstop. Counsel should approve this before it's turned on.
+- **Retention:** admins choose how many days records and photos are kept (0 = until deleted); older ones are deleted when an admin opens the ID Scan tab.
+- **Access control:** the `idscan_*` collections have their own rules in `firestore.rules` (staff can add records and flags as themselves; only admins can read the registry and full card data, change or delete them). **Publish the updated `firestore.rules` in the Firebase Console before using this** - the rules are not part of the automatic release.
+- **Legal:** some states restrict storing data from scanned licenses, and a registry of who attended LGBTQ+ events is sensitive. Have counsel review before relying on it, and consider a short retention period.
 
 ---
 
@@ -258,6 +277,7 @@ For anyone (human or AI) making changes to this codebase, see the `docs/` folder
 
 ## Version History
 
+- **ID Scanning** — scan driver license / ID barcodes with the camera or an external scanner, check them against per-event rules, and keep an admin-only registry (Command Center → ID Scan). New files: `js/14-id-scan.js`; new rules in `firestore.rules`.
 - **Split the single-file app into `styles.css` + `js/*.js` by feature** — pure reorganization for maintainability, with no change to markup, styling, or logic (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how that was verified).
 - **Login/session hardening** — local sessions are now validated against the live user roster and force-logged-out if the account no longer exists.
 - **Admin event editor rebuilt around drafts** — edits to a shift posting are held locally and only written to the database when **Save Changes** is clicked, eliminating a class of bugs where in-progress edits (especially the date field) were being overwritten by incoming real-time updates.

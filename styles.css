@@ -453,3 +453,11 @@
             html[data-theme="christmas"] .theme-decor::before, html[data-theme="christmas"] .theme-decor::after,
             html[data-theme="thanksgiving"] .theme-decor::after { animation: none; }
         }
+
+        .segment-btn.ids-mode.active-mode { background: var(--neon-teal); color: #08080c; }
+
+        /* The dock can now hold up to seven icons (ID Scan, plus Admin / Dashboard for those users): tighten on phones so it still fits. */
+        @media (max-width: 460px) {
+            .dock-nav { padding: 8px 4px; }
+            .dock-item { flex: 1 1 auto; min-width: 0; padding: 6px 2px; font-size: 0.66rem; white-space: nowrap; }
+        }

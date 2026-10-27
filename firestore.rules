@@ -11,7 +11,9 @@ service cloud.firestore {
     // Everything EXCEPT the collections below is open to any signed-in user,
     // exactly as before.
     match /{col}/{docId=**} {
-      allow read, write: if request.auth != null && col != 'logs' && col != 'presence' && col != 'feedback';
+      allow read, write: if request.auth != null && col != 'logs' && col != 'presence' && col != 'feedback'
+                                  && col != 'idscans' && col != 'idscan_photos' && col != 'idscan_seen' && col != 'idscan_config'
+                                  && col != 'idscan_full' && col != 'idscan_flags';
     }
 
     function isAdmin() {
@@ -50,6 +52,48 @@ service cloud.firestore {
                     && request.resource.data.message.size() <= 2000;
       allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdminOrDev());
       allow update, delete: if request.auth != null && isAdminOrDev();
+    }
+
+    // ID Scan (js/14-id-scan.js). Firestore ORs every matching rule, so these collections are
+    // excluded from the catch-all above - without that, any signed-in staff member could read the registry.
+    //  - idscans / idscan_photos: staff can only ADD records as themselves; only admins can read, edit or delete.
+    //  - idscan_seen: tiny "already scanned for this event" markers (a hash, no personal data) so door staff can
+    //    be warned about a pass-back; any signed-in user may read and add one, only admins can change or delete.
+    //  - idscan_config: the per-event rules and the retention settings; any signed-in user reads (the scanner needs them), only admins write.
+    match /idscans/{id} {
+      allow create: if request.auth != null && request.resource.data.scannedBy.uid == request.auth.uid;
+      allow read, update, delete: if request.auth != null && isAdmin();
+    }
+    match /idscan_photos/{id} {
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.photo.size() <= 400000;
+      allow read, update, delete: if request.auth != null && isAdmin();
+    }
+    match /idscan_seen/{id} {
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null;
+      allow update, delete: if request.auth != null && isAdmin();
+    }
+    //  - idscan_full: everything on the card, kept only while an admin has "full card data" turned on. Staff can add one
+    //    (it must expire within 73 hours); only admins can read it, and only until its expireAt time passes - so it is unreadable
+    //    the moment it expires even if the physical delete lags. Set a Firestore TTL policy on `expireAt` for idscan_full too.
+    //  - idscan_flags: a staff member's "flag for Ban List review" note. Staff can add their own (pending) and read their own;
+    //    only admins can read all, approve, dismiss or delete.
+    match /idscan_full/{id} {
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.expireAt <= request.time + duration.value(73, 'h');
+      allow read: if request.auth != null && isAdmin() && resource.data.expireAt > request.time;
+      allow delete: if request.auth != null && isAdmin();
+    }
+    match /idscan_flags/{id} {
+      allow create: if request.auth != null && request.resource.data.createdBy.uid == request.auth.uid
+                    && request.resource.data.status == 'pending' && request.resource.data.note.size() <= 1000;
+      allow read: if request.auth != null && (isAdmin() || resource.data.createdBy.uid == request.auth.uid);
+      allow update, delete: if request.auth != null && isAdmin();
+    }
+    match /idscan_config/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
     }
   }
 }

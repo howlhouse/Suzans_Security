@@ -231,13 +231,13 @@
                             // disabled "Ineligible" button in place of Claim.
                             const visible = eligible || (u && u.isAdmin);
                             if (!visible) return '';
-                            let btnLabel = onThis ? 'Cancel' : (full ? 'Full' : (eligible ? 'Claim' : 'Ineligible'));
+                            let btnLabel = onThis ? 'Cancel' : (e.archived ? 'Closed' : full ? 'Full' : (eligible ? 'Claim' : 'Ineligible'));
                             return `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
                                 <div>
                                     <strong>${p.name}</strong>
                                     <span style="color:var(--text-muted); font-size:0.82rem; margin-left:8px;">${filled}/${p.slots} filled</span>
                                 </div>
-                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''} ${!eligible && !onThis ? 'btn-outline' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${(full || !eligible) && !onThis ? 'disabled' : ''}>
+                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''} ${!eligible && !onThis ? 'btn-outline' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${(full || !eligible || e.archived) && !onThis ? 'disabled' : ''}>
                                     ${btnLabel}
                                 </button>
                             </div>`;
@@ -249,6 +249,7 @@
 
             document.getElementById('eventDetailContent').innerHTML = `
                 <div class="glass-card">
+                    ${e.archived ? `<div class="community-banner" style="border-radius:16px 16px 0 0;">${e.cancelled ? '🚫 This shift was cancelled' : '📦 This shift has ended'} — signups are closed</div>` : ''}
                     ${e.communityOnly ? `<div class="community-banner" style="border-radius:16px 16px 0 0;">📋 Community Listing Only — Not a Contracted Event</div>` : ''}
                     <div class="event-img-wrap event-detail-img-wrap">
                         <img src="${e.image}" class="event-img event-detail-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
@@ -311,8 +312,8 @@
                         <div style="margin: 20px 0;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                                 <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px;">Signed-Up Team (${eventOpenSlots(e)} Slots Open)</h4>
-                                ${!hasPositions ? `<button class="btn btn-sm ${isSignedUp ? 'btn-magenta' : ''}" onclick="toggleSignUp('${e.id}')" ${eventOpenSlots(e) === 0 && !isSignedUp ? 'disabled' : ''}>
-                                    ${isSignedUp ? 'Cancel Shift' : (eventOpenSlots(e) === 0 ? 'Full' : 'Claim Shift')}
+                                ${!hasPositions ? `<button class="btn btn-sm ${isSignedUp ? 'btn-magenta' : ''}" onclick="toggleSignUp('${e.id}')" ${(eventOpenSlots(e) === 0 || e.archived) && !isSignedUp ? 'disabled' : ''}>
+                                    ${isSignedUp ? 'Cancel Shift' : (e.archived ? 'Closed' : eventOpenSlots(e) === 0 ? 'Full' : 'Claim Shift')}
                                 </button>` : ''}
                             </div>
                             <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:6px 16px;">

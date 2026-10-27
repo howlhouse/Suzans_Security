@@ -23,6 +23,7 @@ Every function listed below is a plain global, callable from any other file.
 | 10 | `10-admin-ops.js` | The rest of Command Center: Chat Management (channels/messages), the Tag and Rank/Role catalog managers, the developer Dashboard (DEV site only: Overview front page, feedback triage and the Logs panel - `renderDashboard`, `renderOverviewBody`, `renderFeedbackPanel`), the Logs tab (adoption dashboard, per-staff table, filterable history and CSV export - `loadActivityLogs`, `renderLogs`), and the Users table + add/edit/delete-user modal (including the admin-creates-an-account flow). |
 | 11 | `11-settings-and-calendar.js` | The per-user Settings tab (profile, password, notification prefs, delete-my-account), My Shifts, the Promoter/Contact directory and its admin editor, and "Add to Calendar" (.ics / Google Calendar link generation). |
 | 12 | `12-banlist-chat-misc.js` | The Ban List (open to all signed-in users), Team Chat (`renderChat`, `sendChat`, channel switching, file attachments), the About modal pages, the first-open Welcome popup, the first-run guided tour (`startTour`, `endTour`, step list in `buildTourSteps`; done flag `tutorialDone` on the user profile; replay button in the info popup), the feedback form opened from the info popup (`openFeedback`, `submitFeedback`, saved to the `feedback` collection), the open-shifts popup (team-wide on/off + daily/weekly/monthly schedule from the `settings/openShifts` doc, edited at the top of Command Center > Users), the generic `closeModal()` helper, and the admin PIN-change form. |
+| 14 | `14-id-scan.js` | ID Scan: the AAMVA barcode parser (`idsParseAamva`), the pass/review/fail rules (`idsEvaluate`), the admin ID Scan tab (per-event rules in `idscan_config`, the registry of `idscans` + `idscan_photos`, CSV export, retention purge), and the scanner modal (camera via the built-in `BarcodeDetector` or a lazy-loaded zxing-wasm reader, or an external keyboard-style scanner). Has no top-level statements beyond constants. Loaded just before `13-init.js` so init stays last. The `idscan_*` collections (config, scans, photos, seen markers, temporary full card data, and Ban List flags) are excluded from the catch-all in `firestore.rules` and have their own admin-only rules. |
 | 13 | `13-init.js` | **Loads dead last, deliberately.** Registers the 20-second hard-failsafe `setTimeout` and the `auth.onAuthStateChanged(...)` handshake that actually starts the app (loads the signed-in user's profile and calls `initialLoad()`, or shows the sign-in modal). This is intentionally the *only* thing in this file - see [Load order rules](#load-order-rules) for why it has to load after everything else. |
 
 ## Load order rules
@@ -43,7 +44,7 @@ top-level statement in the app, and why each one is safe:
 ### Why `auth.onAuthStateChanged` gets special treatment
 
 A real click event, or a plain `setTimeout`, cannot fire until well after the
-whole page (all 14 files) has finished loading - there's no way for the
+whole page (all 15 files) has finished loading - there's no way for the
 browser to generate a click before the user acts, or to fire a 20-second
 timer 0ms after it's registered.
 
