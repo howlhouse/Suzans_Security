@@ -228,6 +228,8 @@
             document.getElementById('idsRegEvent').innerHTML = '<option value="">All events</option>' + idsEventOptions(document.getElementById('idsRegEvent').value, false, true);
             document.getElementById('idsRetention').value = idsGlobal.retentionDays || 0;
             document.getElementById('idsFullHours').value = idsGlobal.fullDataHours || 0;
+            document.getElementById('idsPhrasePass').value = idsPhrase('pass');
+            document.getElementById('idsPhraseAlert').value = idsPhrase('alert');
             idsLoadFlags();
             idsFillRulesForm();
             if (!idsPurgedThisSession) { idsPurgedThisSession = true; idsPurgeExpired().catch(err => console.warn('ID scan purge failed:', err.message)); }
@@ -555,6 +557,82 @@
         // ---- Scanner (camera or external scanner) -----------------------------------------
         let idsS = { eventId: '', mode: 'camera', pending: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
         const idsCam = { stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false, torchWanted: false, torchOk: false };
+        const IDS_PAUSE_MS = 2000; // after an external-scanner scan, ignore input for this long so the same ID can't scan twice in a row
+
+        // Sounds, so staff don't have to watch the screen: a pass gets a sparkly rising jingle + a cheerful phrase, anything else
+        // (check this ID / do not admit) gets a "wah-wah" + a sassy one. The phrases are spoken by the device's own voice
+        // (no audio files) and an admin can change them in ID Scan > Scanner Sounds. Works in both camera and external scanner mode.
+        const IDS_DEFAULT_PHRASES = { pass: 'Yas, queen!', alert: 'Hold up, honey!' };
+        let idsSound = true, idsAudio = null;
+        try { idsSound = localStorage.getItem('ss_idsSound') !== '0'; } catch (err) { /* storage blocked: sound stays on */ }
+        function idsPhrase(kind) {
+            const v = idsGlobal[kind === 'pass' ? 'passPhrase' : 'alertPhrase'];
+            return typeof v === 'string' ? v : IDS_DEFAULT_PHRASES[kind]; // a saved blank means "jingle only"
+        }
+        function idsPrimeAudio() { // must run from a tap, or phones keep the audio (and speech) muted
+            try { idsAudio = idsAudio || new (window.AudioContext || window.webkitAudioContext)(); if (idsAudio.state === 'suspended') idsAudio.resume(); } catch (err) { /* no audio: fine */ }
+            try { if ('speechSynthesis' in window) { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } } catch (err) { /* no speech: fine */ }
+        }
+        function idsSoundRender() { const b = document.getElementById('idsSoundBtn'); if (b) { b.textContent = idsSound ? '🔊' : '🔇'; b.title = idsSound ? 'Sound on' : 'Sound off'; } }
+        function idsToggleSound() {
+            idsSound = !idsSound;
+            try { localStorage.setItem('ss_idsSound', idsSound ? '1' : '0'); } catch (err) { /* ignore */ }
+            idsSoundRender(); idsPrimeAudio();
+            if (idsSound) idsBeep('pass');
+        }
+        function idsSpeak(text, pitch, rate) {
+            try {
+                if (!text || !('speechSynthesis' in window)) return;
+                speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(text);
+                u.pitch = pitch; u.rate = rate; u.volume = 1; u.lang = 'en-US';
+                const v = speechSynthesis.getVoices().filter(x => /^en[-_]US/i.test(x.lang));
+                u.voice = v.find(x => /samantha|aria|jenny|zira|google us english|female/i.test(x.name)) || v[0] || null;
+                speechSynthesis.speak(u);
+            } catch (err) { /* no speech: the jingle still played */ }
+        }
+        // kind: 'pass' = pass; anything else = the "not a pass" sound. force = play even if this screen is muted (the admin Test buttons).
+        function idsBeep(kind, force) {
+            if (!idsSound && !force) return;
+            const pass = kind === 'pass';
+            try {
+                if (idsAudio) {
+                    if (idsAudio.state === 'suspended') idsAudio.resume();
+                    const notes = pass ? [[784, 'triangle'], [988, 'triangle'], [1175, 'triangle'], [1568, 'triangle']] : [[466, 'sawtooth'], [349, 'sawtooth']];
+                    const d = pass ? 0.08 : 0.2;
+                    let t = idsAudio.currentTime;
+                    notes.forEach(([f, type]) => {
+                        const o = idsAudio.createOscillator(), g = idsAudio.createGain();
+                        o.type = type; o.frequency.value = f;
+                        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(pass ? 0.22 : 0.16, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+                        o.connect(g); g.connect(idsAudio.destination); o.start(t); o.stop(t + d + 0.02);
+                        t += d + 0.02;
+                    });
+                }
+            } catch (err) { /* no jingle is fine */ }
+            setTimeout(() => idsSpeak(idsPhrase(pass ? 'pass' : 'alert'), pass ? 1.5 : 0.85, pass ? 1.1 : 0.95), pass ? 380 : 480);
+        }
+        function idsTestSound(kind) { idsPrimeAudio(); idsBeep(kind, true); }
+        async function idsSavePhrases() {
+            const a = document.getElementById('idsPhrasePass').value.trim(), b = document.getElementById('idsPhraseAlert').value.trim();
+            const status = document.getElementById('idsPhraseStatus');
+            try {
+                await saveDoc('idscan_config', '_global', Object.assign({}, idsGlobal, { id: '_global', passPhrase: a, alertPhrase: b, updatedAt: Date.now(), updatedBy: currUser()?.name || '' }));
+                idsGlobal.passPhrase = a; idsGlobal.alertPhrase = b;
+                status.style.color = 'var(--neon-saguaro)'; status.textContent = '✅ Saved. Scanners pick it up the next time they open.';
+                logAction('Updated the ID scanner sound phrases');
+            } catch (err) { status.style.color = 'var(--danger-glow)'; status.textContent = '❌ Not saved: ' + err.message; }
+        }
+
+        // Keep the screen awake while scanning, so a scanner left running at the door doesn't dim and lock.
+        let idsWake = null;
+        async function idsWakeOn() {
+            try { if ('wakeLock' in navigator && !idsWake) { idsWake = await navigator.wakeLock.request('screen'); idsWake.addEventListener('release', () => { idsWake = null; }); } } catch (err) { /* not available: fine */ }
+        }
+        function idsWakeOff() { try { if (idsWake) idsWake.release(); } catch (err) { /* ignore */ } idsWake = null; }
+        document.addEventListener('visibilitychange', () => { // the lock is dropped when the page is hidden; take it back when it returns
+            if (document.visibilityState === 'visible' && document.getElementById('idsScanBody') && document.getElementById('idsScanBody').style.display === 'block') idsWakeOn();
+        });
 
         async function openIdScanner() {
             document.getElementById('idsScanModal').style.display = 'flex';
@@ -583,7 +661,7 @@
         }
         // Step 1: choose the event. The camera does not start until one is picked.
         function idsShowPicker() {
-            idsCamStop();
+            idsCamStop(); idsWakeOff();
             clearTimeout(idsS.wedgeTimer);
             document.getElementById('idsScanBody').style.display = 'none';
             const today = idsToday(), t = new Date(); t.setDate(t.getDate() + 1);
@@ -605,6 +683,8 @@
             document.getElementById('idsPick').style.display = 'none';
             document.getElementById('idsScanBody').style.display = 'block';
             document.getElementById('idsScanEventName').textContent = ev ? ev.title + (ev.date ? ' · ' + ev.date : '') : eventId;
+            idsPrimeAudio(); idsWakeOn();
+            idsSoundRender();
             idsSetMode(idsS.mode);
             idsRenderResult();
             idsRenderStats();
@@ -615,7 +695,7 @@
         }
         async function closeIdScanner() {
             if (idsS.pending && !idsFinish()) { if (!confirm('Close without logging the scan on screen?')) return; idsS.pending = null; }
-            idsCamStop();
+            idsCamStop(); idsWakeOff();
             idsCam.torchWanted = false;
             clearTimeout(idsS.wedgeTimer);
             document.getElementById('idsScanModal').style.display = 'none';
@@ -630,6 +710,7 @@
             idsS.photoLive = false;
             if (mode === 'camera') idsCamStart(true).catch(err => idsCamError(err));
             else { const w = document.getElementById('idsWedge'); w.value = ''; setTimeout(() => w.focus(), 50); }
+            idsWedgeStatus();
         }
         function idsCamError(err) {
             const hint = document.getElementById('idsCamHint');
@@ -743,6 +824,10 @@
                 const w = document.getElementById('idsWedge'), text = w.value;
                 if (text.length < 30) { if (text.length) w.value = ''; return; } // too short to be an ID barcode: keystrokes, not a scan
                 w.value = '';
+                if (Date.now() < (idsS.pauseUntil || 0)) { idsToast('Too soon after the last scan - scan again in a moment.'); return; } // the pause that stops one ID scanning twice
+                idsS.pauseUntil = Date.now() + IDS_PAUSE_MS;
+                setTimeout(idsWedgeStatus, IDS_PAUSE_MS + 50);
+                idsWedgeStatus();
                 idsHandleScan(text, 'scanner');
             }, 400);
         }
@@ -755,11 +840,11 @@
             try { await idsHandleScanInner(text, method); } finally { idsS.busy = false; }
         }
         async function idsHandleScanInner(text, method) {
-            if (idsS.pending) { if (!idsFinish()) { idsToast('Finish the scan on screen first.'); if (method === 'camera') idsCam.paused = false; return; } }
+            if (idsS.pending) { if (!idsFinish()) { idsToast('Finish the scan on screen first.'); idsBeep('alert'); if (method === 'camera') idsCam.paused = false; return; } }
             const cfg = idsCfgFor(idsS.eventId), ev = getDB('events').find(e => e.id === idsS.eventId);
             idsS.last = null; idsS.flagOpen = false; idsS.flagNote = '';
             const parsed = idsParseAamva(text);
-            if (!parsed) { idsShowError('That barcode isn\'t a driver license or ID card barcode. Scan the back of a US or Canadian license / ID.'); return; }
+            if (!parsed) { idsBeep('alert'); idsShowError('That barcode isn\'t a driver license or ID card barcode. Scan the back of a US or Canadian license / ID.'); return; }
             const verdict = idsEvaluate(parsed, cfg, getDB('banlist').map(b => b.name));
             try { (await idsVerifyExternal(parsed, cfg)).forEach(r => verdict.reasons.push(r)); } catch (err) { verdict.reasons.push({ level: 'review', text: 'Outside verification unavailable: ' + err.message }); }
             let dupKey = '', prior = null;
@@ -770,30 +855,52 @@
                 if (prior) verdict.reasons.push({ level: 'review', text: 'Already scanned for this event at ' + new Date(prior.at).toLocaleTimeString() + ' (' + prior.result + ')' });
             }
             const result = idsResultOf(verdict.reasons);
-            idsS.pending = { parsed, raw: text, recId: 's' + Date.now() + Math.random().toString(36).slice(2, 6), result, reasons: verdict.reasons.map(r => r.text), age: verdict.age, outOfState: verdict.outOfState, method, dupKey, hadPrior: !!prior, photo: '', decision: result === 'pass' ? 'admitted' : result === 'fail' ? 'denied' : '', eventId: idsS.eventId, eventTitle: ev ? ev.title : '', eventDate: ev ? ev.date : '', photoMode: cfg.photo };
+            idsS.pending = { parsed, raw: text, recId: 's' + Date.now() + Math.random().toString(36).slice(2, 6), result, reasons: verdict.reasons.map(r => r.text), age: verdict.age, outOfState: verdict.outOfState, method, dupKey, hadPrior: !!prior, photo: '', decision: result === 'pass' ? 'admitted' : result === 'fail' ? 'denied' : '', eventId: idsS.eventId, eventTitle: ev ? ev.title : '', eventDate: ev ? ev.date : '', photoMode: cfg.photo === 'optional' && idsS.mode === 'wedge' ? 'off' : cfg.photo }; // with an external scanner an optional photo is skipped so the line keeps moving
             idsRenderResult();
-            if (cfg.photo === 'off') idsFinish(); // nothing more to collect, so log it now (unless it needs a decision)
+            idsBeep(result);
+            if (idsS.pending.photoMode === 'off') idsFinish(); // nothing more to collect, so log it now (unless it needs a decision)
             logEvent('id_scan', 'Scanned an ID at ' + (ev ? ev.title : idsS.eventId) + ' (' + result + ')');
         }
         function idsShowError(msg) {
             idsS.pending = null; idsS.last = null;
+            idsSetFrame('review');
             const box = document.getElementById('idsResult');
-            box.innerHTML = `<div style="border:2px solid #ffb020; border-radius:16px; padding:16px; text-align:center;"><div style="font-size:1.6rem;">⚠️</div><p style="font-size:0.9rem; margin:8px 0 12px;">${escapeHtml(msg)}</p><button class="btn btn-sm" onclick="idsClearResult()">Try again</button></div>`;
+            box.innerHTML = `<div style="border:2px solid #ff8a3d; border-radius:16px; padding:16px; text-align:center;"><div style="font-size:1.6rem;">⚠️</div><p style="font-size:0.9rem; margin:8px 0 12px;">${escapeHtml(msg)}</p><button class="btn btn-sm" onclick="idsClearResult()">Try again</button></div>`;
         }
         function idsClearResult() { idsS.pending = null; idsS.last = null; idsS.flagOpen = false; idsS.flagNote = ''; idsCam.paused = false; idsRenderResult(); if (idsS.mode === 'wedge') document.getElementById('idsWedge').focus(); }
         function idsCanFinish() {
             const p = idsS.pending;
             return !!p && (p.result !== 'review' || !!p.decision) && (p.photoMode !== 'required' || !!p.photo);
         }
+        // One line saying what the external scanner is doing: ready, pausing, or waiting for a person.
+        function idsWedgeStatus() {
+            const el = document.getElementById('idsWedgeStatus');
+            if (!el || idsS.mode !== 'wedge') return;
+            const p = idsS.pending;
+            let t = '● Ready - scan the next ID', c = 'var(--neon-saguaro)';
+            if (p && !idsCanFinish()) { t = p.result === 'review' && !p.decision ? '⏸ Waiting for Admit or Deny' : '⏸ Waiting for the photo'; c = '#ff8a3d'; }
+            else if (Date.now() < (idsS.pauseUntil || 0)) { t = '⏳ Pausing…'; c = '#ffb020'; }
+            el.textContent = t; el.style.color = c;
+        }
+        // The thick frame around the whole scanner (camera or external) takes the colour of the current result.
+        function idsSetFrame(kind) {
+            const f = document.getElementById('idsScanBody');
+            if (!f) return;
+            const col = { pass: 'var(--neon-saguaro)', review: '#ff8a3d', fail: 'var(--danger-glow)' }[kind];
+            f.style.borderColor = col || 'var(--border-glass)';
+            f.style.boxShadow = col ? '0 0 28px 2px color-mix(in srgb, ' + col + ' 45%, transparent)' : 'none';
+        }
         function idsRenderResult() {
+            idsWedgeStatus();
+            idsSetFrame(idsS.pending ? idsS.pending.result : idsS.last ? idsS.last.result : '');
             const box = document.getElementById('idsResult'), p = idsS.pending || idsS.last, logged = !idsS.pending;
             if (!p) { box.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:18px 0;">Ready to scan.</p>'; return; }
             const c = { pass: ['var(--neon-saguaro)', '✅', 'PASS'], review: ['#ff8a3d', '⚠️', 'CHECK THIS ID'], fail: ['var(--danger-glow)', '⛔', 'DO NOT ADMIT'] }[p.result];
             const x = p.parsed;
             const decided = p.decision && p.result === 'review';
             box.innerHTML = `
-                <div style="border:2px solid ${c[0]}; border-radius:16px; padding:16px;">
-                    <div style="text-align:center; font-family:'Outfit'; font-weight:800; font-size:1.3rem; color:${c[0]};">${c[1]} ${c[2]}</div>
+                <div style="border:2px solid ${c[0]}; border-radius:16px; padding:16px; overflow:hidden;">
+                    <div style="margin:-16px -16px 8px; padding:12px 10px; background:${c[0]}; color:${p.result === 'fail' ? '#fff' : '#08080c'}; text-align:center; font-family:'Outfit'; font-weight:800; font-size:1.45rem; letter-spacing:0.5px;">${c[1]} ${c[2]}</div>
                     <div style="text-align:center; margin:10px 0;">
                         <div style="font-family:'Outfit'; font-size:1.2rem; font-weight:700;">${escapeHtml([x.firstName, x.lastName].filter(Boolean).join(' '))}</div>
                         <div style="font-size:0.88rem; color:var(--text-secondary);">Born ${escapeHtml(idsFmtDate(x.dob))}${p.age != null ? ' · age ' + p.age : ''} · ${idsStateHtml(x.state, p.outOfState)}</div>
@@ -818,7 +925,7 @@
                         <button class="btn btn-magenta btn-sm" style="flex:1; ${p.decision === 'denied' ? '' : 'opacity:0.75;'}" onclick="idsDecide('denied')">${p.decision === 'denied' ? '✔ ' : ''}Deny</button></div>` : ''}
                     ${!logged && p.photoMode !== 'off' ? `<div style="margin-bottom:10px;">${p.photo ? `<img src="${p.photo}" alt="" style="width:100%; max-height:200px; object-fit:contain; border-radius:10px; background:#000;">` : ''}
                         <button class="btn btn-outline btn-sm" style="width:100%; margin-top:6px;" onclick="idsPhotoBtn()">${idsS.photoLive ? '📸 Capture now' : p.photo ? '📷 Retake photo' : '📷 Take photo' + (p.photoMode === 'required' ? ' (required)' : ' (optional)')}</button></div>` : ''}
-                    ${logged ? `<button class="btn" style="width:100%;" onclick="idsClearResult()">Scan next ›</button>` : `<button class="btn" style="width:100%;" id="idsNextBtn" ${idsCanFinish() ? '' : 'disabled'} onclick="idsFinish()">${p.result === 'review' && !decided ? 'Choose Admit or Deny' : p.photoMode === 'required' && !p.photo ? 'Take the photo first' : 'Log it & scan next ›'}</button>`}
+                    ${logged ? (idsS.mode === 'wedge' ? '' : `<button class="btn" style="width:100%;" onclick="idsClearResult()">Scan next ›</button>`) : `<button class="btn" style="width:100%;" id="idsNextBtn" ${idsCanFinish() ? '' : 'disabled'} onclick="idsFinish()">${p.result === 'review' && !decided ? 'Choose Admit or Deny' : p.photoMode === 'required' && !p.photo ? 'Take the photo first' : 'Log it & scan next ›'}</button>`}
                 </div>`;
         }
         // Any staff member can flag the person on screen with a note. Nothing goes on the Ban List until an admin approves it.
@@ -837,6 +944,7 @@
                 await withTimeout(db.collection('idscan_flags').doc(id).set(cleanData(flag)), 15000, 'sending the flag');
                 p.flagged = true; idsS.flagOpen = false; idsS.flagNote = '';
                 idsRenderResult();
+                if (idsS.mode === 'wedge') document.getElementById('idsWedge').focus();
                 idsToast('Flag sent to the admins.');
                 logAction('Flagged someone for Ban List review at ' + (p.eventTitle || 'an event'));
             } catch (err) { alert('⚠️ The flag was NOT sent: ' + err.message); }

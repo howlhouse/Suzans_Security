@@ -522,6 +522,17 @@
                 </div>
 
                 <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">🔊 Scanner Sounds</h4>
+                    <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:10px;">Every scan plays a short jingle and says a phrase out loud, in both the camera and external scanner modes: one sound for a pass, one for anything else (a check or a turn-away). Staff can mute it on their own screen. The voice comes from the device, so it sounds a little different on each phone. Leave a phrase blank for just the jingle.</p>
+                    <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">When the ID passes</label>
+                    <div style="display:flex; gap:8px; align-items:center;"><input type="text" id="idsPhrasePass" class="input-field" maxlength="40" style="margin:6px 0 10px;" data-1p-ignore><button class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="idsTestSound('pass')">▶ Test</button></div>
+                    <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">When it doesn't (check this ID / do not admit)</label>
+                    <div style="display:flex; gap:8px; align-items:center;"><input type="text" id="idsPhraseAlert" class="input-field" maxlength="40" style="margin:6px 0 10px;" data-1p-ignore><button class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="idsTestSound('alert')">▶ Test</button></div>
+                    <button class="btn btn-sm" onclick="idsSavePhrases()">Save</button>
+                    <span id="idsPhraseStatus" style="font-size:0.78rem; margin-left:10px;"></span>
+                </div>
+
+                <div class="glass-card" style="padding:16px;">
                     <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">Data Retention</h4>
                     <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:10px;">Delete scan records and photos automatically after this many days. 0 keeps them until an admin deletes them. The cleanup runs when an admin opens this tab.</p>
                     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -1127,10 +1138,13 @@
                 <p style="font-size:0.9rem; font-weight:600; margin-bottom:10px;">Which event are you scanning for?</p>
                 <div id="idsPickList"></div>
             </div>
-            <div id="idsScanBody" style="display:none;">
+            <div id="idsScanBody" style="display:none; border:4px solid var(--border-glass); border-radius:22px; padding:12px; transition:border-color 0.25s, box-shadow 0.25s;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
                     <div style="min-width:0;"><div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Scanning for</div><div id="idsScanEventName" style="font-family:'Outfit'; font-weight:700; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div></div>
-                    <button class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="idsChangeEvent()">Change event</button>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <button id="idsSoundBtn" class="btn btn-outline btn-sm" onclick="idsToggleSound()">🔊</button>
+                        <button class="btn btn-outline btn-sm" onclick="idsChangeEvent()">Change event</button>
+                    </div>
                 </div>
                 <div id="idsModeBtns" class="segmented-control" style="margin-bottom:12px;">
                     <button class="segment-btn ids-mode" data-mode="camera" onclick="idsSetMode('camera')">📷 Camera</button>
@@ -1144,8 +1158,9 @@
                     <p id="idsCamHint" style="font-size:0.75rem; color:var(--text-muted); margin-top:6px;"></p>
                 </div>
                 <div id="idsWedgeWrap" style="display:none; margin-bottom:12px;">
+                    <div id="idsWedgeStatus" style="font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
                     <textarea id="idsWedge" class="input-field" rows="2" style="margin:0; font-size:0.8rem;" inputmode="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Click here, then pull the scanner trigger" oninput="idsWedgeInput()" onblur="idsWedgeRefocus()"></textarea>
-                    <p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Works with USB or Bluetooth scanners that act like a keyboard. Keep this box selected while scanning.</p>
+                    <p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Works with USB or Bluetooth scanners that act like a keyboard. It scans continuously: passes and fails log themselves, with a 2-second pause after each scan so one ID can't scan twice. Tap only when the screen asks you to. Keep this box selected, and leave the screen on.</p>
                 </div>
                 <div id="idsResult"></div>
                 <p id="idsStats" style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-top:12px;"></p>
