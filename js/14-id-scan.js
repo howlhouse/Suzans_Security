@@ -13,10 +13,13 @@
              idscans/{id}             one registry record per scan; admin-read only
              idscan_photos/{id}       the photo for a record, kept apart so list queries stay small
              idscan_seen/{eventId__hash}  "this person was already scanned for this event" marker; no PII
-           The ID number and address on the card are read but never stored. */
+             idscan_full/{scanId}     everything on the card (ID number, address...), kept only for the hours an admin sets (max 72),
+                                      then unreadable (rules) and deleted. Off unless an admin turns it on.
+             idscan_flags/{id}        "flag for Ban List review" notes from staff; admins approve (adds a Ban List entry) or dismiss
+           Without the full-data setting, the ID number and address on the card are read but never stored. */
 
         // ---- Defaults and constants -------------------------------------------------------
-        const IDS_DEFAULT_CFG = { enabled: false, minAge: 21, rejectExpired: true, allowedStates: [], banAction: 'review', flagRescan: true, integrity: true, photo: 'off' };
+        const IDS_DEFAULT_CFG = { enabled: false, minAge: 21, rejectExpired: true, allowedStates: [], homeState: 'AZ', banAction: 'review', flagRescan: true, integrity: true, photo: 'off' };
         // Issuer Identification Numbers from the AAMVA barcode header, used to catch a card whose
         // header says one state but whose data says another. A mismatch only ever asks for a human
         // look ("review"), never an automatic denial.
@@ -32,7 +35,7 @@
         const IDS_ZXING_VERSION = '2.1.0';
         const IDS_ZXING_BASE = 'https://cdn.jsdelivr.net/npm/zxing-wasm@' + IDS_ZXING_VERSION + '/dist/';
         let idsCfgs = {};            // eventId -> config doc
-        let idsGlobal = { retentionDays: 0 };
+        let idsGlobal = { retentionDays: 0, fullDataHours: 0 };
         let idsCfgsLoaded = false;
         let idsPurgedThisSession = false;
 
@@ -51,6 +54,7 @@
             const dt = new Date(y, m - 1, d);
             return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? iso : ''; // rejects Feb 30 etc.
         }
+        const idsMs = v => (v && v.toMillis) ? v.toMillis() : +v || 0; // Firestore Timestamp or plain number -> milliseconds
         function idsToday(now) { const t = now || new Date(); return idsIso(t.getFullYear(), t.getMonth() + 1, t.getDate()); }
         function idsAge(dobIso, now) {
             const [y, m, d] = dobIso.split('-').map(Number), t = now || new Date();
@@ -88,6 +92,7 @@
                 else { const w = el.DAA.split(/\s+/); lastName = w.pop() || ''; first = first || w.shift() || ''; middle = middle || w.join(' '); }
             }
             if (!first && el.DCT) { const w = el.DCT.split(/[\s,]+/); first = w.shift() || ''; middle = middle || w.join(' '); }
+            if (/^(none|nmn|n\/a|na|-)$/i.test(middle.trim())) middle = ''; // cards print NONE when there is no middle name
             const country = (el.DCG || 'USA').toUpperCase();
             const dob = idsParseDate(el.DBB, country);
             if (!lastName && !first && !dob) return null; // nothing usable: not an ID barcode
@@ -96,11 +101,50 @@
                 dob, expiry: idsParseDate(el.DBA, country), issued: idsParseDate(el.DBD, country),
                 state: (el.DAJ || '').toUpperCase().slice(0, 2), country,
                 iin: hdr ? hdr[1] : '', aamvaVersion: hdr ? hdr[2] : '', hasIdNumber: !!el.DAQ, hasHeader: !!hdr,
-                rawDobPresent: !!el.DBB, rawExpiryPresent: !!el.DBA
+                rawDobPresent: !!el.DBB, rawExpiryPresent: !!el.DBA,
+                fields: el // every element on the card, for the on-screen "all barcode data" view; never saved
             };
         }
 
-        // Decides pass / review / fail. `banNames` is the Ban List names; `now` is injectable for testing.
+        // Names for the data elements in an AAMVA barcode. Anything not listed is shown under its raw code.
+        const IDS_FIELD_LABELS = {
+            DCS: 'Last name', DAC: 'First name', DAD: 'Middle name', DCT: 'Given names', DCU: 'Name suffix', DAA: 'Full name',
+            DBB: 'Birth date', DBA: 'Expiry date', DBD: 'Issue date', DBC: 'Sex', DAY: 'Eye color', DAZ: 'Hair color', DAU: 'Height', DAW: 'Weight (lb)', DAX: 'Weight (kg)',
+            DAQ: 'ID number', DCF: 'Document discriminator', DCK: 'Inventory control number', DCA: 'License class', DCB: 'Restrictions', DCD: 'Endorsements',
+            DAG: 'Street address', DAH: 'Street address 2', DAI: 'City', DAJ: 'State', DAK: 'ZIP / postal code', DCG: 'Country',
+            DDA: 'Compliance type', DDB: 'Card revision date', DDC: 'Hazmat expiry', DDD: 'Limited duration', DDE: 'Last name truncated', DDF: 'First name truncated', DDG: 'Middle name truncated',
+            DDH: 'Under 18 until', DDI: 'Under 19 until', DDJ: 'Under 21 until', DDK: 'Organ donor', DDL: 'Veteran', DCI: 'Place of birth', DCJ: 'Audit information', DCL: 'Race / ethnicity', DCM: 'Vehicle class', DCN: 'Vehicle codes'
+        };
+        const IDS_DATE_FIELDS = ['DBB', 'DBA', 'DBD', 'DDB', 'DDC', 'DDH', 'DDI', 'DDJ'];
+        const IDS_FIELD_ORDER = ['DCS', 'DAC', 'DAD', 'DCT', 'DCU', 'DAA', 'DBB', 'DBC', 'DAY', 'DAZ', 'DAU', 'DAW', 'DAX', 'DAG', 'DAH', 'DAI', 'DAJ', 'DAK', 'DCG', 'DAQ', 'DCF', 'DCK', 'DCA', 'DCB', 'DCD', 'DBD', 'DBA', 'DDB'];
+        function idsFieldValue(code, v, country) {
+            if (IDS_DATE_FIELDS.includes(code)) { const iso = idsParseDate(v, country); return iso ? idsFmtDate(iso) : v; }
+            if (code === 'DBC') return { '1': 'Male', '2': 'Female', '9': 'Not specified' }[v] || v;
+            if (code === 'DDA') return v === 'F' ? 'F - REAL ID compliant' : v === 'N' ? 'N - not REAL ID compliant' : v;
+            if (code === 'DDK' || code === 'DDL') return v === '1' ? 'Yes' : v;
+            return v;
+        }
+        // Rows of [label, value] for everything the barcode carried, known fields first in a sensible order, then the rest.
+        function idsFieldRows(p) {
+            const f = p.fields || {}, rows = [];
+            rows.push(['Barcode issuer (IIN)', p.iin ? p.iin + (IDS_IIN_STATE[p.iin] ? ' (' + IDS_IIN_STATE[p.iin] + ')' : '') : 'no header found']);
+            if (p.aamvaVersion) rows.push(['AAMVA version', p.aamvaVersion]);
+            const codes = IDS_FIELD_ORDER.filter(c => c in f).concat(Object.keys(f).filter(c => !IDS_FIELD_ORDER.includes(c)).sort());
+            codes.forEach(c => rows.push([(IDS_FIELD_LABELS[c] || 'Field') + ' (' + c + ')', idsFieldValue(c, f[c], p.country) || '(empty)']));
+            return rows;
+        }
+        // Raw text with the invisible separator characters made visible.
+        function idsShowRaw(raw) { return String(raw || '').replace(/\x1e/g, '␞').replace(/\r/g, '␍').replace(/\n/g, '␊\n'); }
+
+        // fail = turn away, review = a person decides, pass = nothing found.
+        function idsResultOf(reasons) {
+            return reasons.some(r => r.level === 'fail') ? 'fail' : reasons.some(r => r.level === 'review') ? 'review' : 'pass';
+        }
+        // The state with a ⚠️ in front when the ID is from outside the event's home state. The result is unaffected: it is still a pass.
+        function idsStateHtml(state, outOfState) {
+            return (outOfState ? '<span title="Out of state" aria-label="Out of state">⚠️</span> ' : '') + escapeHtml(state || '?');
+        }
+        // Decides pass / review / fail (plus whether the ID is out of state). `banNames` is the Ban List names; `now` is injectable for testing.
         // fail = hard rule broken (turn away); review = a human should look; pass = nothing found.
         function idsEvaluate(p, cfg, banNames, now) {
             const c = Object.assign({}, IDS_DEFAULT_CFG, cfg || {});
@@ -127,12 +171,13 @@
                 if (iinState && p.state && iinState !== p.state) add('review', 'Barcode header says ' + iinState + ' but the card data says ' + p.state);
             }
             if (c.banAction !== 'off' && banNames && banNames.length) {
-                const mine = new Set(idsNormName([p.firstName, p.middleName, p.lastName].join(' ')).split(' ').filter(Boolean));
+                const mine = new Set(idsNormName([p.firstName, p.middleName, p.lastName].join(' ')).split(' ').filter(Boolean)); // the middle name is only used here, to match longer Ban List names
                 const hit = banNames.find(n => { const t = idsNormName(n).split(' ').filter(Boolean); return t.length >= 2 && t.every(w => mine.has(w)); });
                 if (hit) add(c.banAction === 'deny' ? 'fail' : 'review', 'Name matches the Ban List entry "' + hit + '" - names alone are not proof, check the person against the entry');
             }
-            const result = reasons.some(r => r.level === 'fail') ? 'fail' : reasons.length ? 'review' : 'pass';
-            return { result, reasons, age };
+            const home = String(c.homeState || '').toUpperCase();
+            const outOfState = !!(home && p.state && p.state !== home);
+            return { result: idsResultOf(reasons), reasons, age, outOfState };
         }
 
         // The single place to add a real-time check with the issuing state or a verification vendor.
@@ -157,7 +202,7 @@
             if (idsCfgsLoaded && !force) return;
             const snap = await db.collection('idscan_config').get();
             idsCfgs = {};
-            snap.docs.forEach(d => { const v = d.data(); if (d.id === '_global') idsGlobal = Object.assign({ retentionDays: 0 }, v); else idsCfgs[d.id] = v; });
+            snap.docs.forEach(d => { const v = d.data(); if (d.id === '_global') idsGlobal = Object.assign({ retentionDays: 0, fullDataHours: 0 }, v); else idsCfgs[d.id] = v; });
             idsCfgsLoaded = true;
         }
         function idsCfgFor(eventId) { return Object.assign({}, IDS_DEFAULT_CFG, idsCfgs[eventId] || {}); }
@@ -182,6 +227,8 @@
             if (keep && [...evSel.options].some(o => o.value === keep)) evSel.value = keep;
             document.getElementById('idsRegEvent').innerHTML = '<option value="">All events</option>' + idsEventOptions(document.getElementById('idsRegEvent').value, false, true);
             document.getElementById('idsRetention').value = idsGlobal.retentionDays || 0;
+            document.getElementById('idsFullHours').value = idsGlobal.fullDataHours || 0;
+            idsLoadFlags();
             idsFillRulesForm();
             if (!idsPurgedThisSession) { idsPurgedThisSession = true; idsPurgeExpired().catch(err => console.warn('ID scan purge failed:', err.message)); }
         }
@@ -195,6 +242,7 @@
             document.getElementById('idsMinAge').value = c.minAge;
             document.getElementById('idsRejectExpired').checked = !!c.rejectExpired;
             document.getElementById('idsStates').value = (c.allowedStates || []).join(', ');
+            document.getElementById('idsHome').value = c.homeState || '';
             document.getElementById('idsBanAction').value = c.banAction;
             document.getElementById('idsRescan').checked = !!c.flagRescan;
             document.getElementById('idsIntegrity').checked = !!c.integrity;
@@ -213,9 +261,11 @@
             if (isNaN(minAge) || minAge < 0 || minAge > 99) { status.style.color = 'var(--danger-glow)'; status.textContent = 'Minimum age must be between 0 and 99 (0 turns the age check off).'; return; }
             const states = document.getElementById('idsStates').value.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
             if (states.some(s => !/^[A-Z]{2}$/.test(s))) { status.style.color = 'var(--danger-glow)'; status.textContent = 'Use two-letter state codes separated by commas, like AZ, CA, NV.'; return; }
+            const homeState = document.getElementById('idsHome').value.trim().toUpperCase();
+            if (homeState && !/^[A-Z]{2}$/.test(homeState)) { status.style.color = 'var(--danger-glow)'; status.textContent = 'Home state must be a two-letter code like AZ (or blank to turn the flag off).'; return; }
             const cfg = {
                 id: eventId, eventId, enabled: document.getElementById('idsEnabled').checked, minAge,
-                rejectExpired: document.getElementById('idsRejectExpired').checked, allowedStates: states,
+                rejectExpired: document.getElementById('idsRejectExpired').checked, allowedStates: states, homeState,
                 banAction: document.getElementById('idsBanAction').value, flagRescan: document.getElementById('idsRescan').checked,
                 integrity: document.getElementById('idsIntegrity').checked, photo: document.getElementById('idsPhoto').value,
                 updatedAt: Date.now(), updatedBy: currUser()?.name || ''
@@ -235,11 +285,23 @@
             if (isNaN(n) || n < 0 || n > 3650) { status.style.color = 'var(--danger-glow)'; status.textContent = 'Enter a number of days from 0 to 3650.'; return; }
             if (n > 0 && !confirm('Records older than ' + n + ' days (and their photos) will be permanently deleted the next time an admin opens this tab. Continue?')) return;
             try {
-                await saveDoc('idscan_config', '_global', { id: '_global', retentionDays: n, updatedAt: Date.now(), updatedBy: currUser()?.name || '' });
+                await saveDoc('idscan_config', '_global', Object.assign({}, idsGlobal, { id: '_global', retentionDays: n, updatedAt: Date.now(), updatedBy: currUser()?.name || '' }));
                 idsGlobal.retentionDays = n;
                 status.style.color = 'var(--neon-saguaro)'; status.textContent = n ? '✅ Saved. Older records are deleted when an admin opens this tab.' : '✅ Saved. Records are kept until an admin deletes them.';
                 logAction('Set ID scan retention to ' + (n || 'keep until deleted') + (n ? ' days' : ''));
                 if (n > 0) idsPurgeExpired(true).then(c => { if (c) status.textContent += ' Deleted ' + c + ' old record' + (c === 1 ? '' : 's') + ' now.'; }).catch(() => {});
+            } catch (err) { status.style.color = 'var(--danger-glow)'; status.textContent = '❌ Not saved: ' + err.message; }
+        }
+        async function idsSaveFullHours() {
+            const n = parseInt(document.getElementById('idsFullHours').value, 10);
+            const status = document.getElementById('idsFullStatus');
+            if (isNaN(n) || n < 0 || n > 72) { status.style.color = 'var(--danger-glow)'; status.textContent = 'Enter a number of hours from 0 to 72.'; return; }
+            if (n > 0 && !confirm('From now on, EVERYTHING on each scanned ID (including the ID number and home address) will be stored for ' + n + ' hours, readable only by admins, then deleted. Some states restrict this. Continue?')) return;
+            try {
+                await saveDoc('idscan_config', '_global', Object.assign({}, idsGlobal, { id: '_global', fullDataHours: n, updatedAt: Date.now(), updatedBy: currUser()?.name || '' }));
+                idsGlobal.fullDataHours = n;
+                status.style.color = 'var(--neon-saguaro)'; status.textContent = n ? '✅ Saved. New scans keep the full card data for ' + n + ' hours.' : '✅ Saved. The full card data is not kept.';
+                logAction('Set ID scan full-card-data storage to ' + (n ? n + ' hours' : 'off'));
             } catch (err) { status.style.color = 'var(--danger-glow)'; status.textContent = '❌ Not saved: ' + err.message; }
         }
         // Deletes records past the retention window, 150 at a time (a batch holds 500 writes and each record can own 2 more docs).
@@ -256,12 +318,17 @@
                     const r = d.data();
                     batch.delete(d.ref);
                     if (r.hasPhoto) batch.delete(db.collection('idscan_photos').doc(d.id));
+                    if (r.hasFull) batch.delete(db.collection('idscan_full').doc(d.id));
                     if (r.seenId) batch.delete(db.collection('idscan_seen').doc(r.seenId));
                 });
                 await batch.commit();
                 total += snap.size;
                 if (snap.size < 150) break;
             }
+            // Flags that an admin already resolved go on the same schedule; pending ones stay until someone decides.
+            const oldFlags = await db.collection('idscan_flags').where('createdAt', '<', cutoff).limit(150).get();
+            const resolved = oldFlags.docs.filter(d => d.data().status !== 'pending');
+            if (resolved.length) { const b = db.batch(); resolved.forEach(d => b.delete(d.ref)); await b.commit(); }
             if (total) logAction('ID scan retention removed ' + total + ' record' + (total === 1 ? '' : 's') + ' older than ' + days + ' days');
             return total;
         }
@@ -284,9 +351,21 @@
                 else query = query.orderBy('scannedAt', 'desc').limit(300);
                 const snap = await query.get();
                 idsRegRows = snap.docs.map(d => d.data()).sort((a, b) => b.scannedAt - a.scannedAt);
+                idsRegRows.forEach(r => { if (r.result === 'flag') { r.result = 'pass'; r.outOfState = true; } }); // older records from when out-of-state was its own yellow result
                 logAction('Viewed ID scan registry (' + idsRegRows.length + ' records' + (q ? ', searched' : '') + ')');
                 idsRenderRegistry();
+                idsSweepFull(idsRegRows);
             } catch (err) { status.style.color = 'var(--danger-glow)'; status.textContent = 'Could not load the registry: ' + err.message; }
+        }
+        // Deletes the full-card-data docs whose time is up. They are already unreadable (firestore.rules); this removes them for real,
+        // whether or not the Firebase TTL policy on expireAt has been set up.
+        const idsSwept = new Set();
+        function idsSweepFull(rows) {
+            const due = rows.filter(r => r.hasFull && idsMs(r.fullExpireAt) < Date.now() && !idsSwept.has(r.id)).slice(0, 400);
+            if (!due.length) return;
+            const b = db.batch();
+            due.forEach(r => { idsSwept.add(r.id); b.delete(db.collection('idscan_full').doc(r.id)); });
+            b.commit().catch(err => { due.forEach(r => idsSwept.delete(r.id)); console.warn('Full-card-data sweep failed:', err.message); });
         }
         function idsFilteredRows() {
             const eventId = document.getElementById('idsRegEvent').value, res = document.getElementById('idsRegResult').value;
@@ -294,7 +373,7 @@
             return idsRegRows.filter(r => (!eventId || r.eventId === eventId) && (!res || r.result === res) && (showTest || r.env !== 'dev'));
         }
         function idsResultBadge(r) {
-            const m = { pass: ['✅ Pass', 'var(--neon-saguaro)'], review: ['⚠️ Review', '#ffb020'], fail: ['⛔ Fail', 'var(--danger-glow)'] }[r.result] || ['?', 'var(--text-muted)'];
+            const m = { pass: ['✅ Pass', 'var(--neon-saguaro)'], review: ['⚠️ Review', '#ff8a3d'], fail: ['⛔ Fail', 'var(--danger-glow)'] }[r.result] || ['?', 'var(--text-muted)'];
             return `<span style="color:${m[1]}; font-weight:600; white-space:nowrap;">${m[0]}</span>`;
         }
         function idsRenderRegistry() {
@@ -303,7 +382,7 @@
                 <tr style="cursor:pointer;" onclick="idsOpenDetail('${jsStr(r.id)}')">
                     <td>${escapeHtml(r.lastName)}, ${escapeHtml(r.firstName)}${r.env === 'dev' ? ' <span style="font-size:0.65rem; color:var(--neon-pink);">TEST</span>' : ''}</td>
                     <td>${escapeHtml(idsFmtDate(r.dob))}${r.ageAtScan != null ? ' <span style="color:var(--text-muted);">(' + r.ageAtScan + ')</span>' : ''}</td>
-                    <td>${escapeHtml(r.state || '—')}</td>
+                    <td>${r.state ? idsStateHtml(r.state, r.outOfState) : '—'}</td>
                     <td>${idsResultBadge(r)}${r.decision === 'admitted' ? '' : r.decision === 'denied' ? ' <span style="color:var(--text-muted); font-size:0.72rem;">denied</span>' : ''}</td>
                     <td style="font-size:0.78rem;">${escapeHtml(r.eventTitle || '')}<br><span style="color:var(--text-muted);">${escapeHtml(new Date(r.scannedAt).toLocaleString())}</span></td>
                 </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text-muted); text-align:center; padding:24px;">No records match.</td></tr>';
@@ -314,8 +393,8 @@
         function idsExportCsv() {
             const rows = idsFilteredRows();
             if (!rows.length) { alert('Nothing to export - load the registry first.'); return; }
-            const head = ['Scanned at', 'Event', 'Event date', 'Last name', 'First name', 'Middle name', 'Birth date', 'Age at scan', 'State', 'ID expires', 'Result', 'Decision', 'Reasons', 'Scanned by', 'Method', 'Photo'];
-            const lines = [head.join(',')].concat(rows.map(r => [new Date(r.scannedAt).toISOString(), r.eventTitle, r.eventDate, r.lastName, r.firstName, r.middleName, r.dob, r.ageAtScan, r.state, r.expiry, r.result, r.decision, (r.reasons || []).join('; '), r.scannedBy && r.scannedBy.name, r.method, r.hasPhoto ? 'yes' : 'no'].map(idsCsvCell).join(',')));
+            const head = ['Scanned at', 'Event', 'Event date', 'Last name', 'First name', 'Birth date', 'Age at scan', 'State', 'Out of state', 'ID expires', 'Result', 'Decision', 'Reasons', 'Scanned by', 'Method', 'Photo'];
+            const lines = [head.join(',')].concat(rows.map(r => [new Date(r.scannedAt).toISOString(), r.eventTitle, r.eventDate, r.lastName, r.firstName, r.dob, r.ageAtScan, r.state, r.outOfState ? 'yes' : 'no', r.expiry, r.result, r.decision, (r.reasons || []).join('; '), r.scannedBy && r.scannedBy.name, r.method, r.hasPhoto ? 'yes' : 'no'].map(idsCsvCell).join(',')));
             const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
             const a = document.createElement('a'); a.href = url; a.download = 'id-scan-registry-' + idsToday() + '.csv';
             document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
@@ -328,17 +407,22 @@
             idsDetailId = id;
             document.getElementById('idsDetailBody').innerHTML = `
                 <div id="idsDetailPhoto" style="margin-bottom:12px;">${r.hasPhoto ? '<p style="font-size:0.8rem; color:var(--text-muted);">Loading photo…</p>' : ''}</div>
-                <h3 style="font-family:'Outfit'; font-size:1.25rem; margin-bottom:4px;">${escapeHtml([r.firstName, r.middleName, r.lastName].filter(Boolean).join(' '))}</h3>
+                <h3 style="font-family:'Outfit'; font-size:1.25rem; margin-bottom:4px;">${escapeHtml([r.firstName, r.lastName].filter(Boolean).join(' '))}</h3>
                 <p style="margin-bottom:12px;">${idsResultBadge(r)}${r.decision ? ' · ' + escapeHtml(r.decision) : ''}</p>
                 <table class="data-table" style="margin-bottom:12px;"><tbody>
                     <tr><td>Birth date</td><td>${escapeHtml(idsFmtDate(r.dob))} (age ${r.ageAtScan == null ? '?' : r.ageAtScan} at scan)</td></tr>
-                    <tr><td>Issued by</td><td>${escapeHtml(r.state || '—')}${r.country && r.country !== 'USA' ? ' · ' + escapeHtml(r.country) : ''}</td></tr>
+                    <tr><td>Issued by</td><td>${r.state ? idsStateHtml(r.state, r.outOfState) : '—'}${r.country && r.country !== 'USA' ? ' · ' + escapeHtml(r.country) : ''}</td></tr>
                     <tr><td>ID expires</td><td>${escapeHtml(idsFmtDate(r.expiry))}</td></tr>
                     <tr><td>Event</td><td>${escapeHtml(r.eventTitle || '')} · ${escapeHtml(r.eventDate || '')}</td></tr>
                     <tr><td>Scanned</td><td>${escapeHtml(new Date(r.scannedAt).toLocaleString())} by ${escapeHtml((r.scannedBy && r.scannedBy.name) || '?')} (${escapeHtml(r.method || '?')})</td></tr>
                 </tbody></table>
                 ${(r.reasons || []).length ? '<p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:4px;">Notes from the check</p><ul style="font-size:0.84rem; padding-left:18px; margin-bottom:12px;">' + r.reasons.map(t => '<li>' + escapeHtml(t) + '</li>').join('') + '</ul>' : ''}
-                <button class="btn btn-magenta btn-sm" onclick="idsDeleteRecord('${jsStr(id)}')">🗑️ Delete this record</button>`;
+                <div id="idsDetailFull" style="margin-bottom:12px;"></div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn btn-sm" onclick="idsBanFromRecord('${jsStr(id)}')">🚫 Add to Ban List…</button>
+                    <button class="btn btn-magenta btn-sm" onclick="idsDeleteRecord('${jsStr(id)}')">🗑️ Delete this record</button>
+                </div>`;
+            idsShowFullData(r);
             document.getElementById('idsDetailModal').style.display = 'flex';
             if (r.hasPhoto) {
                 try {
@@ -348,6 +432,109 @@
                 } catch (err) { const el = document.getElementById('idsDetailPhoto'); if (el) el.innerHTML = '<p style="font-size:0.8rem; color:var(--danger-glow);">Could not load photo: ' + escapeHtml(err.message) + '</p>'; }
             }
         }
+        // The 24-hour (or whatever the admin set) full card data for one record.
+        async function idsShowFullData(r) {
+            const box = document.getElementById('idsDetailFull');
+            const note = (t, c) => { if (idsDetailId === r.id && box) box.innerHTML = `<p style="font-size:0.78rem; color:${c || 'var(--text-muted)'};">${t}</p>`; };
+            if (!r.hasFull) { note('Full card data was not kept for this scan.'); return; }
+            if (idsMs(r.fullExpireAt) < Date.now()) { note('Full card data expired and was deleted.'); idsSweepFull([r]); return; }
+            note('Loading full card data…');
+            try {
+                const snap = await db.collection('idscan_full').doc(r.id).get();
+                if (idsDetailId !== r.id) return;
+                if (!snap.exists) { note('Full card data expired and was deleted.'); return; }
+                const f = snap.data(), left = idsMs(f.expireAt) - Date.now();
+                if (left <= 0) { note('Full card data expired and was deleted.'); return; }
+                const hrs = Math.floor(left / 3600000), mins = Math.floor(left % 3600000 / 60000);
+                const rows = idsFieldRows({ fields: f.fields || {}, iin: f.iin, aamvaVersion: f.aamvaVersion, country: f.country });
+                box.innerHTML = `<p style="font-size:0.78rem; color:var(--neon-pink); font-weight:600; margin-bottom:6px;">Full card data · deleted in ${hrs}h ${mins}m</p>
+                    <table class="data-table" style="font-size:0.78rem;"><tbody>${rows.map(x => `<tr><td style="padding:6px 8px; color:var(--text-muted); width:42%;">${escapeHtml(x[0])}</td><td style="padding:6px 8px; word-break:break-word;">${escapeHtml(x[1])}</td></tr>`).join('')}</tbody></table>`;
+            } catch (err) { note('Full card data is no longer available.'); }
+        }
+        // Admin: put a scanned person on the Ban List straight from their record.
+        async function idsBanFromRecord(id) {
+            const r = idsRegRows.find(x => x.id === id);
+            if (!r) return;
+            const name = prompt('Add to the Ban List as:', r.firstName + ' ' + r.lastName);
+            if (!name || !name.trim()) return;
+            const why = prompt('Note for the Ban List entry (what happened):', '');
+            if (why === null) return;
+            try {
+                await idsAddToBanList(name, 'Added from an ID scan at ' + (r.eventTitle || 'an event') + ' (' + (r.eventDate || '') + ').' + (why.trim() ? ' ' + why.trim() : ''));
+                logAction('Added to ban list: ' + name.trim());
+                alert('Added to the Ban List.');
+            } catch (err) { /* saveDoc already showed the error */ }
+        }
+        // Adds a Ban List entry, or a note on the existing entry if that name is already there. The Ban List holds names and notes only
+        // (it is readable by all staff), never ID numbers or addresses.
+        async function idsAddToBanList(name, text) {
+            const note = { date: new Date().toLocaleDateString(), by: currUser()?.name || '', text };
+            const existing = getDB('banlist').find(b => idsNormName(b.name) === idsNormName(name));
+            if (existing) { await saveDoc('banlist', existing.id, { ...existing, notes: [note, ...(existing.notes || [])] }); return existing.id; }
+            const id = 'b' + Date.now();
+            await saveDoc('banlist', id, { id, name: name.trim(), notes: [note] });
+            return id;
+        }
+
+        // ---- Flags for Ban List review (staff send them from the scanner; admins decide) -------
+        let idsFlags = [];
+        async function idsLoadFlags() {
+            const u = currUser();
+            if (!u || !u.isAdmin) return;
+            const status = document.getElementById('idsFlagStatus').value;
+            const list = document.getElementById('idsFlagList');
+            try {
+                const snap = await db.collection('idscan_flags').where('status', '==', status).limit(200).get();
+                idsFlags = snap.docs.map(d => d.data()).sort((a, b) => b.createdAt - a.createdAt);
+                const pend = status === 'pending' ? idsFlags.length : null;
+                document.getElementById('idsFlagCount').textContent = pend === null ? '' : pend ? '(' + pend + ' pending)' : '';
+                list.innerHTML = idsFlags.map(f => `
+                    <div style="border-top:1px solid rgba(255,255,255,0.08); padding:12px 0;">
+                        <div style="font-family:'Outfit'; font-weight:700;">${escapeHtml(f.firstName)} ${escapeHtml(f.lastName)} <span style="font-weight:400; font-size:0.78rem; color:var(--text-muted);">· born ${escapeHtml(idsFmtDate(f.dob))} · ${escapeHtml(f.state || '?')}${f.env === 'dev' ? ' · TEST' : ''}</span></div>
+                        <div style="font-size:0.74rem; color:var(--text-muted); margin:2px 0 6px;">${escapeHtml(f.eventTitle || '')} · flagged by ${escapeHtml((f.createdBy && f.createdBy.name) || '?')} · ${escapeHtml(new Date(f.createdAt).toLocaleString())}</div>
+                        <p style="font-size:0.85rem; margin-bottom:8px; white-space:pre-wrap;">${escapeHtml(f.note)}</p>
+                        ${f.status === 'pending' ? `<div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn btn-sm" onclick="idsApproveFlag('${jsStr(f.id)}')">🚫 Add to Ban List</button>
+                            <button class="btn btn-outline btn-sm" onclick="idsDismissFlag('${jsStr(f.id)}')">Dismiss</button>
+                            <button class="btn btn-outline btn-sm" onclick="idsViewFlagScan('${jsStr(f.id)}')">View scan</button></div>`
+                        : `<p style="font-size:0.76rem; color:var(--text-muted);">${f.status === 'approved' ? '🚫 Added to the Ban List' + (f.banName ? ' as ' + escapeHtml(f.banName) : '') : 'Dismissed'} by ${escapeHtml((f.reviewedBy && f.reviewedBy.name) || '?')}${f.reviewNote ? ' - ' + escapeHtml(f.reviewNote) : ''}</p>
+                           <button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="idsViewFlagScan('${jsStr(f.id)}')">View scan</button>`}
+                    </div>`).join('') || `<p style="font-size:0.82rem; color:var(--text-muted); padding-top:8px;">${status === 'pending' ? 'Nothing waiting for review.' : 'None.'}</p>`;
+            } catch (err) { list.innerHTML = '<p style="font-size:0.8rem; color:var(--danger-glow);">Could not load flags: ' + escapeHtml(err.message) + '</p>'; }
+        }
+        async function idsApproveFlag(id) {
+            const f = idsFlags.find(x => x.id === id);
+            if (!f) return;
+            const name = prompt('Add to the Ban List as:', f.firstName + ' ' + f.lastName);
+            if (!name || !name.trim()) return;
+            try {
+                const banId = await idsAddToBanList(name, 'Flagged by ' + ((f.createdBy && f.createdBy.name) || 'staff') + ' at ' + (f.eventTitle || 'an event') + ' (' + (f.eventDate || '') + '): ' + f.note);
+                await db.collection('idscan_flags').doc(id).update({ status: 'approved', banId, banName: name.trim(), reviewedAt: Date.now(), reviewedBy: { uid: logActor().uid, name: currUser()?.name || '' } });
+                logAction('Added to ban list: ' + name.trim());
+                idsLoadFlags();
+            } catch (err) { alert('⚠️ Could not finish: ' + err.message); }
+        }
+        async function idsDismissFlag(id) {
+            const f = idsFlags.find(x => x.id === id);
+            if (!f) return;
+            const why = prompt('Reason for dismissing this flag (optional):', '');
+            if (why === null) return;
+            try {
+                await db.collection('idscan_flags').doc(id).update({ status: 'dismissed', reviewNote: why.trim(), reviewedAt: Date.now(), reviewedBy: { uid: logActor().uid, name: currUser()?.name || '' } });
+                logAction('Dismissed an ID scan Ban List flag');
+                idsLoadFlags();
+            } catch (err) { alert('⚠️ Could not dismiss: ' + err.message); }
+        }
+        async function idsViewFlagScan(id) {
+            const f = idsFlags.find(x => x.id === id);
+            if (!f || !f.scanId) { alert('This flag has no linked scan.'); return; }
+            try {
+                const snap = await db.collection('idscans').doc(f.scanId).get();
+                if (!snap.exists) { alert('The scan record was not found - it may have been deleted or not saved.'); return; }
+                if (!idsRegRows.some(x => x.id === f.scanId)) idsRegRows.unshift(snap.data());
+                idsOpenDetail(f.scanId);
+            } catch (err) { alert('⚠️ Could not open the scan: ' + err.message); }
+        }
         async function idsDeleteRecord(id) {
             const r = idsRegRows.find(x => x.id === id);
             if (!r || !confirm('Permanently delete this scan record' + (r.hasPhoto ? ' and its photo' : '') + '? This cannot be undone.')) return;
@@ -355,6 +542,7 @@
                 const batch = db.batch();
                 batch.delete(db.collection('idscans').doc(id));
                 if (r.hasPhoto) batch.delete(db.collection('idscan_photos').doc(id));
+                if (r.hasFull) batch.delete(db.collection('idscan_full').doc(id));
                 if (r.seenId) batch.delete(db.collection('idscan_seen').doc(r.seenId));
                 await withTimeout(batch.commit(), 15000, 'deleting the record');
                 idsRegRows = idsRegRows.filter(x => x.id !== id);
@@ -366,35 +554,69 @@
 
         // ---- Scanner (camera or external scanner) -----------------------------------------
         let idsS = { eventId: '', mode: 'camera', pending: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
-        const idsCam = { stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false };
+        const idsCam = { stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false, torchWanted: false, torchOk: false };
 
-        async function openIdScanner(eventId) {
-            const modal = document.getElementById('idsScanModal');
-            modal.style.display = 'flex';
-            const body = document.getElementById('idsScanBody');
-            body.style.display = 'none';
+        async function openIdScanner() {
+            document.getElementById('idsScanModal').style.display = 'flex';
+            document.getElementById('idsScanBody').style.display = 'none';
+            document.getElementById('idsPick').style.display = 'none';
             const msg = document.getElementById('idsScanMsg');
             msg.style.display = 'block'; msg.style.color = 'var(--text-muted)'; msg.textContent = 'Loading…';
             try { await idsLoadConfigs(true); } catch (err) { msg.style.color = 'var(--danger-glow)'; msg.textContent = 'Could not load ID scan settings: ' + err.message; return; }
-            const enabled = getDB('events').filter(e => !e.archived && idsCfgs[e.id] && idsCfgs[e.id].enabled);
-            if (!enabled.length) { msg.textContent = 'ID scanning is not turned on for any event. An admin can turn it on in Command Center → ID Scan.'; return; }
+            if (!idsEnabledEvents().length) { msg.textContent = 'ID scanning is not turned on for any event. An admin can turn it on in Command Center → ID Scan.'; return; }
+            msg.style.display = 'none';
+            idsS = { eventId: '', mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
+            idsShowPicker();
+        }
+        function idsEnabledEvents() {
             const today = idsToday();
-            const pick = eventId || (enabled.find(e => e.date === today) || enabled.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).find(e => (e.date || '') >= today) || enabled[0]).id;
-            msg.style.display = 'none'; body.style.display = 'block';
-            idsS = { eventId: pick, mode: idsS.mode || 'camera', busy: false, pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
-            document.getElementById('idsScanEvent').innerHTML = idsEventOptions(pick, true);
+            return getDB('events').filter(e => !e.archived && idsCfgs[e.id] && idsCfgs[e.id].enabled)
+                .sort((a, b) => { const fa = (a.date || '') >= today, fb = (b.date || '') >= today; return fa !== fb ? (fa ? -1 : 1) : fa ? (a.date || '').localeCompare(b.date || '') : (b.date || '').localeCompare(a.date || ''); }); // upcoming first (soonest on top), then past
+        }
+        function idsRuleSummary(c) {
+            const bits = [];
+            if (c.minAge > 0) bits.push(c.minAge + '+');
+            if (c.allowedStates && c.allowedStates.length) bits.push(c.allowedStates.join('/') + ' IDs only');
+            if (c.homeState) bits.push('non-' + c.homeState + ' marked ⚠️');
+            if (c.photo === 'required') bits.push('photo required'); else if (c.photo === 'optional') bits.push('photo optional');
+            return bits.join(' · ');
+        }
+        // Step 1: choose the event. The camera does not start until one is picked.
+        function idsShowPicker() {
+            idsCamStop();
+            clearTimeout(idsS.wedgeTimer);
+            document.getElementById('idsScanBody').style.display = 'none';
+            const today = idsToday(), t = new Date(); t.setDate(t.getDate() + 1);
+            const tomorrow = idsIso(t.getFullYear(), t.getMonth() + 1, t.getDate());
+            document.getElementById('idsPickList').innerHTML = idsEnabledEvents().map(e => {
+                const tag = e.date === today ? 'Tonight' : e.date === tomorrow ? 'Tomorrow' : '';
+                const sum = idsRuleSummary(idsCfgs[e.id]);
+                return `<button class="glass-card" style="display:block; width:100%; text-align:left; cursor:pointer; padding:14px 16px; margin-bottom:10px; color:inherit; font:inherit; ${tag === 'Tonight' ? 'border-color:var(--neon-teal);' : ''}" onclick="idsStartScanning('${jsStr(e.id)}')">
+                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;"><span style="font-family:'Outfit'; font-weight:700; font-size:1rem;">${escapeHtml(e.title)}</span>${tag ? `<span style="font-size:0.68rem; font-weight:700; color:#08080c; background:var(--neon-teal); border-radius:8px; padding:2px 8px; flex-shrink:0;">${tag}</span>` : ''}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(e.date || '')}${e.address ? ' · ' + escapeHtml(e.address) : ''}</div>
+                    ${sum ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:4px;">${escapeHtml(sum)}</div>` : ''}</button>`;
+            }).join('');
+            document.getElementById('idsPick').style.display = 'block';
+        }
+        // Step 2: scan.
+        function idsStartScanning(eventId) {
+            const ev = getDB('events').find(e => e.id === eventId);
+            idsS = { eventId, mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
+            document.getElementById('idsPick').style.display = 'none';
+            document.getElementById('idsScanBody').style.display = 'block';
+            document.getElementById('idsScanEventName').textContent = ev ? ev.title + (ev.date ? ' · ' + ev.date : '') : eventId;
             idsSetMode(idsS.mode);
             idsRenderResult();
             idsRenderStats();
         }
-        function idsChangeEvent(id) {
-            if (idsS.pending && !idsFinish()) { document.getElementById('idsScanEvent').value = idsS.eventId; return; }
-            idsS.eventId = id; idsS.last = null; idsS.stats = { pass: 0, review: 0, fail: 0 }; idsS.seenLocal = {};
-            idsRenderStats(); idsRenderResult();
+        function idsChangeEvent() {
+            if (idsS.pending && !idsFinish()) { idsToast('Finish the scan on screen first.'); return; }
+            idsShowPicker();
         }
         async function closeIdScanner() {
             if (idsS.pending && !idsFinish()) { if (!confirm('Close without logging the scan on screen?')) return; idsS.pending = null; }
             idsCamStop();
+            idsCam.torchWanted = false;
             clearTimeout(idsS.wedgeTimer);
             document.getElementById('idsScanModal').style.display = 'none';
         }
@@ -424,10 +646,36 @@
             video.srcObject = idsCam.stream;
             video.setAttribute('playsinline', '');
             await video.play();
+            idsTorchSetup();
             const hint = document.getElementById('idsCamHint');
             hint.style.color = 'var(--text-muted)';
             if (scanning) { hint.textContent = 'Hold the BACK of the ID (the barcode) steady in the frame.'; idsCam.paused = false; await idsScanLoopStart(); }
         }
+        // Flashlight: the phone's LED via the camera's "torch" setting. Android Chrome supports it; browsers that
+        // don't (iPhone Safari) report no torch capability, and the button says so instead of silently doing nothing.
+        function idsTorchTrack() { return idsCam.stream && idsCam.stream.getVideoTracks()[0]; }
+        function idsTorchSetup() {
+            const track = idsTorchTrack();
+            let caps = {};
+            try { caps = (track && track.getCapabilities && track.getCapabilities()) || {}; } catch (err) { /* treat as unsupported */ }
+            idsCam.torchOk = !!caps.torch;
+            if (idsCam.torchOk && idsCam.torchWanted) idsApplyTorch(true); else idsTorchRender();
+        }
+        function idsTorchRender() {
+            const b = document.getElementById('idsTorchBtn');
+            if (!b) return;
+            b.disabled = !idsCam.torchOk;
+            b.textContent = !idsCam.torchOk ? '🔦 Light not supported here' : idsCam.torchWanted ? '🔦 Light on' : '🔦 Light';
+            b.style.background = idsCam.torchOk && idsCam.torchWanted ? 'var(--neon-teal)' : 'rgba(0,0,0,0.6)';
+            b.style.color = idsCam.torchOk && idsCam.torchWanted ? '#08080c' : '#fff';
+        }
+        async function idsApplyTorch(on) {
+            const track = idsTorchTrack();
+            try { await track.applyConstraints({ advanced: [{ torch: on }] }); idsCam.torchWanted = on; }
+            catch (err) { idsCam.torchWanted = false; const h = document.getElementById('idsCamHint'); h.style.color = 'var(--danger-glow)'; h.textContent = 'Could not switch the light: ' + err.message; }
+            idsTorchRender();
+        }
+        function idsToggleTorch() { if (idsCam.torchOk) idsApplyTorch(!idsCam.torchWanted); }
         function idsCamStop() {
             clearTimeout(idsCam.timer); idsCam.timer = null;
             if (idsCam.stream) idsCam.stream.getTracks().forEach(t => t.stop());
@@ -509,7 +757,7 @@
         async function idsHandleScanInner(text, method) {
             if (idsS.pending) { if (!idsFinish()) { idsToast('Finish the scan on screen first.'); if (method === 'camera') idsCam.paused = false; return; } }
             const cfg = idsCfgFor(idsS.eventId), ev = getDB('events').find(e => e.id === idsS.eventId);
-            idsS.last = null;
+            idsS.last = null; idsS.flagOpen = false; idsS.flagNote = '';
             const parsed = idsParseAamva(text);
             if (!parsed) { idsShowError('That barcode isn\'t a driver license or ID card barcode. Scan the back of a US or Canadian license / ID.'); return; }
             const verdict = idsEvaluate(parsed, cfg, getDB('banlist').map(b => b.name));
@@ -521,8 +769,8 @@
                 if (!prior) { try { const s = await withTimeout(db.collection('idscan_seen').doc(idsS.eventId + '__' + dupKey).get(), 4000, 'the re-scan check'); if (s.exists) prior = s.data(); } catch (err) { /* offline: carry on without it */ } }
                 if (prior) verdict.reasons.push({ level: 'review', text: 'Already scanned for this event at ' + new Date(prior.at).toLocaleTimeString() + ' (' + prior.result + ')' });
             }
-            const result = verdict.reasons.some(r => r.level === 'fail') ? 'fail' : verdict.reasons.length ? 'review' : 'pass';
-            idsS.pending = { parsed, result, reasons: verdict.reasons.map(r => r.text), age: verdict.age, method, dupKey, hadPrior: !!prior, photo: '', decision: result === 'pass' ? 'admitted' : result === 'fail' ? 'denied' : '', eventId: idsS.eventId, eventTitle: ev ? ev.title : '', eventDate: ev ? ev.date : '', photoMode: cfg.photo };
+            const result = idsResultOf(verdict.reasons);
+            idsS.pending = { parsed, raw: text, recId: 's' + Date.now() + Math.random().toString(36).slice(2, 6), result, reasons: verdict.reasons.map(r => r.text), age: verdict.age, outOfState: verdict.outOfState, method, dupKey, hadPrior: !!prior, photo: '', decision: result === 'pass' ? 'admitted' : result === 'fail' ? 'denied' : '', eventId: idsS.eventId, eventTitle: ev ? ev.title : '', eventDate: ev ? ev.date : '', photoMode: cfg.photo };
             idsRenderResult();
             if (cfg.photo === 'off') idsFinish(); // nothing more to collect, so log it now (unless it needs a decision)
             logEvent('id_scan', 'Scanned an ID at ' + (ev ? ev.title : idsS.eventId) + ' (' + result + ')');
@@ -532,7 +780,7 @@
             const box = document.getElementById('idsResult');
             box.innerHTML = `<div style="border:2px solid #ffb020; border-radius:16px; padding:16px; text-align:center;"><div style="font-size:1.6rem;">⚠️</div><p style="font-size:0.9rem; margin:8px 0 12px;">${escapeHtml(msg)}</p><button class="btn btn-sm" onclick="idsClearResult()">Try again</button></div>`;
         }
-        function idsClearResult() { idsS.pending = null; idsS.last = null; idsCam.paused = false; idsRenderResult(); if (idsS.mode === 'wedge') document.getElementById('idsWedge').focus(); }
+        function idsClearResult() { idsS.pending = null; idsS.last = null; idsS.flagOpen = false; idsS.flagNote = ''; idsCam.paused = false; idsRenderResult(); if (idsS.mode === 'wedge') document.getElementById('idsWedge').focus(); }
         function idsCanFinish() {
             const p = idsS.pending;
             return !!p && (p.result !== 'review' || !!p.decision) && (p.photoMode !== 'required' || !!p.photo);
@@ -540,18 +788,30 @@
         function idsRenderResult() {
             const box = document.getElementById('idsResult'), p = idsS.pending || idsS.last, logged = !idsS.pending;
             if (!p) { box.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:18px 0;">Ready to scan.</p>'; return; }
-            const c = { pass: ['var(--neon-saguaro)', '✅', 'PASS'], review: ['#ffb020', '⚠️', 'CHECK THIS ID'], fail: ['var(--danger-glow)', '⛔', 'DO NOT ADMIT'] }[p.result];
+            const c = { pass: ['var(--neon-saguaro)', '✅', 'PASS'], review: ['#ff8a3d', '⚠️', 'CHECK THIS ID'], fail: ['var(--danger-glow)', '⛔', 'DO NOT ADMIT'] }[p.result];
             const x = p.parsed;
             const decided = p.decision && p.result === 'review';
             box.innerHTML = `
                 <div style="border:2px solid ${c[0]}; border-radius:16px; padding:16px;">
                     <div style="text-align:center; font-family:'Outfit'; font-weight:800; font-size:1.3rem; color:${c[0]};">${c[1]} ${c[2]}</div>
                     <div style="text-align:center; margin:10px 0;">
-                        <div style="font-family:'Outfit'; font-size:1.2rem; font-weight:700;">${escapeHtml([x.firstName, x.middleName, x.lastName].filter(Boolean).join(' '))}</div>
-                        <div style="font-size:0.88rem; color:var(--text-secondary);">Born ${escapeHtml(idsFmtDate(x.dob))}${p.age != null ? ' · age ' + p.age : ''} · ${escapeHtml(x.state || '?')}</div>
+                        <div style="font-family:'Outfit'; font-size:1.2rem; font-weight:700;">${escapeHtml([x.firstName, x.lastName].filter(Boolean).join(' '))}</div>
+                        <div style="font-size:0.88rem; color:var(--text-secondary);">Born ${escapeHtml(idsFmtDate(x.dob))}${p.age != null ? ' · age ' + p.age : ''} · ${idsStateHtml(x.state, p.outOfState)}</div>
                         <div style="font-size:0.82rem; color:var(--text-muted);">Expires ${escapeHtml(idsFmtDate(x.expiry))}</div>
                     </div>
                     ${p.reasons.length ? '<ul style="font-size:0.84rem; padding-left:18px; margin-bottom:12px;">' + p.reasons.map(t => '<li>' + escapeHtml(t) + '</li>').join('') + '</ul>' : ''}
+                    <details style="margin-bottom:12px;" ${idsS.showAll ? 'open' : ''} ontoggle="idsS.showAll = this.open">
+                        <summary style="cursor:pointer; font-size:0.8rem; color:var(--neon-teal);">View all barcode data</summary>
+                        <table class="data-table" style="margin-top:8px; font-size:0.78rem;"><tbody>${idsFieldRows(x).map(r => `<tr><td style="padding:6px 8px; color:var(--text-muted); width:42%;">${escapeHtml(r[0])}</td><td style="padding:6px 8px; word-break:break-word;">${escapeHtml(r[1])}</td></tr>`).join('')}</tbody></table>
+                        <p style="font-size:0.7rem; color:var(--text-muted); margin:8px 0 4px;">Raw barcode text</p>
+                        <pre style="font-size:0.68rem; white-space:pre-wrap; word-break:break-all; background:rgba(0,0,0,0.35); border-radius:8px; padding:8px; max-height:160px; overflow:auto; margin:0;">${escapeHtml(idsShowRaw(p.raw))}</pre>
+                        <p style="font-size:0.7rem; color:var(--text-muted); margin-top:6px;">${(parseInt(idsGlobal.fullDataHours, 10) || 0) > 0 ? 'The full card data is also kept for admins for ' + idsGlobal.fullDataHours + ' hours, then deleted.' : 'Shown on this screen only. Only the fields listed in the registry are saved; the ID number and address are not.'}</p>
+                    </details>
+                    ${p.flagged ? '<p style="text-align:center; font-size:0.8rem; color:var(--neon-pink); margin-bottom:10px;">🚩 Flagged for admin review</p>'
+                        : idsS.flagOpen ? `<div style="margin-bottom:12px;"><textarea id="idsFlagNote" class="input-field" rows="3" maxlength="1000" style="margin:0 0 8px;" placeholder="What happened? (required)" oninput="idsS.flagNote = this.value">${escapeHtml(idsS.flagNote || '')}</textarea>
+                            <div style="display:flex; gap:8px;"><button class="btn btn-magenta btn-sm" style="flex:1;" onclick="idsSendFlag()">Send flag</button><button class="btn btn-outline btn-sm" onclick="idsS.flagOpen = false; idsRenderResult()">Cancel</button></div>
+                            <p style="font-size:0.7rem; color:var(--text-muted); margin-top:6px;">Admins review flags and decide whether this person goes on the Ban List.</p></div>`
+                        : '<button class="btn btn-outline btn-sm" style="width:100%; margin-bottom:10px;" onclick="idsS.flagOpen = true; idsRenderResult()">🚩 Flag for Ban List review</button>'}
                     ${logged ? `<p style="text-align:center; font-size:0.78rem; color:var(--text-muted); margin-bottom:10px;">Logged to the registry${p.decision ? ' · ' + (p.decision === 'admitted' ? 'admitted' : 'denied') : ''}</p>` : ''}
                     ${!logged && p.result === 'review' ? `<div style="display:flex; gap:8px; margin-bottom:10px;">
                         <button class="btn btn-sm" style="flex:1; ${p.decision === 'admitted' ? '' : 'opacity:0.75;'}" onclick="idsDecide('admitted')">${p.decision === 'admitted' ? '✔ ' : ''}Admit</button>
@@ -560,6 +820,26 @@
                         <button class="btn btn-outline btn-sm" style="width:100%; margin-top:6px;" onclick="idsPhotoBtn()">${idsS.photoLive ? '📸 Capture now' : p.photo ? '📷 Retake photo' : '📷 Take photo' + (p.photoMode === 'required' ? ' (required)' : ' (optional)')}</button></div>` : ''}
                     ${logged ? `<button class="btn" style="width:100%;" onclick="idsClearResult()">Scan next ›</button>` : `<button class="btn" style="width:100%;" id="idsNextBtn" ${idsCanFinish() ? '' : 'disabled'} onclick="idsFinish()">${p.result === 'review' && !decided ? 'Choose Admit or Deny' : p.photoMode === 'required' && !p.photo ? 'Take the photo first' : 'Log it & scan next ›'}</button>`}
                 </div>`;
+        }
+        // Any staff member can flag the person on screen with a note. Nothing goes on the Ban List until an admin approves it.
+        async function idsSendFlag() {
+            const p = idsS.pending || idsS.last;
+            if (!p) return;
+            const note = (idsS.flagNote || '').trim();
+            if (!note) { idsToast('Add a note about what happened.'); return; }
+            const actor = logActor(), x = p.parsed, id = 'f' + Date.now() + Math.random().toString(36).slice(2, 6);
+            const flag = {
+                id, status: 'pending', createdAt: Date.now(), createdBy: { uid: actor ? actor.uid : '', name: actor ? actor.user : '' },
+                eventId: p.eventId, eventTitle: p.eventTitle, eventDate: p.eventDate, scanId: p.recId,
+                firstName: x.firstName, lastName: x.lastName, dob: x.dob, state: x.state, note: note.slice(0, 1000), env: IS_DEV_SITE ? 'dev' : 'prod'
+            };
+            try {
+                await withTimeout(db.collection('idscan_flags').doc(id).set(cleanData(flag)), 15000, 'sending the flag');
+                p.flagged = true; idsS.flagOpen = false; idsS.flagNote = '';
+                idsRenderResult();
+                idsToast('Flag sent to the admins.');
+                logAction('Flagged someone for Ban List review at ' + (p.eventTitle || 'an event'));
+            } catch (err) { alert('⚠️ The flag was NOT sent: ' + err.message); }
         }
         function idsDecide(d) { if (idsS.pending) { idsS.pending.decision = d; idsRenderResult(); if (idsS.pending.photoMode === 'off') idsFinish(); } }
         function idsRenderStats() { const s = idsS.stats; document.getElementById('idsStats').textContent = 'This session: ' + s.pass + ' passed · ' + s.review + ' reviewed · ' + s.fail + ' denied'; }
@@ -615,17 +895,23 @@
             return true;
         }
         function idsCommit(p) {
-            const actor = logActor(), x = p.parsed, id = 's' + Date.now() + Math.random().toString(36).slice(2, 6);
+            const actor = logActor(), x = p.parsed, id = p.recId || 's' + Date.now() + Math.random().toString(36).slice(2, 6);
             const seenId = p.dupKey ? p.eventId + '__' + p.dupKey : '';
             const rec = {
                 id, eventId: p.eventId, eventTitle: p.eventTitle, eventDate: p.eventDate, scannedAt: Date.now(),
                 scannedBy: { uid: actor ? actor.uid : '', name: actor ? actor.user : '' }, method: p.method,
-                firstName: x.firstName, middleName: x.middleName, lastName: x.lastName, lastLower: idsNormName(x.lastName), firstLower: idsNormName(x.firstName),
-                dob: x.dob, ageAtScan: p.age, state: x.state, country: x.country, expiry: x.expiry,
+                firstName: x.firstName, lastName: x.lastName, lastLower: idsNormName(x.lastName), firstLower: idsNormName(x.firstName),
+                dob: x.dob, ageAtScan: p.age, state: x.state, outOfState: !!p.outOfState, country: x.country, expiry: x.expiry,
                 result: p.result, decision: p.decision, reasons: p.reasons, hasPhoto: !!p.photo, seenId, env: IS_DEV_SITE ? 'dev' : 'prod'
             };
             idsS.seenLocal[p.dupKey] = { at: rec.scannedAt, result: p.result };
             const batch = db.batch();
+            const fullHours = parseInt(idsGlobal.fullDataHours, 10) || 0;
+            if (fullHours > 0 && x.fields) { // an admin chose to keep everything on the card for a limited time
+                const expireMs = rec.scannedAt + fullHours * 3600000;
+                rec.hasFull = true; rec.fullExpireAt = expireMs;
+                batch.set(db.collection('idscan_full').doc(id), { id, uid: rec.scannedBy.uid, scannedAt: rec.scannedAt, expireAt: firebase.firestore.Timestamp.fromMillis(expireMs), iin: x.iin, aamvaVersion: x.aamvaVersion, country: x.country, fields: x.fields, raw: p.raw || '' });
+            }
             batch.set(db.collection('idscans').doc(id), cleanData(rec));
             if (p.photo) batch.set(db.collection('idscan_photos').doc(id), { id, uid: rec.scannedBy.uid, photo: p.photo });
             // Not saved and not retried on failure (offline). The registry record is what matters, so it is written on its own below.
