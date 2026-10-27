@@ -88,6 +88,7 @@ Gated behind a PIN, with the following management tabs:
 - **Logs** — chronological activity log (logins, shift claims/drops, registrations, post assignments)
 - **Users** — view all staff accounts, promote/demote admin ("Commander") status, reset passwords, delete accounts
 - **Contacts** — manage promoter/client records (including optional Instagram, website, and venue links), tags, and debrief notes; delete contacts
+- **ID Scan** — per-event ID checking rules, the registry of scanned IDs, and data retention (see [ID Scanning](#id-scanning))
 - **PIN** — change the admin PIN
 
 ### Accounts
@@ -215,7 +216,20 @@ Tap the 🔒 **Admin** icon in the bottom dock and enter the PIN (default `0000`
 - **Chat Mgmt:** Add/remove channels, clear a channel's history, or delete individual messages.
 - **Logs:** Read-only audit trail of login/claim/registration activity.
 - **Users:** Toggle a user between Guard and Commander (admin) status, send a user a password reset email, or delete an account.
+- **ID Scan:** See [ID Scanning](#id-scanning) below.
 - **Contacts:** Add promoters/clients, tag them, and log debrief notes after events. Optionally add Instagram, website, and venue links — these show up for everyone in the Promoter Directory (not on the event detail page itself). Delete contacts that are no longer active.
+
+### ID Scanning
+
+Staff open **ID Scanner** from their name menu; admins set the rules and read the registry in **Command Center → ID Scan**.
+
+- **Scanning:** the phone camera (reads the PDF417 barcode on the back of a US/Canadian driver license or ID card) or an external USB/Bluetooth scanner that acts like a keyboard. Chrome on Android uses the browser's built-in reader; iPhones and anything else download a WebAssembly reader (zxing-wasm from jsDelivr), so camera scanning needs a connection. An external scanner or pasted barcode text works offline.
+- **What "verified" means:** there is no public database of driver licenses (they are protected by the federal Driver's Privacy Protection Act), so every check runs on the device against the barcode data: valid structure, issuing state, expiry, minimum age, a name match against the Ban List, and a repeat-scan check per event. Results are **Pass**, **Check this ID** (a person decides Admit/Deny) or **Do not admit**. Real-time verification with the issuing state needs a paid vendor and a server-side API key; `idsVerifyExternal()` in `js/14-id-scan.js` is the one place to add it.
+- **Per-event rules:** on/off, minimum age, turn away expired IDs, accepted states, Ban List action, flag re-scans, flag unusual barcodes, and photo (off / optional / required).
+- **Registry:** name, birth date, state, ID expiry, scan time, who scanned, result, notes from the check, and an optional photo taken at the door. The ID number and address are read but **never stored**. Admins can search by last name or birth date, filter by event and result, export CSV, and delete records. Scans made on the DEV site are tagged as tests and hidden by default.
+- **Retention:** admins choose how many days records and photos are kept (0 = until deleted); older ones are deleted when an admin opens the ID Scan tab.
+- **Access control:** the four `idscan_*` collections have their own rules in `firestore.rules` (staff can add records as themselves; only admins can read, change or delete them). **Publish the updated `firestore.rules` in the Firebase Console before using this** - the rules are not part of the automatic release.
+- **Legal:** some states restrict storing data from scanned licenses, and a registry of who attended LGBTQ+ events is sensitive. Have counsel review before relying on it, and consider a short retention period.
 
 ---
 
@@ -258,6 +272,7 @@ For anyone (human or AI) making changes to this codebase, see the `docs/` folder
 
 ## Version History
 
+- **ID Scanning** — scan driver license / ID barcodes with the camera or an external scanner, check them against per-event rules, and keep an admin-only registry (Command Center → ID Scan). New files: `js/14-id-scan.js`; new rules in `firestore.rules`.
 - **Split the single-file app into `styles.css` + `js/*.js` by feature** — pure reorganization for maintainability, with no change to markup, styling, or logic (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how that was verified).
 - **Login/session hardening** — local sessions are now validated against the live user roster and force-logged-out if the account no longer exists.
 - **Admin event editor rebuilt around drafts** — edits to a shift posting are held locally and only written to the database when **Save Changes** is clicked, eliminating a class of bugs where in-progress edits (especially the date field) were being overwritten by incoming real-time updates.

@@ -453,3 +453,5 @@
             html[data-theme="christmas"] .theme-decor::before, html[data-theme="christmas"] .theme-decor::after,
             html[data-theme="thanksgiving"] .theme-decor::after { animation: none; }
         }
+
+        .segment-btn.ids-mode.active-mode { background: var(--neon-teal); color: #08080c; }

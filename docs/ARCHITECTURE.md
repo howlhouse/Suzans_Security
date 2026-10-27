@@ -9,7 +9,7 @@ any change, however small, means reading through thousands of lines of
 unrelated code to find the right spot, whether you're a person or an AI
 assistant.
 
-This split reorganizes that same code into `styles.css` plus fourteen
+This split reorganizes that same code into `styles.css` plus fifteen
 `js/*.js` files grouped by feature (see [FILE_GUIDE.md](FILE_GUIDE.md)), so a
 change to, say, the ban list only requires opening `js/12-banlist-chat-misc.js`
 - not the whole app.
@@ -32,7 +32,7 @@ Upload the whole directory; nothing needs to be compiled first.
 
 The single most important thing to understand about this codebase's structure:
 
-**All 14 files in `js/` execute as if they were still one script.**
+**All 15 files in `js/` execute as if they were still one script.**
 
 Classic (non-`type="module"`) `<script>` tags on the same page share one
 global scope. A `function`, `const`, or `let` declared in `js/03-...js` is

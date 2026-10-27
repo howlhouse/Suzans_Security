@@ -80,6 +80,7 @@
                 <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none;">
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('myShiftsView');"><span>📋</span><span>My Shifts &amp; Notes</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('contactsDirectoryView');"><span>📇</span><span>Promoter Directory</span></button>
+                    <button class="user-menu-item" onclick="closeUserMenu(); openIdScanner();"><span>📷</span><span>ID Scanner</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('licensesView');"><span>🪪</span><span>Licenses</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('settingsView');"><span>⚙️</span><span>Settings</span></button>
                     <button class="user-menu-item danger" onclick="closeUserMenu(); if(confirm('Sign out of Suzan\'s Security?')) logout();"><span>⏻</span><span>Sign Out</span></button>
@@ -324,6 +325,7 @@
                 <button class="segment-btn" onclick="switchAdmin('adminLogs')">Logs</button>
                 <button class="segment-btn" onclick="switchAdmin('adminUsers')">Users</button>
                 <button class="segment-btn" onclick="switchAdmin('adminContacts')">Contacts</button>
+                <button class="segment-btn" onclick="switchAdmin('adminIdScan')">🪪 ID Scan</button>
                 <button class="segment-btn" onclick="switchAdmin('adminSystem')">System</button>
                 <button class="segment-btn" onclick="switchAdmin('adminSettings')">⚙️ My PIN</button>
             </div>
@@ -443,6 +445,79 @@
             <div id="adminContacts" class="admin-pane" style="display: none;">
                 <button class="btn btn-sm" style="margin-bottom:15px;" onclick="addPromoter()">+ New Promoter</button>
                 <div id="promoterList"></div>
+            </div>
+
+            <div id="adminIdScan" class="admin-pane" style="display: none;">
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">🪪 ID Scanner</h4>
+                    <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">Scan the barcode on the back of a driver license or ID card with a phone camera or an external scanner. Each scan is checked on the device against the rules you set below for that event, and saved to the registry. Staff open the scanner from their own menu (<strong>ID Scanner</strong>); only admins can see the registry.</p>
+                    <button class="btn btn-sm" onclick="openIdScanner()">Open Scanner</button>
+                    <p style="font-size:0.72rem; color:var(--text-muted); line-height:1.5; margin-top:12px;">There is no public database of driver licenses, so checks use what is in the barcode: valid format, state, expiry, minimum age, and a name match against the Ban List. The ID number and address are read but never saved. Some states limit how scanned license data may be stored - confirm your rules with counsel before relying on the registry.</p>
+                </div>
+
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:10px;">Event Rules</h4>
+                    <p id="idsRulesMsg" style="font-size:0.78rem; margin-bottom:8px;"></p>
+                    <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Event</label>
+                    <select id="idsRuleEvent" class="input-field" onchange="idsFillRulesForm()"></select>
+                    <p id="idsRuleNone" style="display:none; font-size:0.82rem; color:var(--text-muted);">No active events yet. Create a shift posting first.</p>
+                    <div id="idsRuleForm" style="display:none;">
+                        <select id="idsCopyFrom" class="input-field" style="margin-top:0;" onchange="idsCopyRules(this.value); this.value='';"></select>
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:14px;"><input type="checkbox" id="idsEnabled" style="width:auto; margin:0;"><span style="font-size:0.88rem;"><strong>Scan IDs at this event</strong></span></label>
+                        <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Minimum age (0 = don't check)</label>
+                        <input type="number" id="idsMinAge" class="input-field" min="0" max="99" inputmode="numeric">
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:14px;"><input type="checkbox" id="idsRejectExpired" style="width:auto; margin:0;"><span style="font-size:0.85rem;">Turn away expired IDs</span></label>
+                        <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Accepted issuing states (blank = any)</label>
+                        <input type="text" id="idsStates" class="input-field" placeholder="e.g. AZ, CA, NV" autocapitalize="characters" data-1p-ignore>
+                        <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">If the name matches the Ban List</label>
+                        <select id="idsBanAction" class="input-field">
+                            <option value="review">Flag for a human check (recommended)</option>
+                            <option value="deny">Turn away automatically</option>
+                            <option value="off">Don't check the Ban List</option>
+                        </select>
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:14px;"><input type="checkbox" id="idsRescan" style="width:auto; margin:0;"><span style="font-size:0.85rem;">Flag an ID already scanned at this event (pass-backs)</span></label>
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:14px;"><input type="checkbox" id="idsIntegrity" style="width:auto; margin:0;"><span style="font-size:0.85rem;">Flag barcodes that look unusual (missing header or ID number, header and state disagree)</span></label>
+                        <label style="font-size:0.78rem; color:var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Photo</label>
+                        <select id="idsPhoto" class="input-field">
+                            <option value="off">Don't take a photo</option>
+                            <option value="optional">Optional - staff can take one</option>
+                            <option value="required">Required for every scan</option>
+                        </select>
+                        <button class="btn btn-sm" onclick="idsSaveRules()">Save Rules</button>
+                        <span id="idsRuleStatus" style="font-size:0.78rem; margin-left:10px;"></span>
+                    </div>
+                </div>
+
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:10px;">Registry</h4>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <select id="idsRegEvent" class="input-field" style="flex:2; min-width:160px; margin:0;" onchange="idsLoadRegistry()"></select>
+                        <select id="idsRegResult" class="input-field" style="flex:1; min-width:110px; margin:0;" onchange="idsRenderRegistry()">
+                            <option value="">Any result</option><option value="pass">Pass</option><option value="review">Review</option><option value="fail">Fail</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; gap:8px; margin:10px 0;">
+                        <input type="text" id="idsRegSearch" class="input-field" style="margin:0;" placeholder="Last name, or birth date (MM/DD/YYYY)" onkeydown="if(event.key==='Enter') idsLoadRegistry()" data-1p-ignore>
+                        <button class="btn btn-sm" onclick="idsLoadRegistry()">Search</button>
+                    </div>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.78rem; color:var(--text-muted); margin-bottom:10px;"><input type="checkbox" id="idsRegTest" style="width:auto; margin:0;" onchange="idsRenderRegistry()"><span>Include test scans made on the DEV site</span></label>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span id="idsRegStatus" style="font-size:0.75rem; color:var(--text-muted);">Press Search to load the registry.</span>
+                        <button class="btn btn-outline btn-sm" onclick="idsExportCsv()">⬇ CSV</button>
+                    </div>
+                    <div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Name</th><th>Born</th><th>State</th><th>Result</th><th>Event / time</th></tr></thead><tbody id="idsRegBody"></tbody></table></div>
+                </div>
+
+                <div class="glass-card" style="padding:16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; margin-bottom:4px;">Data Retention</h4>
+                    <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin-bottom:10px;">Delete scan records and photos automatically after this many days. 0 keeps them until an admin deletes them. The cleanup runs when an admin opens this tab.</p>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <input type="number" id="idsRetention" class="input-field" style="width:110px; margin:0;" min="0" max="3650" inputmode="numeric">
+                        <span style="font-size:0.85rem;">days</span>
+                        <button class="btn btn-sm" onclick="idsSaveRetention()">Save</button>
+                    </div>
+                    <p id="idsRetentionStatus" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
+                </div>
             </div>
 
             <div id="adminSystem" class="admin-pane" style="display: none;">
@@ -1018,6 +1093,43 @@
         </div>
     </div>
 
+    <!-- ID SCANNER (js/14-id-scan.js): opened from the user menu or Command Center > ID Scan -->
+    <div class="modal" id="idsScanModal" style="z-index:2800; align-items:flex-start; overflow-y:auto;">
+        <div class="modal-sheet" style="max-width:520px; margin:0 auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal);">🪪 ID Scanner</h3>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 8px;" onclick="closeIdScanner()">✕</button>
+            </div>
+            <p id="idsScanMsg" style="display:none; font-size:0.88rem; line-height:1.5;"></p>
+            <div id="idsScanBody" style="display:none;">
+                <select id="idsScanEvent" class="input-field" style="margin-top:0;" onchange="idsChangeEvent(this.value)"></select>
+                <div id="idsModeBtns" class="segmented-control" style="margin-bottom:12px;">
+                    <button class="segment-btn ids-mode" data-mode="camera" onclick="idsSetMode('camera')">📷 Camera</button>
+                    <button class="segment-btn ids-mode" data-mode="wedge" onclick="idsSetMode('wedge')">🔌 External scanner</button>
+                </div>
+                <div id="idsCamWrap" style="display:none; margin-bottom:12px;">
+                    <video id="idsVideo" muted playsinline style="width:100%; max-height:260px; object-fit:cover; border-radius:14px; background:#000;"></video>
+                    <p id="idsCamHint" style="font-size:0.75rem; color:var(--text-muted); margin-top:6px;"></p>
+                </div>
+                <div id="idsWedgeWrap" style="display:none; margin-bottom:12px;">
+                    <textarea id="idsWedge" class="input-field" rows="2" style="margin:0; font-size:0.8rem;" inputmode="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Click here, then pull the scanner trigger" oninput="idsWedgeInput()" onblur="idsWedgeRefocus()"></textarea>
+                    <p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Works with USB or Bluetooth scanners that act like a keyboard. Keep this box selected while scanning.</p>
+                </div>
+                <div id="idsResult"></div>
+                <p id="idsStats" style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-top:12px;"></p>
+            </div>
+            <div id="idsToast" style="display:none; position:sticky; bottom:0; background:rgba(0,0,0,0.85); border:1px solid var(--border-glass); border-radius:10px; padding:8px 12px; font-size:0.8rem; text-align:center; margin-top:10px;"></div>
+        </div>
+    </div>
+    <div class="modal" id="idsDetailModal" style="z-index:2850;">
+        <div class="modal-sheet">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 8px;" onclick="closeModal('idsDetailModal')">✕</button>
+            </div>
+            <div id="idsDetailBody"></div>
+        </div>
+    </div>
+
     <script src="js/00-loading-mascot.js"></script>
     <script src="js/01-firebase-init.js"></script>
     <script src="js/02-notifications.js"></script>
@@ -1031,6 +1143,7 @@
     <script src="js/10-admin-ops.js"></script>
     <script src="js/11-settings-and-calendar.js"></script>
     <script src="js/12-banlist-chat-misc.js"></script>
+    <script src="js/14-id-scan.js"></script>
     <script src="js/13-init.js"></script>
 </body>
 </html>
