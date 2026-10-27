@@ -605,7 +605,6 @@
             const msg = document.getElementById('idsScanMsg');
             msg.style.display = 'block'; msg.style.color = 'var(--text-muted)'; msg.textContent = 'Loading…';
             try { await idsLoadConfigs(true); } catch (err) { msg.style.color = 'var(--danger-glow)'; msg.textContent = 'Could not load ID scan settings: ' + err.message; return; }
-            if (!idsEnabledEvents().length) { msg.textContent = 'ID scanning is not turned on for any event. An admin can turn it on in Command Center → ID Scan.'; return; }
             msg.style.display = 'none';
             idsS = { eventId: '', mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
             idsShowPicker();
@@ -630,7 +629,8 @@
             document.getElementById('idsScanBody').style.display = 'none';
             const today = idsToday(), t = new Date(); t.setDate(t.getDate() + 1);
             const tomorrow = idsIso(t.getFullYear(), t.getMonth() + 1, t.getDate());
-            document.getElementById('idsPickList').innerHTML = idsEnabledEvents().map(e => {
+            const enabled = idsEnabledEvents();
+            document.getElementById('idsPickList').innerHTML = !enabled.length ? '<p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">ID scanning is not turned on for any event yet. An admin can turn it on in Command Center → ID Scan. You can still try the test scanner below.</p>' : enabled.map(e => {
                 const tag = e.date === today ? 'Tonight' : e.date === tomorrow ? 'Tomorrow' : '';
                 const sum = idsRuleSummary(idsCfgs[e.id]);
                 return `<button class="glass-card" style="display:block; width:100%; text-align:left; cursor:pointer; padding:14px 16px; margin-bottom:10px; color:inherit; font:inherit; ${tag === 'Tonight' ? 'border-color:var(--neon-teal);' : ''}" onclick="idsStartScanning('${jsStr(e.id)}')">
@@ -638,15 +638,30 @@
                     <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(e.date || '')}${e.address ? ' · ' + escapeHtml(e.address) : ''}</div>
                     ${sum ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:4px;">${escapeHtml(sum)}</div>` : ''}</button>`;
             }).join('');
+            const todays = enabled.find(e => e.date === today);
+            document.getElementById('idsTestBox').innerHTML = `
+                <div style="border:2px dashed var(--border-glass); border-radius:16px; padding:14px; margin-top:6px;">
+                    <div style="font-family:'Outfit'; font-weight:700; font-size:1rem;">🧪 Test scanner</div>
+                    <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5; margin:4px 0 10px;">Scan an ID to see how it checks out. <strong>Nothing is saved</strong>: no registry record, photo, flag or log entry.</p>
+                    <select id="idsTestRules" class="input-field" style="margin:0 0 10px;">
+                        ${enabled.map(e => `<option value="${escapeHtml(e.id)}" ${todays && todays.id === e.id ? 'selected' : ''}>Rules for: ${escapeHtml(e.title)}</option>`).join('')}
+                        <option value="default" ${todays ? '' : 'selected'}>Default rules (21+, not expired, Ban List check)</option>
+                    </select>
+                    <button class="btn btn-outline" style="width:100%;" onclick="idsStartScanning('', document.getElementById('idsTestRules').value)">Start test</button>
+                </div>`;
             document.getElementById('idsPick').style.display = 'block';
         }
-        // Step 2: scan.
-        function idsStartScanning(eventId) {
-            const ev = getDB('events').find(e => e.id === eventId);
-            idsS = { eventId, mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
+        // Step 2: scan. A second argument (the rules to use: an event id or 'default') starts the test scanner instead: same checks, nothing saved.
+        function idsStartScanning(eventId, testRules) {
+            const test = testRules !== undefined;
+            const ev = test ? null : getDB('events').find(e => e.id === eventId);
+            const testCfg = !test ? null : (testRules !== 'default' && idsCfgs[testRules]) ? idsCfgFor(testRules) : Object.assign({}, IDS_DEFAULT_CFG, { enabled: true });
+            const testTitle = !test ? '' : (testRules !== 'default' && idsCfgs[testRules]) ? ((getDB('events').find(e => e.id === testRules) || {}).title || 'an event') : 'the default rules';
+            idsS = { eventId, test, testCfg, testTitle, mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
             document.getElementById('idsPick').style.display = 'none';
             document.getElementById('idsScanBody').style.display = 'block';
-            document.getElementById('idsScanEventName').textContent = ev ? ev.title + (ev.date ? ' · ' + ev.date : '') : eventId;
+            document.getElementById('idsScanEventName').textContent = test ? '🧪 Test mode - nothing is saved' : ev ? ev.title + (ev.date ? ' · ' + ev.date : '') : eventId;
+            document.getElementById('idsChangeBtn').textContent = test ? 'Back' : 'Change event';
             idsPrimeAudio(); idsWakeOn();
             idsSoundRender();
             idsSetMode(idsS.mode);
@@ -805,12 +820,19 @@
         }
         async function idsHandleScanInner(text, method) {
             if (idsS.pending) { if (!idsFinish()) { idsToast('Finish the scan on screen first.'); idsBeep('alert'); if (method === 'camera') idsCam.paused = false; return; } }
-            const cfg = idsCfgFor(idsS.eventId), ev = getDB('events').find(e => e.id === idsS.eventId);
+            const cfg = idsS.test ? idsS.testCfg : idsCfgFor(idsS.eventId), ev = getDB('events').find(e => e.id === idsS.eventId);
             idsS.last = null; idsS.flagOpen = false; idsS.flagNote = '';
             const parsed = idsParseAamva(text);
             if (!parsed) { idsBeep('alert'); idsShowError('That barcode isn\'t a driver license or ID card barcode. Scan the back of a US or Canadian license / ID.'); return; }
             const verdict = idsEvaluate(parsed, cfg, getDB('banlist').map(b => b.name));
             try { (await idsVerifyExternal(parsed, cfg)).forEach(r => verdict.reasons.push(r)); } catch (err) { verdict.reasons.push({ level: 'review', text: 'Outside verification unavailable: ' + err.message }); }
+            if (idsS.test) { // test scanner: show the verdict and stop. No re-scan lookup, no record, no photo, no flag, no log entry.
+                const result = idsResultOf(verdict.reasons);
+                idsS.last = { parsed, raw: text, result, reasons: verdict.reasons.map(r => r.text), age: verdict.age, outOfState: verdict.outOfState, method, photo: '', decision: '', photoMode: 'off', test: true };
+                idsRenderResult();
+                idsBeep(result);
+                return;
+            }
             let dupKey = '', prior = null;
             try { dupKey = await idsDupKey(idsS.eventId, parsed); } catch (err) { /* no hashing available: skip re-scan detection */ }
             if (dupKey && cfg.flagRescan) {
@@ -878,12 +900,12 @@
                         <pre style="font-size:0.68rem; white-space:pre-wrap; word-break:break-all; background:rgba(0,0,0,0.35); border-radius:8px; padding:8px; max-height:160px; overflow:auto; margin:0;">${escapeHtml(idsShowRaw(p.raw))}</pre>
                         <p style="font-size:0.7rem; color:var(--text-muted); margin-top:6px;">${(parseInt(idsGlobal.fullDataHours, 10) || 0) > 0 ? 'The full card data is also kept for admins for ' + idsGlobal.fullDataHours + ' hours, then deleted.' : 'Shown on this screen only. Only the fields listed in the registry are saved; the ID number and address are not.'}</p>
                     </details>
-                    ${p.flagged ? '<p style="text-align:center; font-size:0.8rem; color:var(--neon-pink); margin-bottom:10px;">🚩 Flagged for admin review</p>'
+                    ${p.test ? '' : p.flagged ? '<p style="text-align:center; font-size:0.8rem; color:var(--neon-pink); margin-bottom:10px;">🚩 Flagged for admin review</p>'
                         : idsS.flagOpen ? `<div style="margin-bottom:12px;"><textarea id="idsFlagNote" class="input-field" rows="3" maxlength="1000" style="margin:0 0 8px;" placeholder="What happened? (required)" oninput="idsS.flagNote = this.value">${escapeHtml(idsS.flagNote || '')}</textarea>
                             <div style="display:flex; gap:8px;"><button class="btn btn-magenta btn-sm" style="flex:1;" onclick="idsSendFlag()">Send flag</button><button class="btn btn-outline btn-sm" onclick="idsS.flagOpen = false; idsRenderResult()">Cancel</button></div>
                             <p style="font-size:0.7rem; color:var(--text-muted); margin-top:6px;">Admins review flags and decide whether this person goes on the Ban List.</p></div>`
                         : '<button class="btn btn-outline btn-sm" style="width:100%; margin-bottom:10px;" onclick="idsS.flagOpen = true; idsRenderResult()">🚩 Flag for Ban List review</button>'}
-                    ${logged ? `<p style="text-align:center; font-size:0.78rem; color:var(--text-muted); margin-bottom:10px;">Logged to the registry${p.decision ? ' · ' + (p.decision === 'admitted' ? 'admitted' : 'denied') : ''}</p>` : ''}
+                    ${p.test ? '<p style="text-align:center; font-size:0.78rem; color:var(--neon-teal); margin-bottom:10px;">🧪 Test scan - nothing was saved</p>' : logged ? `<p style="text-align:center; font-size:0.78rem; color:var(--text-muted); margin-bottom:10px;">Logged to the registry${p.decision ? ' · ' + (p.decision === 'admitted' ? 'admitted' : 'denied') : ''}</p>` : ''}
                     ${!logged && p.result === 'review' ? `<div style="display:flex; gap:8px; margin-bottom:10px;">
                         <button class="btn btn-sm" style="flex:1; ${p.decision === 'admitted' ? '' : 'opacity:0.75;'}" onclick="idsDecide('admitted')">${p.decision === 'admitted' ? '✔ ' : ''}Admit</button>
                         <button class="btn btn-magenta btn-sm" style="flex:1; ${p.decision === 'denied' ? '' : 'opacity:0.75;'}" onclick="idsDecide('denied')">${p.decision === 'denied' ? '✔ ' : ''}Deny</button></div>` : ''}
@@ -914,7 +936,9 @@
             } catch (err) { alert('⚠️ The flag was NOT sent: ' + err.message); }
         }
         function idsDecide(d) { if (idsS.pending) { idsS.pending.decision = d; idsRenderResult(); if (idsS.pending.photoMode === 'off') idsFinish(); } }
-        function idsRenderStats() { const s = idsS.stats; document.getElementById('idsStats').textContent = 'This session: ' + s.pass + ' passed · ' + s.review + ' reviewed · ' + s.fail + ' denied'; }
+        function idsRenderStats() {
+            if (idsS.test) { document.getElementById('idsStats').textContent = 'Test mode · using ' + idsS.testTitle + ' · nothing is being saved'; return; }
+            const s = idsS.stats; document.getElementById('idsStats').textContent = 'This session: ' + s.pass + ' passed · ' + s.review + ' reviewed · ' + s.fail + ' denied'; }
         let idsToastTimer = null;
         function idsToast(t) { const el = document.getElementById('idsToast'); el.textContent = t; el.style.display = 'block'; clearTimeout(idsToastTimer); idsToastTimer = setTimeout(() => { el.style.display = 'none'; }, 2500); }
 

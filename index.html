@@ -1126,13 +1126,14 @@
             <div id="idsPick" style="display:none;">
                 <p style="font-size:0.9rem; font-weight:600; margin-bottom:10px;">Which event are you scanning for?</p>
                 <div id="idsPickList"></div>
+                <div id="idsTestBox"></div>
             </div>
             <div id="idsScanBody" style="display:none; border:4px solid var(--border-glass); border-radius:22px; padding:12px; transition:border-color 0.25s, box-shadow 0.25s;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
                     <div style="min-width:0;"><div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Scanning for</div><div id="idsScanEventName" style="font-family:'Outfit'; font-weight:700; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div></div>
                     <div style="display:flex; gap:6px; flex-shrink:0;">
                         <button id="idsSoundBtn" class="btn btn-outline btn-sm" onclick="idsToggleSound()">🔊</button>
-                        <button class="btn btn-outline btn-sm" onclick="idsChangeEvent()">Change event</button>
+                        <button id="idsChangeBtn" class="btn btn-outline btn-sm" onclick="idsChangeEvent()">Change event</button>
                     </div>
                 </div>
                 <div id="idsModeBtns" class="segmented-control" style="margin-bottom:12px;">
