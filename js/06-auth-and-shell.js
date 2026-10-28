@@ -144,7 +144,7 @@
         //                        TERMS_LAST_UPDATED to refresh the date without forcing that.
         //   Each acceptance is saved on the user's profile (termsVersion / termsAcceptedAt).
         const TERMS_VERSION = '2026-10-08';
-        const TERMS_LAST_UPDATED = 'October 8th, 2026';
+        const TERMS_LAST_UPDATED = 'October 27th, 2026';
         let termsAccepted = false;
         function isScrolledToBottom(el) { return el.scrollTop + el.clientHeight >= el.scrollHeight - 24; }
 
