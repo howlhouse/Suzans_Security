@@ -1,15 +1,35 @@
 # App themes
 
 The whole app can be re-skinned from **Command Center > System > App Theme**. The choice is a
-system setting (one document, `settings/theme` = `{ theme: "default" | "halloween", ... }`), so it
+system setting (one document, `settings/theme` = `{ theme, startsAt, endsAt }`), so it
 applies to everyone and changes live on open devices.
 
 - **Neon Desert** (`default`) is the baseline. It has no overrides - it *is* `styles.css`.
-- **Halloween** (`halloween`), **Christmas** (`christmas`) and **Thanksgiving** (`thanksgiving`) are
+- **Halloween** (`halloween`), **Christmas** (`christmas`), **Thanksgiving** (`thanksgiving`) and **Treasure Trail** (`treasuretrail`) are
   blocks of overrides at the bottom of `styles.css`, keyed off `<html data-theme="...">`.
   - Halloween: orange / purple / slime green, cobwebs, spider, bats, fog.
   - Christmas: green / red / gold on evergreen, twinkling lights and falling snow.
   - Thanksgiving: harvest gold / cranberry / sage on warm brown, leaf garland and drifting leaves.
+  - Treasure Trail: built from the Nov 21 Treasure Trail party flyer - trail orange / stamp sky blue / asparagus green on ink black, cream text, a faint topographic map, a dashed trail with X marks under the header, and the flyer's distressed lettering (Rubik Dirt).
+
+## Scheduling
+
+Any non-default theme can have an optional **start** and **end** (System > App Theme > Schedule). Both are
+stored as epoch ms in `settings/theme` (`startsAt` / `endsAt`, `0` = no limit), entered in the admin's device time zone.
+Outside the window everyone sees the default Neon Desert look; when the end passes it returns on its own - no
+second visit needed. `getConfiguredTheme()` is what's saved, `getSavedTheme()` is what's live right now
+(`themeWindowState` decides). A timer fires at the next start/end boundary, and the app re-checks when a hidden tab
+comes back. The window is also cached in `localStorage` (`ss_theme_win`) so the `<head>` script paints the right
+look before the data loads.
+
+## Theme queue
+
+**System > Theme Queue** lines up themes for the holidays: each slot is `{ id, theme, startsAt, endsAt }` (all required,
+no overlaps) stored as `queue` in `settings/theme`. An open slot overrides the main theme; between slots everyone sees
+the main theme (or Neon Desert if its own window is closed). `getSavedTheme()` resolves it
+(`activeQueueSlot` -> main theme -> default). Past slots stay listed (dimmed) until removed. The queue is cached in
+`localStorage` as `ss_theme_q` for the `<head>` script, and the boundary timer covers slot starts/ends too.
+`saveTheme` carries the existing `queue` along, since it rewrites the whole doc.
 
 ## How it works
 

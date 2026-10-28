@@ -147,13 +147,46 @@
             default: { label: 'Neon Desert', icon: '🌵', blurb: 'The original look: teal and pink neon on black.', swatch: ['#08080c', '#00f5d4', '#ff2a85', '#00ff87'] },
             halloween: { label: 'Halloween', icon: '🎃', blurb: 'Pumpkin orange, witchy purple and slime green, with spooky icons, bats and cobwebs in the background.', swatch: ['#0b0612', '#ff8a1f', '#b266ff', '#9dff2e'], font: 'Creepster' },
             christmas: { label: 'Christmas', icon: '🎄', blurb: 'Evergreen, candy red and gold, with falling snow, twinkling lights and festive icons in the background.', swatch: ['#06100b', '#3ddc84', '#ff4b5c', '#ffd54a'], font: 'Mountains+of+Christmas:wght@700' },
-            thanksgiving: { label: 'Thanksgiving', icon: '🦃', blurb: 'Harvest gold, cranberry and sage on warm brown, with drifting autumn leaves, a leaf garland and harvest icons.', swatch: ['#0e0804', '#f5b83d', '#e4506a', '#a6c957'], font: 'Lobster' }
+            thanksgiving: { label: 'Thanksgiving', icon: '🦃', blurb: 'Harvest gold, cranberry and sage on warm brown, with drifting autumn leaves, a leaf garland and harvest icons.', swatch: ['#0e0804', '#f5b83d', '#e4506a', '#a6c957'], font: 'Lobster' },
+            treasuretrail: { label: 'Treasure Trail', icon: '🗺️', blurb: 'The Nov 21 party flyer: desert-rock orange, stamp sky blue and asparagus green on ink black, with a topographic map, a dashed trail and travel icons.', swatch: ['#120d08', '#f08a1c', '#2aa8ff', '#b5c926'], font: 'Rubik+Dirt' }
         };
         window._themeDraft = null;
-        function getSavedTheme() {
-            const s = getDB('settings').find(x => x.id === 'theme') || {};
-            return APP_THEMES[s.theme] ? s.theme : 'default';
+        window._themeSchedDirty = false;
+        // settings/theme = { theme, startsAt, endsAt } (epoch ms, 0/absent = no limit). The configured theme is only
+        // *live* inside that window; before it starts and after it ends everyone sees the default look.
+        function getThemeDoc() { return getDB('settings').find(x => x.id === 'theme') || {}; }
+        function getConfiguredTheme() { const s = getThemeDoc(); return APP_THEMES[s.theme] ? s.theme : 'default'; }
+        function themeWindowState(s, now) {
+            if (s.startsAt && now < s.startsAt) return 'scheduled';
+            if (s.endsAt && now >= s.endsAt) return 'ended';
+            return 'live';
         }
+        // The queue: slots { id, theme, startsAt, endsAt } (all required, no overlaps) that override the main theme while their window is open.
+        function getThemeQueue() {
+            return (getThemeDoc().queue || []).filter(q => q && APP_THEMES[q.theme] && q.theme !== 'default' && q.startsAt && q.endsAt)
+                .sort((a, b) => a.startsAt - b.startsAt);
+        }
+        function activeQueueSlot(now) { return getThemeQueue().find(q => now >= q.startsAt && now < q.endsAt) || null; }
+        // The theme everyone actually sees right now: an open queue slot wins, else the main theme if its window is open, else the default.
+        function getSavedTheme() {
+            const slot = activeQueueSlot(Date.now());
+            if (slot) return slot.theme;
+            const s = getThemeDoc(), name = getConfiguredTheme();
+            return name !== 'default' && themeWindowState(s, Date.now()) === 'live' ? name : 'default';
+        }
+        function msToLocalInput(ms) { return ms ? new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''; }
+        function localInputToMs(v) { const t = v ? new Date(v).getTime() : 0; return isNaN(t) ? 0 : t; }
+        function fmtThemeTime(ms) { return new Date(ms).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+        // Wake up exactly when the window opens or closes (devices left open would otherwise only notice on the next data refresh).
+        let _themeTimer = null;
+        function scheduleThemeBoundary() {
+            clearTimeout(_themeTimer);
+            const s = getThemeDoc(), now = Date.now();
+            const next = [s.startsAt, s.endsAt, ...getThemeQueue().flatMap(q => [q.startsAt, q.endsAt])].filter(t => t && t > now).sort((a, b) => a - b)[0];
+            if (!next) return;
+            _themeTimer = setTimeout(() => { syncTheme(); renderThemeControls(); }, Math.min(next - now + 500, 2147483000));
+        }
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && window._settingsReady) { syncTheme(); renderThemeControls(); } });
         function applyTheme(name) {
             if (!APP_THEMES[name]) name = 'default';
             if (document.documentElement.getAttribute('data-theme') !== name) document.documentElement.setAttribute('data-theme', name);
@@ -175,45 +208,129 @@
         // Does nothing until the settings collection has actually loaded, so a slow load can't flip people to default.
         function syncTheme() {
             if (!window._settingsReady) return;
-            const saved = getSavedTheme();
-            try { localStorage.setItem('ss_theme', saved); } catch (err) { /* storage blocked */ }
-            applyTheme(window._themeDraft || saved);
+            const s = getThemeDoc();
+            try {
+                // The configured theme plus its window, so the <head> script can work out the right look before first paint.
+                localStorage.setItem('ss_theme', getConfiguredTheme());
+                localStorage.setItem('ss_theme_win', (s.startsAt || 0) + ',' + (s.endsAt || 0));
+                localStorage.setItem('ss_theme_q', JSON.stringify(getThemeQueue().map(q => [q.theme, q.startsAt, q.endsAt])));
+            } catch (err) { /* storage blocked */ }
+            applyTheme(window._themeDraft || getSavedTheme());
+            scheduleThemeBoundary();
         }
         function renderThemeControls() {
             const box = document.getElementById('themeOptions');
             if (!box) return;
-            const saved = getSavedTheme(), sel = window._themeDraft || saved;
+            const doc = getThemeDoc(), configured = getConfiguredTheme(), sel = window._themeDraft || configured;
+            const state = configured === 'default' ? 'live' : themeWindowState(doc, Date.now()), live = getSavedTheme(), slot = activeQueueSlot(Date.now());
+            const badge = { live: 'Live', scheduled: 'Scheduled', ended: 'Ended' };
             box.innerHTML = Object.keys(APP_THEMES).map(id => {
                 const t = APP_THEMES[id];
+                const b = id === live ? 'Live' : id === configured && id !== 'default' && state !== 'live' ? badge[state] : '';
                 return `<button type="button" class="theme-option ${id === sel ? 'selected' : ''}" onclick="selectThemeOption('${id}')">
                     <span class="theme-swatches">${t.swatch.map(c => `<i style="background:${c}"></i>`).join('')}</span>
-                    <span class="theme-option-text"><span><strong>${t.icon} ${t.label}</strong>${id === saved ? '<em>Live</em>' : ''}</span><small>${t.blurb}</small></span>
+                    <span class="theme-option-text"><span><strong>${t.icon} ${t.label}</strong>${b ? `<em>${b}</em>` : ''}</span><small>${t.blurb}</small></span>
                 </button>`;
             }).join('');
-            const previewing = sel !== saved;
-            document.getElementById('themeApplyBtn').disabled = !previewing;
-            document.getElementById('themeRevertBtn').style.display = previewing ? 'inline-block' : 'none';
-            document.getElementById('themeNote').textContent = previewing
-                ? `Previewing ${APP_THEMES[sel].label} on your screen only. Apply it to switch the whole team over.`
-                : `${APP_THEMES[saved].label} is live for everyone.`;
+            // Schedule: only meaningful for a non-default theme. Fields mirror the saved schedule until the admin edits them.
+            const schedBox = document.getElementById('themeSchedule');
+            schedBox.style.display = sel === 'default' ? 'none' : 'block';
+            if (!window._themeSchedDirty) {
+                document.getElementById('themeStart').value = sel === configured ? msToLocalInput(doc.startsAt) : '';
+                document.getElementById('themeEnd').value = sel === configured ? msToLocalInput(doc.endsAt) : '';
+            }
+            const previewing = sel !== configured;
+            document.getElementById('themeApplyBtn').disabled = !previewing && !window._themeSchedDirty;
+            document.getElementById('themeRevertBtn').style.display = previewing || window._themeSchedDirty ? 'inline-block' : 'none';
+            let note;
+            if (previewing) note = `Previewing ${APP_THEMES[sel].label} on your screen only. Apply it to switch the whole team over.`;
+            else if (window._themeSchedDirty) note = 'Schedule changed - apply it to save for everyone.';
+            else if (configured === 'default') note = `${APP_THEMES.default.label} is live for everyone.`;
+            else {
+                const range = (doc.startsAt ? ' from ' + fmtThemeTime(doc.startsAt) : '') + (doc.endsAt ? ' until ' + fmtThemeTime(doc.endsAt) : '');
+                if (state === 'live') note = `${APP_THEMES[configured].label} is live for everyone${doc.endsAt ? ', then returns to ' + APP_THEMES.default.label + ' at ' + fmtThemeTime(doc.endsAt) : ' (no end set)'}.`;
+                else if (state === 'scheduled') note = `${APP_THEMES[configured].label} is scheduled${range}. Until then everyone sees ${APP_THEMES.default.label}.`;
+                else note = `${APP_THEMES[configured].label} ended ${fmtThemeTime(doc.endsAt)}; everyone is back on ${APP_THEMES.default.label}.`;
+            }
+            if (slot && !previewing && !window._themeSchedDirty) note = `${APP_THEMES[slot.theme].label} is live from the queue until ${fmtThemeTime(slot.endsAt)}. Main setting: ${note}`;
+            document.getElementById('themeNote').textContent = note;
+            renderThemeQueue();
+        }
+
+        // ----- Theme queue UI (System > Theme Queue) -----
+        function renderThemeQueue() {
+            const list = document.getElementById('themeQueueList');
+            if (!list) return;
+            const now = Date.now(), q = getThemeQueue();
+            list.innerHTML = q.length ? q.map(s => {
+                const st = now >= s.endsAt ? 'Ended' : now >= s.startsAt ? 'Live' : 'Upcoming', t = APP_THEMES[s.theme];
+                return `<div class="theme-queue-item ${st === 'Ended' ? 'ended' : ''}">
+                    <span class="theme-swatches" style="width:30px">${t.swatch.map(col => `<i style="background:${col};height:12px;border-radius:4px"></i>`).join('')}</span>
+                    <span class="theme-option-text"><span><strong>${t.icon} ${t.label}</strong><em>${st}</em></span><small>${fmtThemeTime(s.startsAt)} &rarr; ${fmtThemeTime(s.endsAt)}</small></span>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="previewQueuedTheme('${jsStr(s.theme)}')" title="Preview on your screen only">👁</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="removeQueuedTheme('${jsStr(s.id)}')" title="Remove from queue">✕</button>
+                </div>`;
+            }).join('') : '<p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:10px;">Nothing queued yet.</p>';
+            const sel = document.getElementById('themeQueueTheme');
+            if (sel && !sel.options.length) sel.innerHTML = Object.keys(APP_THEMES).filter(id => id !== 'default').map(id => `<option value="${id}">${APP_THEMES[id].icon} ${APP_THEMES[id].label}</option>`).join('');
+        }
+        function previewQueuedTheme(theme) { window._themeDraft = theme === getConfiguredTheme() ? null : theme; window._themeSchedDirty = false; syncTheme(); renderThemeControls(); }
+        function saveThemeQueue(queue, logText) {
+            const doc = getThemeDoc();
+            return saveDoc('settings', 'theme', { ...doc, id: 'theme', queue, updatedAt: Date.now(), updatedBy: (currUser() || {}).name || '' }).then(() => {
+                logAction(logText); syncTheme(); renderThemeControls();
+            }).catch(() => renderThemeControls());
+        }
+        function addQueuedTheme() {
+            const theme = document.getElementById('themeQueueTheme').value;
+            const startsAt = localInputToMs(document.getElementById('themeQueueStart').value);
+            const endsAt = localInputToMs(document.getElementById('themeQueueEnd').value);
+            if (!APP_THEMES[theme] || theme === 'default') return;
+            if (!startsAt || !endsAt) return alert('Pick both a start and an end time for the queued theme.');
+            if (endsAt <= startsAt) return alert('The end time has to be after the start time.');
+            if (endsAt <= Date.now()) return alert('That window is already over - pick later times.');
+            const clash = getThemeQueue().find(s => startsAt < s.endsAt && endsAt > s.startsAt);
+            if (clash) return alert(`That overlaps ${APP_THEMES[clash.theme].label} (${fmtThemeTime(clash.startsAt)} to ${fmtThemeTime(clash.endsAt)}). Adjust the times or remove that one first.`);
+            const slot = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), theme, startsAt, endsAt };
+            saveThemeQueue([...getThemeQueue(), slot], `Queued the ${APP_THEMES[theme].label} theme from ${new Date(startsAt).toLocaleString()} to ${new Date(endsAt).toLocaleString()}`).then(() => {
+                document.getElementById('themeQueueStart').value = ''; document.getElementById('themeQueueEnd').value = '';
+            });
+        }
+        function removeQueuedTheme(id) {
+            const slot = getThemeQueue().find(s => s.id === id);
+            if (!slot || !confirm(`Remove ${APP_THEMES[slot.theme].label} (${fmtThemeTime(slot.startsAt)}) from the queue?`)) return;
+            saveThemeQueue(getThemeQueue().filter(s => s.id !== id), `Removed the ${APP_THEMES[slot.theme].label} theme from the queue`);
+        }
+        function themeScheduleEdited() { window._themeSchedDirty = true; renderThemeControls(); }
+        function clearThemeSchedule() {
+            document.getElementById('themeStart').value = '';
+            document.getElementById('themeEnd').value = '';
+            themeScheduleEdited();
         }
         function selectThemeOption(id) {
             if (!APP_THEMES[id]) return;
-            window._themeDraft = id === getSavedTheme() ? null : id;
+            window._themeDraft = id === getConfiguredTheme() ? null : id;
+            window._themeSchedDirty = false;
             syncTheme();
             renderThemeControls();
         }
         function clearThemePreview() {
-            if (!window._themeDraft) return;
+            if (!window._themeDraft && !window._themeSchedDirty) return;
             window._themeDraft = null;
+            window._themeSchedDirty = false;
             syncTheme();
         }
         function saveTheme() {
-            const theme = window._themeDraft;
-            if (!theme || !APP_THEMES[theme]) return;
-            saveDoc('settings', 'theme', { id: 'theme', theme, updatedAt: Date.now(), updatedBy: (currUser() || {}).name || '' }).then(() => {
+            const theme = window._themeDraft || getConfiguredTheme();
+            if (!APP_THEMES[theme]) return;
+            const startsAt = theme === 'default' ? 0 : localInputToMs(document.getElementById('themeStart').value);
+            const endsAt = theme === 'default' ? 0 : localInputToMs(document.getElementById('themeEnd').value);
+            if (endsAt && endsAt <= Date.now()) return alert('The end time is already in the past - pick a later end time (or clear it).');
+            if (startsAt && endsAt && endsAt <= startsAt) return alert('The end time has to be after the start time.');
+            saveDoc('settings', 'theme', { id: 'theme', theme, startsAt, endsAt, queue: getThemeDoc().queue || [], updatedAt: Date.now(), updatedBy: (currUser() || {}).name || '' }).then(() => {
                 window._themeDraft = null;
-                logAction(`Set the app theme to ${APP_THEMES[theme].label} for everyone`);
+                window._themeSchedDirty = false;
+                logAction(`Set the app theme to ${APP_THEMES[theme].label} for everyone` + (startsAt ? ', from ' + new Date(startsAt).toLocaleString() : '') + (endsAt ? ', until ' + new Date(endsAt).toLocaleString() : ''));
                 syncTheme();
                 renderThemeControls();
             }).catch(() => renderThemeControls());
