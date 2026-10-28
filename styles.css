@@ -354,6 +354,9 @@
         /* System > App Theme picker */
         .theme-option { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; cursor: pointer; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); color: var(--text-primary); font-family: inherit; }
         .theme-option.selected { border-color: var(--neon-teal); box-shadow: 0 0 0 1px var(--neon-teal); }
+        .theme-queue-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); }
+        .theme-queue-item .theme-option-text { flex: 1; }
+        .theme-queue-item.ended { opacity: 0.5; }
         .theme-swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; width: 44px; flex-shrink: 0; }
         .theme-swatches i { height: 20px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2); }
         .theme-option-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.9rem; }
@@ -453,6 +456,50 @@
             html[data-theme="christmas"] .theme-decor::before, html[data-theme="christmas"] .theme-decor::after,
             html[data-theme="thanksgiving"] .theme-decor::after { animation: none; }
         }
+
+        /* --- Treasure Trail (Matt Bearracuda & JP Hardy's pre-Thanksgiving party flyer, Nov 21) ---
+           Warm ink-black with the flyer's palette: desert-rock orange, postage-stamp sky blue and asparagus green,
+           cream type, a faint topographic map behind everything and a dashed trail with X marks under the header. */
+        html[data-theme="treasuretrail"] {
+            --bg-obsidian: #120d08; --bg-card: rgba(36, 26, 16, 0.74); --glass-sheet: rgba(28, 20, 12, 0.88); --border-glass: rgba(246, 231, 193, 0.17);
+            /* Variable names are historical: here teal=trail orange, pink=stamp sky blue, saguaro=asparagus green. */
+            --neon-teal: #f08a1c; --neon-teal-deep: #c25f06; --teal-rgb: 240, 138, 28;
+            --neon-pink: #2aa8ff; --neon-pink-deep: #0b6fd0; --pink-rgb: 42, 168, 255;
+            --neon-saguaro: #b5c926; --green-rgb: 181, 201, 38;
+            --danger-glow: #ff4d3d;
+            --text-primary: #fff6e3; --text-secondary: rgba(255, 244, 222, 0.75); --text-muted: rgba(250, 236, 208, 0.5);
+        }
+        html[data-theme="treasuretrail"] body::before { background: radial-gradient(circle, rgba(42, 168, 255, 0.24) 0%, rgba(196, 82, 26, 0.14) 45%, transparent 70%); }
+        html[data-theme="treasuretrail"] body::after { background: radial-gradient(circle, rgba(240, 138, 28, 0.22) 0%, rgba(181, 201, 38, 0.1) 40%, transparent 70%); }
+        html[data-theme="treasuretrail"] .watermark-pattern { background-image: url("data:image/svg+xml,%3Csvg width='360' height='360' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='24' y='64' font-size='34' transform='rotate(-12 24 64)'%3E🦃%3C/text%3E%3Ctext x='150' y='50' font-size='34' transform='rotate(10 150 50)'%3E🥕%3C/text%3E%3Ctext x='268' y='96' font-size='34' transform='rotate(-18 268 96)'%3E🍞%3C/text%3E%3Ctext x='70' y='168' font-size='34' transform='rotate(14 70 168)'%3E🥾%3C/text%3E%3Ctext x='190' y='150' font-size='34' transform='rotate(-8 190 150)'%3E🧭%3C/text%3E%3Ctext x='296' y='232' font-size='34' transform='rotate(16 296 232)'%3E🗺️%3C/text%3E%3Ctext x='28' y='292' font-size='34' transform='rotate(-20 28 292)'%3E🏜️%3C/text%3E%3Ctext x='136' y='262' font-size='34' transform='rotate(6 136 262)'%3E🎒%3C/text%3E%3Ctext x='246' y='326' font-size='34' transform='rotate(-14 246 326)'%3E🍑%3C/text%3E%3Ctext x='92' y='338' font-size='34' transform='rotate(10 92 338)'%3E⛰️%3C/text%3E%3Ctext x='214' y='230' font-size='34' transform='rotate(-10 214 230)'%3E🥧%3C/text%3E%3Ctext x='316' y='36' font-size='34' transform='rotate(12 316 36)'%3E🌄%3C/text%3E%3C/svg%3E"); background-size: 360px 360px; filter: opacity(0.16) saturate(1.1); }
+        html[data-theme="treasuretrail"] .pride-strip { background: linear-gradient(90deg, #f08a1c, #2aa8ff, #b5c926, #f6e7c1, #c4521a, #f08a1c); background-size: 300% 100%; }
+        html[data-theme="treasuretrail"] #authModal .modal-sheet { background-image: linear-gradient(var(--glass-sheet), var(--glass-sheet)), linear-gradient(90deg, #f08a1c, #2aa8ff, #b5c926, #f6e7c1, #c4521a, #f08a1c); }
+        html[data-theme="treasuretrail"] header { background: rgba(20, 14, 8, 0.8); }
+        html[data-theme="treasuretrail"] .dock-nav { background: rgba(24, 17, 10, 0.88); }
+        html[data-theme="treasuretrail"] .input-field, html[data-theme="treasuretrail"] select, html[data-theme="treasuretrail"] textarea { background: rgba(22, 15, 9, 0.72); }
+        html[data-theme="treasuretrail"] .chat-container { background: rgba(22, 15, 9, 0.62); }
+        html[data-theme="treasuretrail"] .chat-bubble { background: rgba(58, 42, 26, 0.78); }
+        html[data-theme="treasuretrail"] .chat-bubble.mine { background: linear-gradient(135deg, #d9731a 0%, #8a3a0a 100%); }
+        html[data-theme="treasuretrail"] .segmented-control { background: rgba(24, 16, 9, 0.82); }
+        html[data-theme="treasuretrail"] .cal-day { background: rgba(38, 27, 16, 0.62); }
+        html[data-theme="treasuretrail"] .draggable-section { background: rgba(40, 29, 17, 0.88); }
+        html[data-theme="treasuretrail"] .ev2-in { background: #17100a; }
+        html[data-theme="treasuretrail"] .ev2-media { background: linear-gradient(135deg, #0f3a5c, #4a2308); }
+        html[data-theme="treasuretrail"] .event-detail-img-wrap { background: #0f0a06; }
+        html[data-theme="treasuretrail"] #tourBubble, html[data-theme="treasuretrail"] #tourArrow { background: rgba(24, 17, 10, 0.97); }
+
+        /* Brand: chunky distressed flyer lettering (only fetched while this theme is on) and a hiking boot on the logo. */
+        html[data-theme="treasuretrail"] .brand-text { font-family: 'Rubik Dirt', 'Outfit', sans-serif; font-weight: 400; font-size: 1.12rem; letter-spacing: 0.6px; }
+        html[data-theme="treasuretrail"] .ev-title { font-family: 'Rubik Dirt', 'Outfit', sans-serif; font-weight: 400; letter-spacing: 0.4px; }
+        html[data-theme="treasuretrail"] .brand-container { position: relative; }
+        html[data-theme="treasuretrail"] .brand-container::after { content: '🥾'; position: absolute; left: 20px; top: -9px; font-size: 1.05rem; transform: rotate(-14deg); filter: drop-shadow(0 0 6px rgba(240, 138, 28, 0.75)); pointer-events: none; }
+
+        /* Decoration: topographic contour lines over a rock-orange glow at the bottom, plus a dashed trail with X marks under the header. */
+        html[data-theme="treasuretrail"] .theme-decor { display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+        html[data-theme="treasuretrail"] .theme-decor::before, html[data-theme="treasuretrail"] .theme-decor::after { content: ""; position: absolute; left: 0; right: 0; }
+        html[data-theme="treasuretrail"] .theme-decor::before { top: 66px; height: 40px; opacity: 0.8; background: url("data:image/svg+xml,%3Csvg width='170' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 12 Q42 32 85 12 Q127 -6 170 12' fill='none' stroke='%23f08a1c' stroke-width='2' stroke-dasharray='6 7' stroke-linecap='round'/%3E%3Cpath d='M79 20 L91 32 M91 20 L79 32' stroke='%23c4521a' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x 0 0 / 170px 40px; }
+        html[data-theme="treasuretrail"] .theme-decor::after { top: 0; bottom: 0; opacity: 0.13;
+            background: linear-gradient(to top, rgba(224, 100, 30, 0.7), transparent) no-repeat 50% 100% / 100% 180px, url("data:image/svg+xml,%3Csvg width='480' height='480' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23f6e7c1' stroke-width='1.3'%3E%3Cpath d='M170.7 130.0C171.8 136.3 167.2 146.6 161.4 151.1C155.6 155.6 144.1 156.6 136.0 157.1C127.8 157.7 119.2 157.2 112.4 154.3C105.7 151.5 98.5 145.9 95.4 140.1C92.3 134.3 91.4 125.8 93.8 119.5C96.2 113.1 102.6 104.6 109.6 101.8C116.7 99.0 128.5 100.8 136.0 102.7C143.5 104.6 148.9 108.9 154.7 113.4C160.4 118.0 169.6 123.7 170.7 130.0Z'/%3E%3Cpath d='M213.5 130.0C215.6 142.5 204.3 162.9 192.3 171.8C180.4 180.7 158.0 182.2 141.8 183.4C125.5 184.6 108.2 184.4 94.8 178.8C81.3 173.3 67.2 161.8 60.9 150.1C54.5 138.4 51.9 121.4 56.7 108.6C61.4 95.8 74.9 78.6 89.1 73.3C103.3 68.0 126.6 73.1 141.7 77.0C156.7 81.0 167.4 88.0 179.4 96.8C191.4 105.7 211.3 117.5 213.5 130.0Z'/%3E%3Cpath d='M391.7 300.0C390.9 305.4 386.1 310.7 381.6 314.5C377.2 318.4 371.2 322.1 365.1 323.1C359.0 324.1 351.1 322.9 345.2 320.6C339.2 318.2 332.0 313.9 329.3 308.9C326.6 304.0 326.2 295.6 329.1 291.0C332.0 286.5 340.8 283.8 346.8 281.6C352.7 279.5 358.3 277.8 364.9 277.9C371.5 278.1 381.9 278.6 386.4 282.3C390.8 286.0 392.5 294.6 391.7 300.0Z'/%3E%3Cpath d='M422.6 300.0C420.8 310.8 411.8 321.2 403.0 328.9C394.3 336.6 382.3 344.0 370.2 346.1C358.0 348.1 342.4 345.8 330.3 341.2C318.2 336.5 302.7 328.1 297.4 318.2C292.2 308.4 292.5 291.1 298.7 282.1C304.8 273.2 322.5 268.9 334.3 264.4C346.2 259.9 356.7 255.2 369.9 255.1C383.1 255.0 404.8 256.5 413.6 264.0C422.4 271.5 424.3 289.2 422.6 300.0Z'/%3E%3Cpath d='M452.4 300.0C449.5 316.3 437.1 331.7 424.3 343.2C411.4 354.6 393.3 365.8 375.2 368.9C357.0 372.0 333.8 368.8 315.3 361.9C296.8 355.1 272.0 342.6 264.3 327.9C256.6 313.1 259.5 286.8 269.2 273.6C278.9 260.3 305.0 255.4 322.7 248.3C340.3 241.2 355.4 231.6 375.2 231.1C395.0 230.6 428.6 233.8 441.5 245.3C454.4 256.8 455.2 283.7 452.4 300.0Z'/%3E%3Cpath d='M316.1 90.0C316.1 92.8 314.5 96.0 312.3 98.2C310.1 100.5 306.6 102.5 302.9 103.3C299.3 104.1 293.6 104.7 290.5 103.2C287.4 101.8 284.9 97.4 284.3 94.6C283.6 91.7 285.5 88.9 286.7 86.1C287.8 83.3 288.5 79.8 291.3 77.9C294.1 76.1 299.7 74.6 303.3 75.2C306.8 75.8 310.5 79.0 312.7 81.5C314.8 84.0 316.2 87.2 316.1 90.0Z'/%3E%3Cpath d='M332.2 90.0C332.1 95.5 328.7 101.9 324.3 106.3C320.0 110.8 313.2 115.2 305.9 117.0C298.7 118.7 286.8 119.8 280.7 116.8C274.6 113.8 270.6 104.7 269.4 98.9C268.2 93.2 271.5 87.9 273.6 82.3C275.7 76.7 276.7 68.9 282.1 65.3C287.6 61.6 299.4 59.0 306.5 60.3C313.7 61.6 320.8 68.2 325.1 73.1C329.4 78.1 332.4 84.5 332.2 90.0Z'/%3E%3Cpath d='M348.2 90.0C348.0 98.2 342.7 107.4 336.2 114.3C329.7 121.2 320.0 128.5 309.1 131.2C298.2 133.9 279.6 135.3 270.7 130.6C261.8 125.9 257.2 111.6 255.5 102.9C253.9 94.3 257.8 87.0 260.6 78.5C263.4 70.0 264.3 57.4 272.5 51.9C280.7 46.4 299.0 43.4 309.8 45.6C320.6 47.7 330.9 57.5 337.3 65.0C343.7 72.4 348.4 81.8 348.2 90.0Z'/%3E%3Cpath d='M364.1 90.0C363.8 100.9 356.5 112.8 347.9 122.2C339.3 131.5 326.9 142.4 312.4 146.1C297.8 149.8 272.3 151.1 260.7 144.5C249.1 137.9 245.1 118.3 242.9 106.6C240.7 95.0 244.1 86.1 247.4 74.7C250.6 63.2 251.5 45.2 262.4 37.9C273.4 30.7 298.5 28.0 313.0 31.1C327.5 34.3 340.8 47.1 349.3 56.9C357.8 66.7 364.3 79.1 364.1 90.0Z'/%3E%3Cpath d='M379.7 90.0C379.4 103.5 370.2 118.0 359.5 130.0C348.9 141.9 334.0 157.1 315.8 161.9C297.7 166.6 264.8 166.9 250.8 158.2C236.7 149.6 234.4 124.5 231.5 109.9C228.6 95.3 230.1 85.1 233.5 70.6C236.9 56.2 238.1 32.3 251.9 23.4C265.7 14.4 297.9 12.8 316.1 17.1C334.3 21.4 350.6 36.8 361.2 48.9C371.8 61.1 380.0 76.5 379.7 90.0Z'/%3E%3C/g%3E%3C/svg%3E") repeat 0 0 / 480px 480px; }
 
         .segment-btn.ids-mode.active-mode { background: var(--neon-teal); color: #08080c; }
 

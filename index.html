@@ -23,8 +23,14 @@
         // js/05 (applyTheme/syncTheme) takes over once the real setting is loaded.
         try {
             var t = localStorage.getItem('ss_theme');
+            // Scheduled themes only show inside their start/end window (cached as "startMs,endMs" by js/05 syncTheme).
+            var w = (localStorage.getItem('ss_theme_win') || '').split(','), s0 = +w[0] || 0, e0 = +w[1] || 0, n0 = Date.now();
+            if ((s0 && n0 < s0) || (e0 && n0 >= e0)) t = 'default';
+            // A queued slot (cached as [[theme, startMs, endMs], ...]) that's open right now overrides all of that.
+            var q = JSON.parse(localStorage.getItem('ss_theme_q') || '[]');
+            for (var i = 0; i < q.length; i++) if (n0 >= q[i][1] && n0 < q[i][2]) t = q[i][0];
             if (t && t !== 'default') document.documentElement.setAttribute('data-theme', t);
-            var fonts = { halloween: 'Creepster', christmas: 'Mountains+of+Christmas:wght@700', thanksgiving: 'Lobster' };
+            var fonts = { halloween: 'Creepster', christmas: 'Mountains+of+Christmas:wght@700', thanksgiving: 'Lobster', treasuretrail: 'Rubik+Dirt' };
             if (fonts[t]) {
                 var f = document.createElement('link'); f.id = 'themeFontLink'; f.rel = 'stylesheet';
                 f.href = 'https://fonts.googleapis.com/css2?family=' + fonts[t] + '&display=swap';
@@ -546,11 +552,32 @@
                     <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">🎨 App Theme</h4>
                     <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">The look of the whole app for everyone. Pick one to preview it on your screen only, then apply it to the team. Layout and features stay exactly the same.</p>
                     <div id="themeOptions"></div>
+                    <div id="themeSchedule" style="display:none; margin: 4px 0 14px;">
+                        <h5 style="font-family:'Outfit',sans-serif; margin-bottom:4px;">🗓️ Schedule (optional)</h5>
+                        <p style="color:var(--text-muted); font-size:0.78rem; margin-bottom:10px;">Everyone sees Neon Desert outside this window. Leave a field empty for no limit. Times are in this device's time zone.</p>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                            <label style="font-size:0.75rem; color:var(--text-secondary);">Starts<input type="datetime-local" id="themeStart" class="input-field" style="margin-top:4px;" onchange="themeScheduleEdited()"></label>
+                            <label style="font-size:0.75rem; color:var(--text-secondary);">Ends (back to Neon Desert)<input type="datetime-local" id="themeEnd" class="input-field" style="margin-top:4px;" onchange="themeScheduleEdited()"></label>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="clearThemeSchedule()">Clear schedule</button>
+                    </div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
                         <button class="btn btn-sm" id="themeApplyBtn" onclick="saveTheme()">✅ Apply to everyone</button>
-                        <button class="btn btn-outline btn-sm" id="themeRevertBtn" onclick="clearThemePreview(); renderThemeControls();">↩️ Stop preview</button>
+                        <button class="btn btn-outline btn-sm" id="themeRevertBtn" onclick="clearThemePreview(); renderThemeControls();">↩️ Stop preview / undo changes</button>
                     </div>
                     <p id="themeNote" style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;"></p>
+                </div>
+
+                <div class="glass-card" style="padding: 20px; max-width: 520px; margin-bottom: 16px;">
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit',sans-serif; margin-bottom:6px;">📅 Theme Queue</h4>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:14px;">Line themes up for the holidays. Each one switches on at its start and off at its end, and everyone sees the main theme above (or Neon Desert) in between. Queued slots can't overlap. Times are in this device's time zone.</p>
+                    <div id="themeQueueList"></div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:6px;">
+                        <label style="font-size:0.75rem; color:var(--text-secondary); grid-column: 1 / -1;">Theme<select id="themeQueueTheme" class="input-field" style="margin-top:4px;"></select></label>
+                        <label style="font-size:0.75rem; color:var(--text-secondary);">Starts<input type="datetime-local" id="themeQueueStart" class="input-field" style="margin-top:4px;"></label>
+                        <label style="font-size:0.75rem; color:var(--text-secondary);">Ends<input type="datetime-local" id="themeQueueEnd" class="input-field" style="margin-top:4px;"></label>
+                    </div>
+                    <button type="button" class="btn btn-sm" style="margin-top:10px;" onclick="addQueuedTheme()">➕ Add to queue</button>
                 </div>
 
                 <div class="glass-card" style="padding: 20px; max-width: 520px;">
@@ -1126,13 +1153,14 @@
             <div id="idsPick" style="display:none;">
                 <p style="font-size:0.9rem; font-weight:600; margin-bottom:10px;">Which event are you scanning for?</p>
                 <div id="idsPickList"></div>
+                <div id="idsTestBox"></div>
             </div>
             <div id="idsScanBody" style="display:none; border:4px solid var(--border-glass); border-radius:22px; padding:12px; transition:border-color 0.25s, box-shadow 0.25s;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
                     <div style="min-width:0;"><div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Scanning for</div><div id="idsScanEventName" style="font-family:'Outfit'; font-weight:700; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div></div>
                     <div style="display:flex; gap:6px; flex-shrink:0;">
                         <button id="idsSoundBtn" class="btn btn-outline btn-sm" onclick="idsToggleSound()">🔊</button>
-                        <button class="btn btn-outline btn-sm" onclick="idsChangeEvent()">Change event</button>
+                        <button id="idsChangeBtn" class="btn btn-outline btn-sm" onclick="idsChangeEvent()">Change event</button>
                     </div>
                 </div>
                 <div id="idsModeBtns" class="segmented-control" style="margin-bottom:12px;">
