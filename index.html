@@ -573,7 +573,10 @@
                     <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:14px;">Line themes up for the holidays. Each one switches on at its start and off at its end, and everyone sees the main theme above (or Neon Desert) in between. Queued slots can't overlap. Times are in this device's time zone.</p>
                     <div id="themeQueueList"></div>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:6px;">
-                        <label style="font-size:0.75rem; color:var(--text-secondary); grid-column: 1 / -1;">Theme<select id="themeQueueTheme" class="input-field" style="margin-top:4px;"></select></label>
+                        <div style="grid-column: 1 / -1;">
+                            <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:6px;">Theme</div>
+                            <div id="themeQueueTheme" class="theme-chips"></div>
+                        </div>
                         <label style="font-size:0.75rem; color:var(--text-secondary);">Starts<input type="datetime-local" id="themeQueueStart" class="input-field" style="margin-top:4px;"></label>
                         <label style="font-size:0.75rem; color:var(--text-secondary);">Ends<input type="datetime-local" id="themeQueueEnd" class="input-field" style="margin-top:4px;"></label>
                     </div>
