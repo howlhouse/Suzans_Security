@@ -271,9 +271,15 @@
                     <button type="button" class="btn btn-outline btn-sm" onclick="removeQueuedTheme('${jsStr(s.id)}')" title="Remove from queue">✕</button>
                 </div>`;
             }).join('') : '<p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:10px;">Nothing queued yet.</p>';
-            const sel = document.getElementById('themeQueueTheme');
-            if (sel && !sel.options.length) sel.innerHTML = Object.keys(APP_THEMES).filter(id => id !== 'default').map(id => `<option value="${id}">${APP_THEMES[id].icon} ${APP_THEMES[id].label}</option>`).join('');
+            // Theme choice for the next slot: tappable chips (a native dropdown can come up blank on some devices with the dark styling).
+            const chips = document.getElementById('themeQueueTheme');
+            if (chips) {
+                const ids = Object.keys(APP_THEMES).filter(id => id !== 'default');
+                if (!ids.includes(window._queuePick)) window._queuePick = ids[0];
+                chips.innerHTML = ids.map(id => `<button type="button" class="theme-chip ${id === window._queuePick ? 'selected' : ''}" onclick="pickQueueTheme('${id}')">${APP_THEMES[id].icon} ${APP_THEMES[id].label}</button>`).join('');
+            }
         }
+        function pickQueueTheme(id) { if (!APP_THEMES[id] || id === 'default') return; window._queuePick = id; renderThemeQueue(); }
         function previewQueuedTheme(theme) { window._themeDraft = theme === getConfiguredTheme() ? null : theme; window._themeSchedDirty = false; syncTheme(); renderThemeControls(); }
         function saveThemeQueue(queue, logText) {
             const doc = getThemeDoc();
@@ -282,7 +288,7 @@
             }).catch(() => renderThemeControls());
         }
         function addQueuedTheme() {
-            const theme = document.getElementById('themeQueueTheme').value;
+            const theme = window._queuePick;
             const startsAt = localInputToMs(document.getElementById('themeQueueStart').value);
             const endsAt = localInputToMs(document.getElementById('themeQueueEnd').value);
             if (!APP_THEMES[theme] || theme === 'default') return;
