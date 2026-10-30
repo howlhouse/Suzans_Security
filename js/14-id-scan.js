@@ -554,7 +554,15 @@
 
         // ---- Scanner (camera or external scanner) -----------------------------------------
         let idsS = { eventId: '', mode: 'camera', pending: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
-        const idsCam = { stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false, torchWanted: false, torchOk: false };
+        const idsCam = {
+            stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false, cv: null,
+            gen: 0,           // bumped every time the camera is stopped, so a camera that finishes starting late can tell it was cancelled
+            scanning: false,  // true while the camera is reading barcodes (false when it is only open to take a photo)
+            focusCont: false, // the camera offers continuous autofocus
+            torchWanted: false, torchOk: false, torchFailed: false, torchBusy: false, torchSearched: false, torchTimers: [],
+            prefDevice: ''    // a camera that has a light, found by idsFindTorchCamera, used instead of the browser's default back camera
+        };
+        const IDS_DECODE_MAX_W = 2048; // widest frame handed to the WebAssembly reader; PDF417 on a license is dense, so don't shrink a normal 1080p frame
         const IDS_PAUSE_MS = 2000; // after an external-scanner scan, ignore input for this long so the same ID can't scan twice in a row
 
         // Sounds, so staff don't have to watch the screen: a bell "ding" for a pass, a low "buzz" for anything else
@@ -604,6 +612,7 @@
             document.getElementById('idsPick').style.display = 'none';
             const msg = document.getElementById('idsScanMsg');
             msg.style.display = 'block'; msg.style.color = 'var(--text-muted)'; msg.textContent = 'Loading…';
+            if (idsS.mode !== 'wedge') idsEnsureReader().catch(() => { /* the camera tries again and shows the error */ }); // start downloading the barcode reader now, while staff pick an event
             try { await idsLoadConfigs(true); } catch (err) { msg.style.color = 'var(--danger-glow)'; msg.textContent = 'Could not load ID scan settings: ' + err.message; return; }
             msg.style.display = 'none';
             idsS = { eventId: '', mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
@@ -675,7 +684,7 @@
         async function closeIdScanner() {
             if (idsS.pending && !idsFinish()) { if (!confirm('Close without logging the scan on screen?')) return; idsS.pending = null; }
             idsCamStop(); idsWakeOff();
-            idsCam.torchWanted = false;
+            idsCam.torchWanted = false; idsCam.torchFailed = false; idsCam.torchSearched = false;
             clearTimeout(idsS.wedgeTimer);
             document.getElementById('idsScanModal').style.display = 'none';
         }
@@ -701,54 +710,174 @@
         async function idsCamStart(scanning) {
             if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw new Error('This browser has no camera access (the app must be opened over https).');
             idsCamStop();
-            const video = document.getElementById('idsVideo');
-            idsCam.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-            video.srcObject = idsCam.stream;
-            video.setAttribute('playsinline', '');
-            await video.play();
+            idsCam.scanning = !!scanning;
+            if (scanning) idsEnsureReader().catch(() => { /* the scan loop asks again and shows the error */ }); // download the reader while the camera starts, not after
+            if (!(await idsAttachStream())) return; // stopped while it was starting
             idsTorchSetup();
             const hint = document.getElementById('idsCamHint');
             hint.style.color = 'var(--text-muted)';
-            if (scanning) { hint.textContent = 'Hold the BACK of the ID (the barcode) steady in the frame.'; idsCam.paused = false; await idsScanLoopStart(); }
+            if (scanning) { idsCam.paused = false; await idsScanLoopStart(); }
         }
-        // Flashlight: the phone's LED via the camera's "torch" setting. Android Chrome supports it; browsers that
-        // don't (iPhone Safari) report no torch capability, and the button says so instead of silently doing nothing.
-        function idsTorchTrack() { return idsCam.stream && idsCam.stream.getVideoTracks()[0]; }
-        function idsTorchSetup() {
+        function idsVideoConstraints() {
+            const size = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+            return Object.assign(size, idsCam.prefDevice ? { deviceId: { exact: idsCam.prefDevice } } : { facingMode: { ideal: 'environment' } });
+        }
+        // Opens the camera and shows it. Returns false if the camera was stopped while this was waiting for the browser.
+        async function idsAttachStream(video) {
+            const gen = idsCam.gen;
+            let stream;
+            try { stream = await navigator.mediaDevices.getUserMedia({ video: video || idsVideoConstraints(), audio: false }); }
+            catch (err) {
+                if (!video && idsCam.prefDevice && err && err.name === 'OverconstrainedError') { idsCam.prefDevice = ''; return idsAttachStream(); } // the camera we remembered is gone
+                throw err;
+            }
+            if (gen !== idsCam.gen) { stream.getTracks().forEach(t => t.stop()); return false; }
+            return idsUseStream(stream, gen);
+        }
+        async function idsUseStream(stream, gen) {
+            idsCam.stream = stream;
+            const video = document.getElementById('idsVideo');
+            video.srcObject = stream;
+            video.setAttribute('playsinline', '');
+            await video.play();
+            if (gen !== idsCam.gen) return false;
+            await idsFocusSetup();
+            return true;
+        }
+        // Ask for continuous autofocus where the camera has it, so a license held a hand's width away doesn't sit blurry.
+        async function idsFocusSetup() {
             const track = idsTorchTrack();
             let caps = {};
+            try { caps = (track && track.getCapabilities && track.getCapabilities()) || {}; } catch (err) { /* ignore */ }
+            idsCam.focusCont = Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous');
+            if (idsCam.focusCont) { try { await track.applyConstraints({ advanced: idsAdvanced({}) }); } catch (err) { idsCam.focusCont = false; } }
+        }
+        // applyConstraints replaces the earlier "advanced" settings, so every call lists the focus mode again along with what it is changing.
+        function idsAdvanced(extra) {
+            const sets = Object.keys(extra).length ? [extra] : [];
+            if (idsCam.focusCont) sets.push({ focusMode: 'continuous' });
+            return sets;
+        }
+        function idsCamHintDefault() {
+            const hint = document.getElementById('idsCamHint');
+            hint.style.color = 'var(--text-muted)';
+            if (idsCam.scanning && !idsS.photoLive) hint.textContent = 'Hold the BACK of the ID (the barcode) steady in the frame.';
+        }
+
+        // Flashlight: the phone's LED via the camera's "torch" setting. Android Chrome supports it; browsers that don't
+        // (iPhone Safari) can't turn it on. The button is never greyed out: some phones don't advertise the light in
+        // their capabilities, or advertise it on only one of several back lenses, so a tap tries it (and other lenses) before giving up.
+        function idsTorchTrack() { return idsCam.stream && idsCam.stream.getVideoTracks()[0]; }
+        function idsTorchSupported(track) {
+            let caps = {}, set = {};
             try { caps = (track && track.getCapabilities && track.getCapabilities()) || {}; } catch (err) { /* treat as unsupported */ }
-            idsCam.torchOk = !!caps.torch;
-            if (idsCam.torchOk && idsCam.torchWanted) idsApplyTorch(true); else idsTorchRender();
+            try { set = (track && track.getSettings && track.getSettings()) || {}; } catch (err) { /* ignore */ }
+            return !!caps.torch || 'torch' in set;
+        }
+        function idsTorchSetup() {
+            idsCam.torchTimers.forEach(clearTimeout); idsCam.torchTimers = [];
+            idsCam.torchOk = idsTorchSupported(idsTorchTrack());
+            if (idsCam.torchOk) idsCam.torchFailed = false;
+            if (idsCam.torchOk && idsCam.torchWanted) idsApplyTorch(true).then(idsTorchRender); else idsTorchRender();
+            // The camera can fill in its capabilities a moment after it starts, so look again before treating the light as missing.
+            if (!idsCam.torchOk) idsCam.torchTimers = [400, 1500].map(ms => setTimeout(() => { if (!idsCam.torchOk && idsTorchSupported(idsTorchTrack())) { idsCam.torchOk = true; idsCam.torchFailed = false; idsTorchRender(); } }, ms));
         }
         function idsTorchRender() {
             const b = document.getElementById('idsTorchBtn');
             if (!b) return;
-            b.disabled = !idsCam.torchOk;
-            b.textContent = !idsCam.torchOk ? '🔦 Light not supported here' : idsCam.torchWanted ? '🔦 Light on' : '🔦 Light';
-            b.style.background = idsCam.torchOk && idsCam.torchWanted ? 'var(--neon-teal)' : 'rgba(0,0,0,0.6)';
-            b.style.color = idsCam.torchOk && idsCam.torchWanted ? '#08080c' : '#fff';
+            b.textContent = idsCam.torchWanted ? '🔦 Light on' : idsCam.torchFailed ? '🔦 Light unavailable' : '🔦 Light';
+            b.style.background = idsCam.torchWanted ? 'var(--neon-teal)' : 'rgba(0,0,0,0.6)';
+            b.style.color = idsCam.torchWanted ? '#08080c' : '#fff';
+            b.style.opacity = idsCam.torchFailed && !idsCam.torchWanted ? '0.6' : '1';
         }
+        // Returns true if the light is now in the state asked for. When the phone never said it has a light, only a
+        // camera that confirms it in its settings counts, because "advanced" settings the camera can't do are ignored without an error.
         async function idsApplyTorch(on) {
             const track = idsTorchTrack();
-            try { await track.applyConstraints({ advanced: [{ torch: on }] }); idsCam.torchWanted = on; }
-            catch (err) { idsCam.torchWanted = false; const h = document.getElementById('idsCamHint'); h.style.color = 'var(--danger-glow)'; h.textContent = 'Could not switch the light: ' + err.message; }
-            idsTorchRender();
+            if (!track) return false;
+            try {
+                await track.applyConstraints({ advanced: idsAdvanced({ torch: on }) });
+                const set = (track.getSettings && track.getSettings()) || {};
+                if (on && !idsCam.torchOk && set.torch !== true) throw new Error('this camera has no light');
+                idsCam.torchWanted = on;
+                if (on) { idsCam.torchOk = true; idsCam.torchFailed = false; }
+                return true;
+            } catch (err) { idsCam.torchWanted = false; idsCam.torchError = err && err.message ? err.message : String(err); return false; }
         }
-        function idsToggleTorch() { if (idsCam.torchOk) idsApplyTorch(!idsCam.torchWanted); }
-        function idsCamStop() {
-            clearTimeout(idsCam.timer); idsCam.timer = null;
+        async function idsToggleTorch() {
+            if (idsCam.torchBusy || !idsCam.stream) return;
+            idsCam.torchBusy = true;
+            const hint = document.getElementById('idsCamHint');
+            try {
+                if (idsCam.torchWanted) { await idsApplyTorch(false); idsCam.torchWanted = false; }
+                else {
+                    let ok = await idsApplyTorch(true);
+                    if (!ok && !idsCam.torchOk) { await idsFindTorchCamera(); ok = idsCam.torchOk && await idsApplyTorch(true); }
+                    idsCam.torchFailed = !ok;
+                    if (!ok) {
+                        hint.style.color = 'var(--danger-glow)';
+                        hint.textContent = idsCam.torchOk ? 'Could not switch the light: ' + idsCam.torchError : 'This browser doesn\'t let the page use the flashlight. Use your phone\'s own flashlight (swipe down from the top of the screen), or open the app in Chrome.';
+                        setTimeout(idsCamHintDefault, 7000);
+                    }
+                }
+            } finally { idsCam.torchBusy = false; idsTorchRender(); }
+        }
+        // Phones with several back lenses (wide, ultra-wide, telephoto) often have the light on only one of them, and the
+        // browser may hand us a different one. Try the other back cameras and keep the first that has a light.
+        async function idsFindTorchCamera() {
+            if (idsCam.torchSearched || !(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)) return;
+            idsCam.torchSearched = true;
+            const gen = idsCam.gen, hint = document.getElementById('idsCamHint');
+            let cams = [];
+            try { cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput' && d.deviceId && !/front|user|selfie|facetime/i.test(d.label)); } catch (err) { /* no list: keep the camera we have */ }
+            const cur = idsTorchTrack(), curId = cur && cur.getSettings ? cur.getSettings().deviceId : '';
+            const others = cams.filter(d => d.deviceId !== curId).slice(0, 4);
+            if (!others.length || gen !== idsCam.gen) return;
+            hint.style.color = 'var(--text-muted)'; hint.textContent = 'Looking for a camera with a light…';
+            idsCamRelease(); // one camera at a time: some phones won't open a second while the first is running
+            let found = false;
+            for (const d of others) {
+                if (gen !== idsCam.gen) return;
+                let s = null;
+                try {
+                    s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+                    if (gen !== idsCam.gen) { s.getTracks().forEach(t => t.stop()); return; }
+                    if (idsTorchSupported(s.getVideoTracks()[0])) { idsCam.prefDevice = d.deviceId; found = await idsUseStream(s, gen); if (found) break; }
+                    else s.getTracks().forEach(t => t.stop());
+                } catch (err) { if (s) s.getTracks().forEach(t => t.stop()); /* this lens won't open: try the next */ }
+            }
+            if (gen !== idsCam.gen) return;
+            try { if (!found) await idsAttachStream(); } catch (err) { idsCamError(err); return; } // none had a light: back to the normal camera
+            if (gen !== idsCam.gen) return;
+            idsTorchSetup();
+            idsCamHintDefault();
+            if (idsCam.scanning) { clearTimeout(idsCam.timer); idsScanTick(); } // the scan loop stops while there is no camera: start it again
+        }
+        function idsCamRelease() {
             if (idsCam.stream) idsCam.stream.getTracks().forEach(t => t.stop());
             idsCam.stream = null;
             const v = document.getElementById('idsVideo'); if (v) v.srcObject = null;
         }
+        function idsCamStop() {
+            idsCam.gen++;
+            clearTimeout(idsCam.timer); idsCam.timer = null;
+            idsCam.torchTimers.forEach(clearTimeout); idsCam.torchTimers = [];
+            idsCam.torchBusy = false;
+            idsCamRelease();
+        }
         function idsLoadScript(src) {
-            return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not download the barcode reader (offline?). Use External scanner instead.')); document.head.appendChild(s); });
+            return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.crossOrigin = 'anonymous'; s.onload = res; s.onerror = () => rej(new Error('Could not download the barcode reader (offline?). Use External scanner instead.')); document.head.appendChild(s); });
         }
         // Chrome/Android has a built-in PDF417 reader. iPhones (Safari) don't, so load a WebAssembly one.
         // If the built-in one hangs or errors, drop to the WebAssembly one rather than leaving the camera dead.
-        async function idsEnsureReader() {
-            if (idsCam.detector || idsCam.zx) return;
+        // Calls share one load, so it can start early (when the scanner opens) and the camera simply waits on it.
+        let idsReaderLoad = null;
+        function idsEnsureReader() {
+            if (idsCam.detector || idsCam.zx) return Promise.resolve();
+            if (!idsReaderLoad) idsReaderLoad = idsLoadReader().finally(() => { idsReaderLoad = null; });
+            return idsReaderLoad;
+        }
+        async function idsLoadReader() {
             if (!idsCam.nativeBad && 'BarcodeDetector' in window) {
                 try {
                     const f = await withTimeout(BarcodeDetector.getSupportedFormats(), 2500, 'the camera barcode reader');
@@ -756,13 +885,21 @@
                 } catch (err) { /* fall through to the WebAssembly reader */ }
                 idsCam.nativeBad = true;
             }
-            const hint = document.getElementById('idsCamHint'); hint.textContent = 'Loading barcode reader…';
-            await idsLoadScript(IDS_ZXING_BASE + 'iife/reader/index.js');
-            ZXingWASM.setZXingModuleOverrides({ locateFile: (path, prefix) => path.endsWith('.wasm') ? IDS_ZXING_BASE + 'reader/zxing_reader.wasm' : prefix + path });
+            if (!window.ZXingWASM) await idsLoadScript(IDS_ZXING_BASE + 'iife/reader/index.js');
+            const overrides = { locateFile: (path, prefix) => path.endsWith('.wasm') ? IDS_ZXING_BASE + 'reader/zxing_reader.wasm' : prefix + path };
+            // Compile the WebAssembly now (about 1 MB) so the first camera frame doesn't wait for it.
+            if (ZXingWASM.prepareZXingModule) await ZXingWASM.prepareZXingModule({ overrides, fireImmediately: true });
+            else ZXingWASM.setZXingModuleOverrides(overrides);
             idsCam.zx = ZXingWASM;
-            hint.textContent = 'Hold the BACK of the ID (the barcode) steady in the frame.';
         }
-        async function idsScanLoopStart() { await idsEnsureReader(); idsScanTick(); }
+        async function idsScanLoopStart() {
+            const hint = document.getElementById('idsCamHint');
+            if (!idsCam.detector && !idsCam.zx) { hint.style.color = 'var(--text-muted)'; hint.textContent = 'Loading barcode reader… (the first time can take a few seconds)'; }
+            await idsEnsureReader();
+            if (!idsCam.stream) return; // stopped while the reader was loading
+            idsCamHintDefault();
+            idsScanTick();
+        }
         async function idsScanTick() {
             clearTimeout(idsCam.timer);
             if (!idsCam.stream || idsS.mode !== 'camera') return;
@@ -779,10 +916,11 @@
                         else if (r.length) { idsCam.detector = null; idsCam.nativeBad = true; }
                     }
                     else if (idsCam.zx) {
-                        const cv = document.createElement('canvas'), sc = Math.min(1, 1600 / video.videoWidth);
+                        const cv = idsCam.cv || (idsCam.cv = document.createElement('canvas')), sc = Math.min(1, IDS_DECODE_MAX_W / video.videoWidth);
                         cv.width = Math.round(video.videoWidth * sc); cv.height = Math.round(video.videoHeight * sc);
                         const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(video, 0, 0, cv.width, cv.height);
-                        const r = await idsCam.zx.readBarcodes(cx.getImageData(0, 0, cv.width, cv.height), { formats: ['PDF417'], tryHarder: true, maxNumberOfSymbols: 1, textMode: 'Plain' });
+                        // Licenses are never inverted (white on black), so skip that pass: it roughly halves the time spent on each frame that has no readable barcode.
+                        const r = await idsCam.zx.readBarcodes(cx.getImageData(0, 0, cv.width, cv.height), { formats: ['PDF417'], tryHarder: true, tryInvert: false, maxNumberOfSymbols: 1, textMode: 'Plain' });
                         if (r.length && r[0].text) text = r[0].text;
                     }
                     if (text) { idsCam.paused = true; idsHandleScan(text, 'camera'); }
@@ -793,7 +931,7 @@
                 }
                 idsCam.busy = false;
             }
-            idsCam.timer = setTimeout(idsScanTick, idsCam.zx ? 450 : 250);
+            idsCam.timer = setTimeout(idsScanTick, idsCam.zx ? 150 : 250);
         }
 
         // -- external scanner: acts like a keyboard, "types" the barcode into the focused box
