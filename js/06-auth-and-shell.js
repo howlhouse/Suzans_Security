@@ -324,6 +324,8 @@
         }
 
         function switchView(v) {
+            // Any security-module screen leaves the Show Manager (its own screens use smRender, not switchView).
+            if (window._module === 'shows') { smSetModuleUI('security'); smHideOwnViews(); }
             // Belt-and-suspenders: even if something calls switchView('adminConsoleView')
             // directly (bypassing promptAdminPin), never actually show it to a
             // non-admin. The PIN prompt is the intended door in.

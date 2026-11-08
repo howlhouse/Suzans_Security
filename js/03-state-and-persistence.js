@@ -148,7 +148,7 @@
                 touchPresence(true, true);
             }
         });
-        const VIEW_NAMES = { eventsFeed: 'Events', eventsFeedView: 'Events', calendarView: 'Calendar', teamChatView: 'Comms', banListView: 'Ban List', myShiftsView: 'My Shifts', contactsDirectoryView: 'Promoter Directory', licensesView: 'Licenses', dashboardView: 'Dashboard', settingsView: 'Settings', adminConsoleView: 'Admin Console' };
+        const VIEW_NAMES = { eventsFeed: 'Events', eventsFeedView: 'Events', calendarView: 'Calendar', teamChatView: 'Comms', banListView: 'Ban List', myShiftsView: 'My Shifts', contactsDirectoryView: 'Promoter Directory', licensesView: 'Licenses', dashboardView: 'Dashboard', settingsView: 'Settings', adminConsoleView: 'Admin Console', showManagerView: 'Show Manager' };
         function trackView(v) {
             if (window._tourActive) return; // the guided tour flips through screens - don't log that as real use
             const name = VIEW_NAMES[v];

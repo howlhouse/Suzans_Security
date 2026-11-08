@@ -74,7 +74,7 @@
             <img src="Suzans_Security_Logo.png" alt="Suzan's Security" class="brand-icon" onerror="this.outerHTML='<span class=&quot;brand-icon&quot;>🌵</span>'">
             <div>
                 <h1 class="brand-text">SUZAN'S SECURITY</h1>
-                <p style="font-size: 0.63rem; font-family:'Outfit',sans-serif; font-weight: 600; letter-spacing: 0.8px; color: var(--neon-pink);">PHOENIX'S PREMIER LGBTQ+ SECURITY TEAM</p>
+                <p id="brandTagline" style="font-size: 0.63rem; font-family:'Outfit',sans-serif; font-weight: 600; letter-spacing: 0.8px; color: var(--neon-pink);">PHOENIX'S PREMIER LGBTQ+ SECURITY TEAM</p>
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -84,10 +84,14 @@
             <div class="user-menu-wrap" id="userMenuWrap" style="position:relative;">
                 <div class="user-pill" id="userPill" onclick="toggleUserMenu(event)" style="cursor:pointer;" title="Tap for options"><span>🛡️</span><span id="userGreeting">Officer</span><span style="opacity:0.6; font-size:0.7rem; margin-left:4px;">▾</span></div>
                 <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none;">
-                    <button class="user-menu-item" onclick="closeUserMenu(); switchView('myShiftsView');"><span>📋</span><span>My Shifts &amp; Notes</span></button>
-                    <button class="user-menu-item" onclick="closeUserMenu(); switchView('contactsDirectoryView');"><span>📇</span><span>Promoter Directory</span></button>
-                    <button class="user-menu-item" onclick="closeUserMenu(); openIdScanner();"><span>📷</span><span>ID Scanner</span></button>
-                    <button class="user-menu-item" onclick="closeUserMenu(); switchView('licensesView');"><span>🪪</span><span>Licenses</span></button>
+                    <div class="user-menu-label">Module</div>
+                    <button class="user-menu-item mod-current" id="modItemSecurity" onclick="switchModule('security')"><span>🛡️</span><span>Security</span></button>
+                    <button class="user-menu-item" id="modItemShows" onclick="switchModule('shows')"><span>🎭</span><span>Show Manager</span></button>
+                    <div class="user-menu-sep"></div>
+                    <button class="user-menu-item sec-only" onclick="closeUserMenu(); switchView('myShiftsView');"><span>📋</span><span>My Shifts &amp; Notes</span></button>
+                    <button class="user-menu-item sec-only" onclick="closeUserMenu(); switchView('contactsDirectoryView');"><span>📇</span><span>Promoter Directory</span></button>
+                    <button class="user-menu-item sec-only" onclick="closeUserMenu(); openIdScanner();"><span>📷</span><span>ID Scanner</span></button>
+                    <button class="user-menu-item sec-only" onclick="closeUserMenu(); switchView('licensesView');"><span>🪪</span><span>Licenses</span></button>
                     <button class="user-menu-item" onclick="closeUserMenu(); switchView('settingsView');"><span>⚙️</span><span>Settings</span></button>
                     <button class="user-menu-item danger" onclick="closeUserMenu(); if(confirm('Sign out of Suzan\'s Security?')) logout();"><span>⏻</span><span>Sign Out</span></button>
                 </div>
@@ -654,10 +658,31 @@
                 </div>
             </div>
         </section>
+
+        <!-- SHOW MANAGER MODULE (js/15-show-manager.js): shows list, one show's floorplan + guest list, venues -->
+        <section id="smShowsView" style="display: none;">
+            <div class="ev-head">
+                <div class="ev-eyebrow">Show manager</div>
+                <h2 class="ev-title">Shows</h2>
+                <p class="ev-summary" id="smShowsSummary">Seating charts &amp; guest check-in</p>
+            </div>
+            <button class="btn btn-sm" style="margin-bottom:16px;" onclick="smOpenShowModal()">+ New Show</button>
+            <div id="smShowList"></div>
+        </section>
+        <section id="smShowView" style="display: none;"><div id="smShowRoot"></div></section>
+        <section id="smVenuesView" style="display: none;">
+            <div class="ev-head">
+                <div class="ev-eyebrow">Show manager</div>
+                <h2 class="ev-title">Venues &amp; Floorplans</h2>
+                <p class="ev-summary">Each venue can keep several saved floorplans (runway night, square stage…). Save them from inside a show.</p>
+            </div>
+            <button class="btn btn-sm" style="margin-bottom:16px;" onclick="smAddVenue()">+ Add Venue</button>
+            <div id="smVenuesBody"></div>
+        </section>
     </div>
 
     <!-- Apple Floating Dock Bar -->
-    <nav class="dock-nav">
+    <nav class="dock-nav" id="secDock">
         <button class="dock-item" data-view="dashboardView" id="dockDashboardBtn" style="display:none;" onclick="switchView('dashboardView')"><span style="position:relative;">📊<span id="dashFeedbackBadge" class="dock-badge" style="display:none;">0</span></span><span>Dashboard</span></button>
         <button class="dock-item active" data-view="eventsFeed" onclick="switchView('eventsFeed')"><span>🪩</span><span>Events</span></button>
         <button class="dock-item" data-view="calendarView" onclick="switchView('calendarView')"><span>📅</span><span>Calendar</span></button>
@@ -665,6 +690,14 @@
         <button class="dock-item" data-view="banListView" onclick="switchView('banListView')"><span>🚫</span><span>Ban List</span></button>
         <button class="dock-item" id="dockIdScanBtn" onclick="openIdScanner()"><span>📷</span><span>ID Scan</span></button>
         <button class="dock-item" data-view="adminConsoleView" id="dockAdminBtn" style="display:none;" onclick="promptAdminPin()"><span>🔒</span><span>Admin</span></button>
+    </nav>
+
+    <!-- Show Manager dock (replaces the security dock while that module is open) -->
+    <nav class="dock-nav" id="smDock">
+        <button class="dock-item" data-smtab="shows" onclick="smGoTab('shows')"><span>🎭</span><span>Shows</span></button>
+        <button class="dock-item" data-smtab="venues" onclick="smGoTab('venues')"><span>📍</span><span>Venues</span></button>
+        <button class="dock-item" onclick="smOpenShowModal()"><span>➕</span><span>New Show</span></button>
+        <button class="dock-item" onclick="switchModule('security')"><span>🛡️</span><span>Security</span></button>
     </nav>
 
     <!-- MODALS -->
@@ -967,6 +1000,40 @@
         </div>
     </div>
 
+    <!-- Show Manager: create / edit a show (js/15-show-manager.js) -->
+    <div class="modal" id="smShowModal">
+        <div class="modal-sheet">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h3 id="smShowModalTitle" style="font-family:'Outfit'; font-size:1.3rem; color:var(--neon-teal);">New Show</h3>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding: 4px 8px;" onclick="closeModal('smShowModal')">✕</button>
+            </div>
+            <p id="smfErr" style="color:var(--danger-glow); font-size:0.85rem; margin-bottom:12px; display:none;"></p>
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Show Title *</label>
+            <input type="text" id="smfTitle" class="input-field" placeholder="e.g. Drag Brunch — Cactus Lounge" data-1p-ignore>
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Date *</label>
+            <input type="date" id="smfDate" class="input-field">
+            <div style="display:flex; gap:12px;">
+                <div style="flex:1;"><label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Doors / Start</label><input type="time" id="smfStart" class="input-field"></div>
+                <div style="flex:1;"><label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">End</label><input type="time" id="smfEnd" class="input-field"></div>
+            </div>
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Venue</label>
+            <select id="smfVenue" class="input-field" onchange="smVenueChanged()"></select>
+            <div id="smfPlanRow">
+                <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Starting floorplan</label>
+                <select id="smfPlan" class="input-field"></select>
+            </div>
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Image URL</label>
+            <input type="text" id="smfImage" class="input-field" placeholder="https://..." data-1p-ignore>
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Ticket Link (optional)</label>
+            <input type="text" id="smfTicket" class="input-field" placeholder="https://..." data-1p-ignore>
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Notes</label>
+            <textarea id="smfDesc" class="input-field" rows="3" placeholder="Anything the floor team should know…"></textarea>
+            <label style="font-size: 0.78rem; color: var(--text-muted); font-family:'Inter',sans-serif; font-weight:500;">Tags</label>
+            <div class="tags-container" id="smfTags" style="margin:6px 0 16px;"></div>
+            <button class="btn" id="smfSave" style="width: 100%;" onclick="smSaveShowForm()">Create Show</button>
+        </div>
+    </div>
+
     <div class="modal" id="newEventModal">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
@@ -1218,6 +1285,7 @@
     <script src="js/11-settings-and-calendar.js"></script>
     <script src="js/12-banlist-chat-misc.js"></script>
     <script src="js/14-id-scan.js"></script>
+    <script src="js/15-show-manager.js"></script>
     <script src="js/13-init.js"></script>
 </body>
 </html>
