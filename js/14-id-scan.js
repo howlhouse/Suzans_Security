@@ -72,12 +72,13 @@
             if (!raw || typeof raw !== 'string') return null;
             // Some readers print control characters as <LF> / <CR> / <RS> instead of passing them through.
             const text = raw.replace(/<(lf|cr|rs)>/gi, (_, c) => c.toLowerCase() === 'rs' ? '\x1e' : '\n').replace(/\r\n/g, '\n');
-            const hdr = text.match(/ANSI\s*(\d{6})(\d{2})(\d{2})/);
+            const hdr = text.match(/(?:ANSI|AAMVA)\s*(\d{6})(\d{2})(\d{2})(?:(\d{2})([A-Z]{2}))?/); // [1] issuer IIN, [2] AAMVA version, [5] type of the first subfile (DL = driver license, ID = identification card)
             const el = {};
+            let subType = hdr && hdr[5] ? hdr[5] : '';
             const take = line => { const m = line.match(/^([DZ][A-Z]{2})(.*)$/); if (m && !(m[1] in el)) el[m[1]] = m[2].trim(); };
             text.split(/[\n\r\x1e]+/).forEach(line => {
                 line = line.trim();
-                if (/ANSI\s*\d{6}/.test(line)) { const m = line.match(/(?:DL|ID)(?=D[A-Z]{2})(D[A-Z]{2}.*)$/); if (m) take(m[1]); return; }
+                if (/(?:ANSI|AAMVA)\s*\d{6}/.test(line)) { const m = line.match(/([A-Z]{2})(?=D[A-Z]{2})(D[A-Z]{2}.*)$/); if (m) { subType = subType || m[1]; take(m[2]); } return; }
                 take(line.replace(/^(?:DL|ID)(?=[DZ][A-Z]{2})/, ''));
             });
             if (!el.DCS && !el.DAB && !el.DAA) { // no separators survived: split on the known element codes instead
@@ -92,15 +93,17 @@
                 else { const w = el.DAA.split(/\s+/); lastName = w.pop() || ''; first = first || w.shift() || ''; middle = middle || w.join(' '); }
             }
             if (!first && el.DCT) { const w = el.DCT.split(/[\s,]+/); first = w.shift() || ''; middle = middle || w.join(' '); }
-            if (/^(none|nmn|n\/a|na|-)$/i.test(middle.trim())) middle = ''; // cards print NONE when there is no middle name
+            if (/^(none|nmn|n\/a|na|-)$/i.test(middle.trim())) middle = '';
+            const iin = hdr ? hdr[1] : ''; // cards print NONE when there is no middle name
             const country = (el.DCG || 'USA').toUpperCase();
             const dob = idsParseDate(el.DBB, country);
             if (!lastName && !first && !dob) return null; // nothing usable: not an ID barcode
             return {
                 firstName: idsTitleCase(first), middleName: idsTitleCase(middle), lastName: idsTitleCase(lastName),
                 dob, expiry: idsParseDate(el.DBA, country), issued: idsParseDate(el.DBD, country),
-                state: (el.DAJ || '').toUpperCase().slice(0, 2), country,
-                iin: hdr ? hdr[1] : '', aamvaVersion: hdr ? hdr[2] : '', hasIdNumber: !!el.DAQ, hasHeader: !!hdr,
+                state: (el.DAJ || '').toUpperCase().slice(0, 2) || IDS_IIN_STATE[iin] || '', country, // a card with no state field is placed by the issuer number in its header
+                docType: subType === 'ID' ? 'ID card' : subType === 'DL' ? 'Driver license' : '',
+                iin, aamvaVersion: hdr ? hdr[2] : '', hasIdNumber: !!el.DAQ, hasHeader: !!hdr,
                 rawDobPresent: !!el.DBB, rawExpiryPresent: !!el.DBA,
                 fields: el // every element on the card, for the on-screen "all barcode data" view; never saved
             };
@@ -195,6 +198,24 @@
             let s = String(v == null ? '' : v);
             if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // stop spreadsheet formula injection from names on a barcode
             return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+
+        // ---- Live copy of "already scanned" markers for the event being scanned ---------------
+        // Checking each ID against the server before showing the result made every scan wait on the network (up to 4 seconds on a weak
+        // connection). Instead the markers for this event (a hash and a time - no personal data) are kept up to date in the background,
+        // so the check is an instant lookup, and it also sees scans made on other phones at the door.
+        let idsSeenUnsub = null;
+        function idsSeenStop() { if (idsSeenUnsub) { try { idsSeenUnsub(); } catch (err) { /* ignore */ } idsSeenUnsub = null; } }
+        function idsSeenListen(eventId) {
+            idsSeenStop();
+            const store = idsS.seenRemote = {}, cut = eventId.length + 2; // document ids look like "<eventId>__<hash>"
+            idsS.seenReady = false;
+            try {
+                idsSeenUnsub = db.collection('idscan_seen').where('eventId', '==', eventId).onSnapshot(snap => {
+                    snap.docs.forEach(d => { const v = d.data(); store[d.id.slice(cut)] = { at: v.at, result: v.result }; });
+                    idsS.seenReady = true;
+                }, err => console.warn('Re-scan markers unavailable (checking each scan instead):', err.message));
+            } catch (err) { console.warn('Re-scan markers unavailable:', err.message); }
         }
 
         // ---- Config (rules per event) -----------------------------------------------------
@@ -554,7 +575,22 @@
 
         // ---- Scanner (camera or external scanner) -----------------------------------------
         let idsS = { eventId: '', mode: 'camera', pending: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
-        const idsCam = { stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false, torchWanted: false, torchOk: false };
+        const idsCam = {
+            stream: null, timer: null, detector: null, zx: null, nativeBad: false, paused: false, busy: false, cv: null,
+            gen: 0,           // bumped every time the camera is stopped, so a camera that finishes starting late can tell it was cancelled
+            scanning: false,  // true while the camera is reading barcodes (false when it is only open to take a photo)
+            focusCont: false, // the camera offers continuous autofocus
+            torchWanted: false, torchOk: false, torchFailed: false, torchBusy: false, torchSearched: false, torchTimers: [],
+            prefDevice: '',   // a camera that has a light, found by idsFindTorchCamera, used instead of the browser's default back camera
+            zoomOk: false, zoomMin: 1, zoomMax: 1, zoomLevel: 1, // zoom, on phones whose browser lets the page use it (Android Chrome)
+            tick: 0, since: 0, tipShown: false // frame counter (alternates fast and wide passes), when this scan attempt began, and whether the "not reading?" tips were shown
+        };
+        // Barcode types the camera looks for. A driver license / state ID is always PDF417 (checked on every frame); the rest are looked
+        // for on a slower cycle so other kinds of ID (tribal, military, school, foreign - QR, Data Matrix, Aztec, Code 128 / 39) don't just sit there unread.
+        const IDS_NATIVE_FORMATS = ['pdf417', 'qr_code', 'data_matrix', 'aztec', 'code_128', 'code_39'];
+        const IDS_ZX_WIDE = ['PDF417', 'QRCode', 'DataMatrix', 'Aztec', 'Code128', 'Code39'];
+        const IDS_DECODE_MAX_W = 2048; // widest frame handed to the WebAssembly reader; PDF417 on a license is dense, so don't shrink a normal 1080p frame
+        const IDS_TIPS_AFTER_MS = 7000; // no barcode read for this long: the camera shows tips (back up, glare, tap to refocus, photo)
         const IDS_PAUSE_MS = 2000; // after an external-scanner scan, ignore input for this long so the same ID can't scan twice in a row
 
         // Sounds, so staff don't have to watch the screen: a bell "ding" for a pass, a low "buzz" for anything else
@@ -604,9 +640,17 @@
             document.getElementById('idsPick').style.display = 'none';
             const msg = document.getElementById('idsScanMsg');
             msg.style.display = 'block'; msg.style.color = 'var(--text-muted)'; msg.textContent = 'Loading…';
+            if (idsS.mode !== 'wedge') idsEnsureReader().catch(() => { /* the camera tries again and shows the error */ }); // start downloading the barcode reader now, while staff pick an event
+            const reset = () => { idsS = { eventId: '', mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null }; };
+            const pickerOpen = () => document.getElementById('idsScanModal').style.display === 'flex' && document.getElementById('idsPick').style.display === 'block';
+            if (idsCfgsLoaded) { // settings from the last visit are good enough to show the event list at once; refresh them in the background
+                msg.style.display = 'none'; reset(); idsShowPicker();
+                idsLoadConfigs(true).then(() => { if (pickerOpen()) idsShowPicker(); }).catch(() => { /* keep using the loaded settings */ });
+                return;
+            }
             try { await idsLoadConfigs(true); } catch (err) { msg.style.color = 'var(--danger-glow)'; msg.textContent = 'Could not load ID scan settings: ' + err.message; return; }
             msg.style.display = 'none';
-            idsS = { eventId: '', mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
+            reset();
             idsShowPicker();
         }
         function idsEnabledEvents() {
@@ -624,7 +668,7 @@
         }
         // Step 1: choose the event. The camera does not start until one is picked.
         function idsShowPicker() {
-            idsCamStop(); idsWakeOff();
+            idsCamStop(); idsWakeOff(); idsSeenStop();
             clearTimeout(idsS.wedgeTimer);
             document.getElementById('idsScanBody').style.display = 'none';
             const today = idsToday(), t = new Date(); t.setDate(t.getDate() + 1);
@@ -660,6 +704,7 @@
             idsS = { eventId, test, testCfg, testTitle, mode: idsS.mode || 'camera', busy: false, showAll: idsS.showAll || false, flagOpen: false, flagNote: '', pending: null, last: null, stats: { pass: 0, review: 0, fail: 0 }, photoLive: false, seenLocal: {}, wedgeTimer: null };
             document.getElementById('idsPick').style.display = 'none';
             document.getElementById('idsScanBody').style.display = 'block';
+            if (!test && eventId) idsSeenListen(eventId); else idsSeenStop();
             document.getElementById('idsScanEventName').textContent = test ? '🧪 Test mode - nothing is saved' : ev ? ev.title + (ev.date ? ' · ' + ev.date : '') : eventId;
             document.getElementById('idsChangeBtn').textContent = test ? 'Back' : 'Change event';
             idsPrimeAudio(); idsWakeOn();
@@ -674,8 +719,8 @@
         }
         async function closeIdScanner() {
             if (idsS.pending && !idsFinish()) { if (!confirm('Close without logging the scan on screen?')) return; idsS.pending = null; }
-            idsCamStop(); idsWakeOff();
-            idsCam.torchWanted = false;
+            idsCamStop(); idsWakeOff(); idsSeenStop();
+            idsCam.torchWanted = false; idsCam.torchFailed = false; idsCam.torchSearched = false;
             clearTimeout(idsS.wedgeTimer);
             document.getElementById('idsScanModal').style.display = 'none';
         }
@@ -698,71 +743,256 @@
         }
 
         // -- camera
-        async function idsCamStart(scanning) {
+        // startPaused: open the camera but don't read barcodes yet (a result is on screen; "Scan next" resumes).
+        async function idsCamStart(scanning, startPaused) {
             if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw new Error('This browser has no camera access (the app must be opened over https).');
             idsCamStop();
-            const video = document.getElementById('idsVideo');
-            idsCam.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-            video.srcObject = idsCam.stream;
-            video.setAttribute('playsinline', '');
-            await video.play();
+            idsCam.scanning = !!scanning;
+            if (scanning) idsEnsureReader().catch(() => { /* the scan loop asks again and shows the error */ }); // download the reader while the camera starts, not after
+            if (!(await idsAttachStream())) return; // stopped while it was starting
             idsTorchSetup();
             const hint = document.getElementById('idsCamHint');
             hint.style.color = 'var(--text-muted)';
-            if (scanning) { hint.textContent = 'Hold the BACK of the ID (the barcode) steady in the frame.'; idsCam.paused = false; await idsScanLoopStart(); }
+            if (scanning) { idsCam.paused = !!startPaused; await idsScanLoopStart(); }
         }
-        // Flashlight: the phone's LED via the camera's "torch" setting. Android Chrome supports it; browsers that
-        // don't (iPhone Safari) report no torch capability, and the button says so instead of silently doing nothing.
-        function idsTorchTrack() { return idsCam.stream && idsCam.stream.getVideoTracks()[0]; }
-        function idsTorchSetup() {
+        function idsCamResume(startPaused) { if (idsS.mode === 'camera' && !idsCam.stream) idsCamStart(true, startPaused).catch(err => idsCamError(err)); }
+        function idsVideoConstraints() {
+            const size = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+            return Object.assign(size, idsCam.prefDevice ? { deviceId: { exact: idsCam.prefDevice } } : { facingMode: { ideal: 'environment' } });
+        }
+        // Opens the camera and shows it. Returns false if the camera was stopped while this was waiting for the browser.
+        async function idsAttachStream(video) {
+            const gen = idsCam.gen;
+            let stream;
+            try { stream = await navigator.mediaDevices.getUserMedia({ video: video || idsVideoConstraints(), audio: false }); }
+            catch (err) {
+                if (!video && idsCam.prefDevice && err && err.name === 'OverconstrainedError') { idsCam.prefDevice = ''; return idsAttachStream(); } // the camera we remembered is gone
+                throw err;
+            }
+            if (gen !== idsCam.gen) { stream.getTracks().forEach(t => t.stop()); return false; }
+            return idsUseStream(stream, gen);
+        }
+        async function idsUseStream(stream, gen) {
+            idsCam.stream = stream;
+            const video = document.getElementById('idsVideo');
+            video.srcObject = stream;
+            video.setAttribute('playsinline', '');
+            await video.play();
+            if (gen !== idsCam.gen) return false;
+            await idsFocusSetup();
+            return true;
+        }
+        // Ask for continuous autofocus where the camera has it, so a license held a hand's width away doesn't sit blurry.
+        async function idsFocusSetup() {
             const track = idsTorchTrack();
             let caps = {};
+            try { caps = (track && track.getCapabilities && track.getCapabilities()) || {}; } catch (err) { /* ignore */ }
+            idsCam.focusCont = Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous');
+            if (idsCam.focusCont) { try { await track.applyConstraints({ advanced: idsAdvanced({}) }); } catch (err) { idsCam.focusCont = false; } }
+        }
+        // applyConstraints replaces the earlier "advanced" settings, so every call lists the focus mode again along with what it is changing.
+        // Torch and zoom are listed too (each as its own set, so one the camera can't do doesn't cancel the others) or changing one would switch the other off.
+        function idsAdvanced(extra) {
+            const e = Object.assign({}, extra), sets = [];
+            if (!('torch' in e) && idsCam.torchWanted) e.torch = true;
+            if (!('zoom' in e) && idsCam.zoomOk && idsCam.zoomLevel > 1) e.zoom = idsCam.zoomLevel;
+            Object.keys(e).forEach(k => { const o = {}; o[k] = e[k]; sets.push(o); });
+            if (idsCam.focusCont) sets.push({ focusMode: 'continuous' });
+            return sets;
+        }
+        function idsCamHintDefault() {
+            const hint = document.getElementById('idsCamHint');
+            hint.style.color = 'var(--text-muted)';
+            if (idsCam.scanning && !idsS.photoLive) hint.textContent = 'Hold the BACK of the ID (the barcode) steady in the frame. Tap the picture to refocus.';
+        }
+        // Starts the clock for the "not reading?" tips. Called whenever the camera begins looking for a barcode again.
+        function idsScanArm() { idsCam.since = Date.now(); idsCam.tipShown = false; }
+        function idsMaybeTips() {
+            if (idsCam.tipShown || !idsCam.scanning || idsS.photoLive || !idsCam.since || Date.now() - idsCam.since < IDS_TIPS_AFTER_MS) return;
+            idsCam.tipShown = true;
+            const hint = document.getElementById('idsCamHint');
+            hint.style.color = '#ffb020';
+            hint.textContent = 'Not reading? Move the ID back a little until the barcode is sharp, tilt it to avoid glare, use the light' + (idsCam.zoomOk ? ' or zoom' : '') + ', or tap 📸 Photo of barcode. No barcode on this ID? Tap ⌨️ Enter by hand.';
+        }
+
+        // Tap the picture to refocus (where the browser allows it: Android Chrome).
+        async function idsTapFocus() {
+            const track = idsTorchTrack(); if (!track || !idsCam.scanning) return;
+            let caps = {}; try { caps = (track.getCapabilities && track.getCapabilities()) || {}; } catch (err) { /* ignore */ }
+            if (!Array.isArray(caps.focusMode) || !caps.focusMode.includes('single-shot')) return;
+            try {
+                await track.applyConstraints({ advanced: idsAdvanced({ focusMode: 'single-shot' }) });
+                setTimeout(() => { if (track.readyState === 'live') track.applyConstraints({ advanced: idsAdvanced({}) }).catch(() => {}); }, 1000);
+            } catch (err) { /* this camera can't: ignore */ }
+        }
+        // Zoom: a dense license barcode is easier to focus on from a little further away, then zoomed in.
+        function idsZoomSetup() {
+            if (idsCam.zoomOk) return;
+            const track = idsTorchTrack(); let z = null;
+            try { z = ((track && track.getCapabilities && track.getCapabilities()) || {}).zoom; } catch (err) { /* ignore */ }
+            idsCam.zoomOk = !!(z && z.max >= 1.5);
+            if (idsCam.zoomOk) { idsCam.zoomMin = z.min || 1; idsCam.zoomMax = z.max; idsCam.zoomLevel = Math.max(1, idsCam.zoomMin); }
+            idsZoomRender();
+        }
+        function idsZoomRender() {
+            const b = document.getElementById('idsZoomBtn'); if (!b) return;
+            b.style.display = idsCam.zoomOk ? 'inline-block' : 'none';
+            b.textContent = '🔍 ' + (Math.round(idsCam.zoomLevel * 10) / 10) + '×';
+        }
+        async function idsCycleZoom() {
+            const track = idsTorchTrack(); if (!track || !idsCam.zoomOk) return;
+            const steps = [1, 2, 3].filter(v => v >= idsCam.zoomMin && v <= idsCam.zoomMax), cur = steps.indexOf(idsCam.zoomLevel);
+            const next = steps.length ? steps[(cur + 1) % steps.length] : 1;
+            try { await track.applyConstraints({ advanced: idsAdvanced({ zoom: next }) }); idsCam.zoomLevel = next; } catch (err) { /* this camera can't zoom */ }
+            idsZoomRender();
+        }
+
+        // Flashlight: the phone's LED via the camera's "torch" setting. Android Chrome supports it; browsers that don't
+        // (iPhone Safari) can't turn it on. The button is never greyed out: some phones don't advertise the light in
+        // their capabilities, or advertise it on only one of several back lenses, so a tap tries it (and other lenses) before giving up.
+        function idsTorchTrack() { return idsCam.stream && idsCam.stream.getVideoTracks()[0]; }
+        function idsTorchSupported(track) {
+            let caps = {}, set = {};
             try { caps = (track && track.getCapabilities && track.getCapabilities()) || {}; } catch (err) { /* treat as unsupported */ }
-            idsCam.torchOk = !!caps.torch;
-            if (idsCam.torchOk && idsCam.torchWanted) idsApplyTorch(true); else idsTorchRender();
+            try { set = (track && track.getSettings && track.getSettings()) || {}; } catch (err) { /* ignore */ }
+            return !!caps.torch || 'torch' in set;
+        }
+        function idsTorchSetup() {
+            idsCam.torchTimers.forEach(clearTimeout); idsCam.torchTimers = [];
+            idsCam.torchOk = idsTorchSupported(idsTorchTrack());
+            idsCam.zoomOk = false; idsCam.zoomLevel = 1; idsZoomSetup();
+            if (idsCam.torchOk) idsCam.torchFailed = false;
+            if (idsCam.torchOk && idsCam.torchWanted) idsApplyTorch(true).then(idsTorchRender); else idsTorchRender();
+            // The camera can fill in its capabilities a moment after it starts, so look again before treating the light as missing.
+            idsCam.torchTimers = [400, 1500].map(ms => setTimeout(() => {
+                idsZoomSetup();
+                if (!idsCam.torchOk && idsTorchSupported(idsTorchTrack())) { idsCam.torchOk = true; idsCam.torchFailed = false; idsTorchRender(); }
+            }, ms));
         }
         function idsTorchRender() {
             const b = document.getElementById('idsTorchBtn');
             if (!b) return;
-            b.disabled = !idsCam.torchOk;
-            b.textContent = !idsCam.torchOk ? '🔦 Light not supported here' : idsCam.torchWanted ? '🔦 Light on' : '🔦 Light';
-            b.style.background = idsCam.torchOk && idsCam.torchWanted ? 'var(--neon-teal)' : 'rgba(0,0,0,0.6)';
-            b.style.color = idsCam.torchOk && idsCam.torchWanted ? '#08080c' : '#fff';
+            b.textContent = idsCam.torchWanted ? '🔦 Light on' : idsCam.torchFailed ? '🔦 Light unavailable' : '🔦 Light';
+            b.style.background = idsCam.torchWanted ? 'var(--neon-teal)' : 'rgba(0,0,0,0.6)';
+            b.style.color = idsCam.torchWanted ? '#08080c' : '#fff';
+            b.style.opacity = idsCam.torchFailed && !idsCam.torchWanted ? '0.6' : '1';
         }
+        // Returns true if the light is now in the state asked for. When the phone never said it has a light, only a
+        // camera that confirms it in its settings counts, because "advanced" settings the camera can't do are ignored without an error.
         async function idsApplyTorch(on) {
             const track = idsTorchTrack();
-            try { await track.applyConstraints({ advanced: [{ torch: on }] }); idsCam.torchWanted = on; }
-            catch (err) { idsCam.torchWanted = false; const h = document.getElementById('idsCamHint'); h.style.color = 'var(--danger-glow)'; h.textContent = 'Could not switch the light: ' + err.message; }
-            idsTorchRender();
+            if (!track) return false;
+            try {
+                await track.applyConstraints({ advanced: idsAdvanced({ torch: on }) });
+                const set = (track.getSettings && track.getSettings()) || {};
+                if (on && !idsCam.torchOk && set.torch !== true) throw new Error('this camera has no light');
+                idsCam.torchWanted = on;
+                if (on) { idsCam.torchOk = true; idsCam.torchFailed = false; }
+                return true;
+            } catch (err) { idsCam.torchWanted = false; idsCam.torchError = err && err.message ? err.message : String(err); return false; }
         }
-        function idsToggleTorch() { if (idsCam.torchOk) idsApplyTorch(!idsCam.torchWanted); }
-        function idsCamStop() {
-            clearTimeout(idsCam.timer); idsCam.timer = null;
+        async function idsToggleTorch() {
+            if (idsCam.torchBusy || !idsCam.stream) return;
+            idsCam.torchBusy = true;
+            const hint = document.getElementById('idsCamHint');
+            try {
+                if (idsCam.torchWanted) { await idsApplyTorch(false); idsCam.torchWanted = false; }
+                else {
+                    let ok = await idsApplyTorch(true);
+                    if (!ok && !idsCam.torchOk) { await idsFindTorchCamera(); ok = idsCam.torchOk && await idsApplyTorch(true); }
+                    idsCam.torchFailed = !ok;
+                    if (!ok) {
+                        hint.style.color = 'var(--danger-glow)';
+                        hint.textContent = idsCam.torchOk ? 'Could not switch the light: ' + idsCam.torchError : 'This browser doesn\'t let the page use the flashlight. Use your phone\'s own flashlight (swipe down from the top of the screen), or open the app in Chrome.';
+                        setTimeout(idsCamHintDefault, 7000);
+                    }
+                }
+            } finally { idsCam.torchBusy = false; idsTorchRender(); }
+        }
+        // Phones with several back lenses (wide, ultra-wide, telephoto) often have the light on only one of them, and the
+        // browser may hand us a different one. Try the other back cameras and keep the first that has a light.
+        async function idsFindTorchCamera() {
+            if (idsCam.torchSearched || !(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)) return;
+            idsCam.torchSearched = true;
+            const gen = idsCam.gen, hint = document.getElementById('idsCamHint');
+            let cams = [];
+            try { cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput' && d.deviceId && !/front|user|selfie|facetime/i.test(d.label)); } catch (err) { /* no list: keep the camera we have */ }
+            const cur = idsTorchTrack(), curId = cur && cur.getSettings ? cur.getSettings().deviceId : '';
+            const others = cams.filter(d => d.deviceId !== curId).slice(0, 4);
+            if (!others.length || gen !== idsCam.gen) return;
+            hint.style.color = 'var(--text-muted)'; hint.textContent = 'Looking for a camera with a light…';
+            idsCamRelease(); // one camera at a time: some phones won't open a second while the first is running
+            let found = false;
+            for (const d of others) {
+                if (gen !== idsCam.gen) return;
+                let s = null;
+                try {
+                    s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+                    if (gen !== idsCam.gen) { s.getTracks().forEach(t => t.stop()); return; }
+                    if (idsTorchSupported(s.getVideoTracks()[0])) { idsCam.prefDevice = d.deviceId; found = await idsUseStream(s, gen); if (found) break; }
+                    else s.getTracks().forEach(t => t.stop());
+                } catch (err) { if (s) s.getTracks().forEach(t => t.stop()); /* this lens won't open: try the next */ }
+            }
+            if (gen !== idsCam.gen) return;
+            try { if (!found) await idsAttachStream(); } catch (err) { idsCamError(err); return; } // none had a light: back to the normal camera
+            if (gen !== idsCam.gen) return;
+            idsTorchSetup();
+            idsCamHintDefault();
+            if (idsCam.scanning) { clearTimeout(idsCam.timer); idsScanTick(); } // the scan loop stops while there is no camera: start it again
+        }
+        function idsCamRelease() {
             if (idsCam.stream) idsCam.stream.getTracks().forEach(t => t.stop());
             idsCam.stream = null;
             const v = document.getElementById('idsVideo'); if (v) v.srcObject = null;
         }
+        function idsCamStop() {
+            idsCam.gen++;
+            clearTimeout(idsCam.timer); idsCam.timer = null;
+            idsCam.torchTimers.forEach(clearTimeout); idsCam.torchTimers = [];
+            idsCam.torchBusy = false;
+            idsCamRelease();
+        }
         function idsLoadScript(src) {
-            return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not download the barcode reader (offline?). Use External scanner instead.')); document.head.appendChild(s); });
+            return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.crossOrigin = 'anonymous'; s.onload = res; s.onerror = () => rej(new Error('Could not download the barcode reader (offline?). Use External scanner instead.')); document.head.appendChild(s); });
         }
         // Chrome/Android has a built-in PDF417 reader. iPhones (Safari) don't, so load a WebAssembly one.
         // If the built-in one hangs or errors, drop to the WebAssembly one rather than leaving the camera dead.
-        async function idsEnsureReader() {
-            if (idsCam.detector || idsCam.zx) return;
+        // Calls share one load, so it can start early (when the scanner opens) and the camera simply waits on it.
+        let idsReaderLoad = null;
+        function idsEnsureReader() {
+            if (idsCam.detector || idsCam.zx) return Promise.resolve();
+            if (!idsReaderLoad) idsReaderLoad = idsLoadReader().finally(() => { idsReaderLoad = null; });
+            return idsReaderLoad;
+        }
+        async function idsLoadReader() {
             if (!idsCam.nativeBad && 'BarcodeDetector' in window) {
                 try {
-                    const f = await withTimeout(BarcodeDetector.getSupportedFormats(), 2500, 'the camera barcode reader');
-                    if (f.includes('pdf417')) { idsCam.detector = new BarcodeDetector({ formats: ['pdf417'] }); return; }
+                    const f = await withTimeout(BarcodeDetector.getSupportedFormats(), 1500, 'the camera barcode reader');
+                    if (f.includes('pdf417')) { idsCam.detector = new BarcodeDetector({ formats: IDS_NATIVE_FORMATS.filter(x => f.includes(x)) }); return; }
                 } catch (err) { /* fall through to the WebAssembly reader */ }
                 idsCam.nativeBad = true;
             }
-            const hint = document.getElementById('idsCamHint'); hint.textContent = 'Loading barcode reader…';
-            await idsLoadScript(IDS_ZXING_BASE + 'iife/reader/index.js');
-            ZXingWASM.setZXingModuleOverrides({ locateFile: (path, prefix) => path.endsWith('.wasm') ? IDS_ZXING_BASE + 'reader/zxing_reader.wasm' : prefix + path });
+            if (!window.ZXingWASM) await idsLoadScript(IDS_ZXING_BASE + 'iife/reader/index.js');
+            const overrides = { locateFile: (path, prefix) => path.endsWith('.wasm') ? IDS_ZXING_BASE + 'reader/zxing_reader.wasm' : prefix + path };
+            // Compile the WebAssembly now (about 1 MB) so the first camera frame doesn't wait for it.
+            if (ZXingWASM.prepareZXingModule) await ZXingWASM.prepareZXingModule({ overrides, fireImmediately: true });
+            else ZXingWASM.setZXingModuleOverrides(overrides);
             idsCam.zx = ZXingWASM;
-            hint.textContent = 'Hold the BACK of the ID (the barcode) steady in the frame.';
         }
-        async function idsScanLoopStart() { await idsEnsureReader(); idsScanTick(); }
+        async function idsScanLoopStart() {
+            const hint = document.getElementById('idsCamHint');
+            if (!idsCam.detector && !idsCam.zx) { hint.style.color = 'var(--text-muted)'; hint.textContent = 'Loading barcode reader… (the first time can take a few seconds)'; }
+            await idsEnsureReader();
+            if (!idsCam.stream) return; // stopped while the reader was loading
+            idsCamHintDefault();
+            idsScanArm();
+            idsScanTick();
+        }
+        // Options for one WebAssembly read. Most frames look for PDF417 only (every license and state ID); every fourth frame also looks
+        // for the other barcode types, and upside-down ones, which costs more so it isn't done every time.
+        function idsZxOptions(wide, still) {
+            return { formats: wide ? IDS_ZX_WIDE : ['PDF417'], tryHarder: true, tryInvert: !!(wide || still), maxNumberOfSymbols: 1, textMode: 'Plain' };
+        }
         async function idsScanTick() {
             clearTimeout(idsCam.timer);
             if (!idsCam.stream || idsS.mode !== 'camera') return;
@@ -779,13 +1009,15 @@
                         else if (r.length) { idsCam.detector = null; idsCam.nativeBad = true; }
                     }
                     else if (idsCam.zx) {
-                        const cv = document.createElement('canvas'), sc = Math.min(1, 1600 / video.videoWidth);
+                        const cv = idsCam.cv || (idsCam.cv = document.createElement('canvas')), sc = Math.min(1, IDS_DECODE_MAX_W / video.videoWidth);
                         cv.width = Math.round(video.videoWidth * sc); cv.height = Math.round(video.videoHeight * sc);
                         const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(video, 0, 0, cv.width, cv.height);
-                        const r = await idsCam.zx.readBarcodes(cx.getImageData(0, 0, cv.width, cv.height), { formats: ['PDF417'], tryHarder: true, maxNumberOfSymbols: 1, textMode: 'Plain' });
+                        // Licenses are never inverted (white on black), so the every-frame PDF417 pass skips that: it roughly halves the time spent on each frame that has no readable barcode.
+                        const r = await idsCam.zx.readBarcodes(cx.getImageData(0, 0, cv.width, cv.height), idsZxOptions(++idsCam.tick % 4 === 0));
                         if (r.length && r[0].text) text = r[0].text;
                     }
                     if (text) { idsCam.paused = true; idsHandleScan(text, 'camera'); }
+                    else idsMaybeTips();
                 } catch (err) {
                     console.warn('Scan frame failed:', err.message);
                     if (idsCam.detector) { idsCam.detector = null; idsCam.nativeBad = true; } // built-in reader misbehaved: use the WebAssembly one next frame
@@ -793,7 +1025,58 @@
                 }
                 idsCam.busy = false;
             }
-            idsCam.timer = setTimeout(idsScanTick, idsCam.zx ? 450 : 250);
+            idsCam.timer = setTimeout(idsScanTick, idsCam.zx ? 60 : 200); // the read itself takes most of the time, so the gap between reads stays short
+        }
+
+        // -- a photo instead of live video: the phone's own camera app focuses and gives a much sharper picture than a video frame,
+        // so this reads dense or hard-to-focus barcodes that the live view can't. Also works from a saved image.
+        async function idsDecodeImage(source, w, h) {
+            await idsEnsureReader();
+            const sc = Math.min(1, 3000 / w), cv = document.createElement('canvas');
+            cv.width = Math.round(w * sc); cv.height = Math.round(h * sc);
+            const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(source, 0, 0, cv.width, cv.height);
+            if (idsCam.detector) {
+                try { const r = await withTimeout(idsCam.detector.detect(cv), 5000, 'the barcode reader'); if (r.length && r[0].rawValue) return r[0].rawValue; } catch (err) { /* try the WebAssembly reader */ }
+            }
+            if (!idsCam.zx) { // the built-in reader found nothing: load the WebAssembly one as a second opinion
+                if (!window.ZXingWASM) await idsLoadScript(IDS_ZXING_BASE + 'iife/reader/index.js');
+                const overrides = { locateFile: (path, prefix) => path.endsWith('.wasm') ? IDS_ZXING_BASE + 'reader/zxing_reader.wasm' : prefix + path };
+                if (ZXingWASM.prepareZXingModule) await ZXingWASM.prepareZXingModule({ overrides, fireImmediately: true }); else ZXingWASM.setZXingModuleOverrides(overrides);
+                idsCam.zx = ZXingWASM;
+            }
+            const r = await idsCam.zx.readBarcodes(cx.getImageData(0, 0, cv.width, cv.height), idsZxOptions(false, true));
+            if (r.length && r[0].text) return r[0].text;
+            const r2 = await idsCam.zx.readBarcodes(cx.getImageData(0, 0, cv.width, cv.height), idsZxOptions(true, true)); // not PDF417: try the other types
+            return r2.length && r2[0].text ? r2[0].text : '';
+        }
+        let idsPhotoWait = false;
+        function idsPhotoOpen() {
+            const inp = document.getElementById('idsPhotoIn');
+            if (idsS.pending) { idsToast('Finish the scan on screen first.'); return; }
+            idsPhotoWait = true;
+            if (idsS.mode === 'camera') idsCamStop(); // free the camera so the phone's camera app can use it
+            inp.value = '';
+            const back = () => { if (!idsPhotoWait) return; idsPhotoWait = false; idsCamResume(false); };
+            inp.addEventListener('cancel', back, { once: true });
+            setTimeout(() => window.addEventListener('focus', () => setTimeout(() => { if (!inp.files || !inp.files.length) back(); }, 1200), { once: true }), 500); // browsers without a cancel event
+            inp.click();
+        }
+        async function idsPhotoPicked(inp) {
+            const file = inp.files && inp.files[0];
+            if (!file) return;
+            idsS.busy = false; idsS.last = null;
+            idsSetFrame('');
+            document.getElementById('idsResult').innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:18px 0;">Reading the photo…</p>';
+            let text = '', fail = '';
+            try {
+                const bmp = await createImageBitmap(file);
+                try { text = await idsDecodeImage(bmp, bmp.width, bmp.height); } finally { if (bmp.close) bmp.close(); }
+            } catch (err) { fail = err && err.message ? err.message : String(err); }
+            idsPhotoWait = false; inp.value = '';
+            idsCamResume(true); // the camera comes back, paused: the result (or "Try again") on screen decides when it reads again
+            if (text) { await idsHandleScan(text, 'photo'); return; }
+            idsBeep('alert');
+            idsShowError(fail ? 'Could not read that photo: ' + fail : 'No barcode found in that photo. Get the barcode on the back of the ID large, flat and sharp (no glare), then try again.', true);
         }
 
         // -- external scanner: acts like a keyboard, "types" the barcode into the focused box
@@ -816,14 +1099,29 @@
         async function idsHandleScan(text, method) {
             if (idsS.busy) return;
             idsS.busy = true;
-            try { await idsHandleScanInner(text, method); } finally { idsS.busy = false; }
+            try { await idsHandleScanInner(text, method); }
+            catch (err) { // never leave the camera frozen on a blank screen
+                console.error('ID scan failed:', err);
+                idsBeep('alert'); idsShowError('Something went wrong reading that ID (' + (err && err.message ? err.message : err) + ').', true);
+            }
+            finally { idsS.busy = false; }
         }
         async function idsHandleScanInner(text, method) {
             if (idsS.pending) { if (!idsFinish()) { idsToast('Finish the scan on screen first.'); idsBeep('alert'); if (method === 'camera') idsCam.paused = false; return; } }
-            const cfg = idsS.test ? idsS.testCfg : idsCfgFor(idsS.eventId), ev = getDB('events').find(e => e.id === idsS.eventId);
             idsS.last = null; idsS.flagOpen = false; idsS.flagNote = '';
             const parsed = idsParseAamva(text);
-            if (!parsed) { idsBeep('alert'); idsShowError('That barcode isn\'t a driver license or ID card barcode. Scan the back of a US or Canadian license / ID.'); return; }
+            if (!parsed) { // not a US / Canadian license or ID barcode (military, tribal, school, foreign, a ticket...): say so, show what was read, and offer to type it in
+                idsBeep('alert');
+                idsShowError('That barcode isn\'t a standard US / Canadian license or ID card barcode, so it can\'t be checked automatically. Try the back of the card, or enter the details from the ID by hand.', true, text);
+                return;
+            }
+            await idsJudge(parsed, text, method);
+        }
+        // Checks one ID (read from a barcode, or typed in by hand) against the rules and shows the result.
+        async function idsJudge(parsed, text, method) {
+            let cfg = idsS.test ? idsS.testCfg : idsCfgFor(idsS.eventId);
+            const ev = getDB('events').find(e => e.id === idsS.eventId);
+            if (parsed.manual) cfg = Object.assign({}, cfg, { integrity: false }); // the barcode checks (header, ID number) don't apply to something typed in
             const verdict = idsEvaluate(parsed, cfg, getDB('banlist').map(b => b.name));
             try { (await idsVerifyExternal(parsed, cfg)).forEach(r => verdict.reasons.push(r)); } catch (err) { verdict.reasons.push({ level: 'review', text: 'Outside verification unavailable: ' + err.message }); }
             if (idsS.test) { // test scanner: show the verdict and stop. No re-scan lookup, no record, no photo, no flag, no log entry.
@@ -836,8 +1134,9 @@
             let dupKey = '', prior = null;
             try { dupKey = await idsDupKey(idsS.eventId, parsed); } catch (err) { /* no hashing available: skip re-scan detection */ }
             if (dupKey && cfg.flagRescan) {
-                prior = idsS.seenLocal[dupKey] || null;
-                if (!prior) { try { const s = await withTimeout(db.collection('idscan_seen').doc(idsS.eventId + '__' + dupKey).get(), 4000, 'the re-scan check'); if (s.exists) prior = s.data(); } catch (err) { /* offline: carry on without it */ } }
+                prior = idsS.seenLocal[dupKey] || (idsS.seenRemote && idsS.seenRemote[dupKey]) || null;
+                // Normally answered instantly from the live copy (idsSeenListen). Only if that hasn't loaded yet do we ask the server, and not for long.
+                if (!prior && !idsS.seenReady) { try { const s = await withTimeout(db.collection('idscan_seen').doc(idsS.eventId + '__' + dupKey).get(), 1500, 'the re-scan check'); if (s.exists) prior = s.data(); } catch (err) { /* offline: carry on without it */ } }
                 if (prior) verdict.reasons.push({ level: 'review', text: 'Already scanned for this event at ' + new Date(prior.at).toLocaleTimeString() + ' (' + prior.result + ')' });
             }
             const result = idsResultOf(verdict.reasons);
@@ -847,13 +1146,53 @@
             if (idsS.pending.photoMode === 'off') idsFinish(); // nothing more to collect, so log it now (unless it needs a decision)
             logEvent('id_scan', 'Scanned an ID at ' + (ev ? ev.title : idsS.eventId) + ' (' + result + ')');
         }
-        function idsShowError(msg) {
+        // offerManual: also show "Enter by hand". raw: the text the barcode held, so it can be looked at (and sent to a developer if a kind of ID keeps failing).
+        function idsShowError(msg, offerManual, raw) {
             idsS.pending = null; idsS.last = null;
             idsSetFrame('review');
             const box = document.getElementById('idsResult');
-            box.innerHTML = `<div style="border:2px solid #ff8a3d; border-radius:16px; padding:16px; text-align:center;"><div style="font-size:1.6rem;">⚠️</div><p style="font-size:0.9rem; margin:8px 0 12px;">${escapeHtml(msg)}</p><button class="btn btn-sm" onclick="idsClearResult()">Try again</button></div>`;
+            box.innerHTML = `<div style="border:2px solid #ff8a3d; border-radius:16px; padding:16px; text-align:center;"><div style="font-size:1.6rem;">⚠️</div><p style="font-size:0.9rem; margin:8px 0 12px;">${escapeHtml(msg)}</p>
+                ${raw ? `<details style="text-align:left; margin-bottom:12px;"><summary style="cursor:pointer; font-size:0.78rem; color:var(--neon-teal);">What the scanner read</summary><pre style="font-size:0.68rem; white-space:pre-wrap; word-break:break-all; background:rgba(0,0,0,0.35); border-radius:8px; padding:8px; max-height:140px; overflow:auto; margin:6px 0 0;">${escapeHtml(idsShowRaw(String(raw).slice(0, 800)))}</pre></details>` : ''}
+                <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;"><button class="btn btn-sm" onclick="idsClearResult()">Try again</button>${offerManual ? '<button class="btn btn-outline btn-sm" onclick="idsManualOpen()">⌨️ Enter by hand</button>' : ''}</div></div>`;
         }
-        function idsClearResult() { idsS.pending = null; idsS.last = null; idsS.flagOpen = false; idsS.flagNote = ''; idsCam.paused = false; idsRenderResult(); if (idsS.mode === 'wedge') document.getElementById('idsWedge').focus(); }
+
+        // -- entering an ID by hand: for an ID with no readable barcode (passport, military, tribal, foreign, worn out or cracked).
+        // Goes through the same age / expiry / state / Ban List checks and is logged like any other scan, marked "manual".
+        const IDS_MANUAL_TYPES = ['Driver license', 'State ID card', 'Passport', 'Military ID', 'Tribal ID', 'Foreign ID', 'Other photo ID'];
+        function idsManualOpen() {
+            if (idsS.pending) { idsToast('Finish the scan on screen first.'); return; }
+            idsCam.paused = true; idsS.last = null;
+            idsSetFrame('review');
+            const home = (idsS.test ? idsS.testCfg : idsCfgFor(idsS.eventId)).homeState || '';
+            const states = Array.from(new Set(Object.values(IDS_IIN_STATE))).sort();
+            const f = (id, label, type, extra) => `<label style="display:block; font-size:0.75rem; color:var(--text-muted); margin:8px 0 2px;">${label}</label><input id="${id}" class="input-field" style="margin:0;" type="${type}" ${extra || ''}>`;
+            document.getElementById('idsResult').innerHTML = `<div style="border:2px solid #ff8a3d; border-radius:16px; padding:16px;">
+                <div style="font-family:'Outfit'; font-weight:700; font-size:1.05rem; text-align:center; margin-bottom:4px;">⌨️ Enter ID details by hand</div>
+                <p style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin:0 0 6px;">Copy them from the ID. They get the same age, expiry and Ban List checks.</p>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted); margin:8px 0 2px;">Type of ID</label>
+                <select id="idsMType" class="input-field" style="margin:0;">${IDS_MANUAL_TYPES.map(t => `<option>${escapeHtml(t)}</option>`).join('')}</select>
+                ${f('idsMFirst', 'First name', 'text', 'autocomplete="off" autocapitalize="words"')}${f('idsMLast', 'Last name', 'text', 'autocomplete="off" autocapitalize="words"')}
+                ${f('idsMDob', 'Birth date', 'date')}${f('idsMExp', 'ID expires (leave blank if it has no expiry date)', 'date')}
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted); margin:8px 0 2px;">Issued by</label>
+                <select id="idsMState" class="input-field" style="margin:0;">${states.map(c => `<option value="${c}" ${c === home ? 'selected' : ''}>${c}</option>`).join('')}<option value="">Other / outside the US</option></select>
+                <p id="idsMErr" style="font-size:0.8rem; color:var(--danger-glow); margin:8px 0 0; display:none;"></p>
+                <div style="display:flex; gap:8px; margin-top:12px;"><button class="btn btn-sm" style="flex:1;" onclick="idsManualSubmit()">Check this ID</button><button class="btn btn-outline btn-sm" onclick="idsClearResult()">Cancel</button></div></div>`;
+            setTimeout(() => { const a = document.getElementById('idsMFirst'); if (a) a.focus(); }, 50);
+        }
+        async function idsManualSubmit() {
+            const v = id => (document.getElementById(id) || {}).value || '', err = document.getElementById('idsMErr');
+            const first = v('idsMFirst').trim(), last = v('idsMLast').trim(), dob = idsParseDate(v('idsMDob'), 'CAN'), exp = idsParseDate(v('idsMExp'), 'CAN'); // the date boxes give YYYY-MM-DD; 'CAN' makes that the order tried first
+            const bad = !first ? 'Enter the first name.' : !last ? 'Enter the last name.' : !dob ? 'Enter the birth date.' : (v('idsMExp') && !exp) ? 'That expiry date isn\'t valid.' : '';
+            if (bad) { err.textContent = bad; err.style.display = 'block'; return; }
+            const state = v('idsMState').toUpperCase();
+            const parsed = { firstName: idsTitleCase(first), middleName: '', lastName: idsTitleCase(last), dob, expiry: exp, issued: '', state, country: state ? 'USA' : '', iin: '', aamvaVersion: '', hasIdNumber: true, hasHeader: true, rawDobPresent: true, rawExpiryPresent: !!exp, fields: null, docType: v('idsMType'), manual: true };
+            if (idsS.busy) return;
+            idsS.busy = true;
+            try { await idsJudge(parsed, '', 'manual'); }
+            catch (e) { console.error('Manual ID check failed:', e); idsShowError('Something went wrong checking that ID (' + (e && e.message ? e.message : e) + ').', true); }
+            finally { idsS.busy = false; }
+        }
+        function idsClearResult() { idsS.pending = null; idsS.last = null; idsS.flagOpen = false; idsS.flagNote = ''; idsCam.paused = false; idsScanArm(); idsCamHintDefault(); idsRenderResult(); if (idsS.mode === 'wedge') document.getElementById('idsWedge').focus(); }
         function idsCanFinish() {
             const p = idsS.pending;
             return !!p && (p.result !== 'review' || !!p.decision) && (p.photoMode !== 'required' || !!p.photo);
@@ -890,16 +1229,17 @@
                     <div style="text-align:center; margin:10px 0;">
                         <div style="font-family:'Outfit'; font-size:1.2rem; font-weight:700;">${escapeHtml([x.firstName, x.lastName].filter(Boolean).join(' '))}</div>
                         <div style="font-size:0.88rem; color:var(--text-secondary);">Born ${escapeHtml(idsFmtDate(x.dob))}${p.age != null ? ' · age ' + p.age : ''} · ${idsStateHtml(x.state, p.outOfState)}</div>
+                        ${x.docType ? `<div style="font-size:0.78rem; color:var(--text-muted);">${escapeHtml(x.docType)}${x.manual ? ' · typed in by hand' : ''}</div>` : ''}
                         <div style="font-size:0.82rem; color:var(--text-muted);">Expires ${escapeHtml(idsFmtDate(x.expiry))}</div>
                     </div>
                     ${p.reasons.length ? '<ul style="font-size:0.84rem; padding-left:18px; margin-bottom:12px;">' + p.reasons.map(t => '<li>' + escapeHtml(t) + '</li>').join('') + '</ul>' : ''}
-                    <details style="margin-bottom:12px;" ${idsS.showAll ? 'open' : ''} ontoggle="idsS.showAll = this.open">
+                    ${x.manual ? '<p style="font-size:0.74rem; color:var(--text-muted); text-align:center; margin-bottom:12px;">⌨️ Typed in from the ID, not read from a barcode: look at the ID itself.</p>' : `<details style="margin-bottom:12px;" ${idsS.showAll ? 'open' : ''} ontoggle="idsS.showAll = this.open">
                         <summary style="cursor:pointer; font-size:0.8rem; color:var(--neon-teal);">View all barcode data</summary>
                         <table class="data-table" style="margin-top:8px; font-size:0.78rem;"><tbody>${idsFieldRows(x).map(r => `<tr><td style="padding:6px 8px; color:var(--text-muted); width:42%;">${escapeHtml(r[0])}</td><td style="padding:6px 8px; word-break:break-word;">${escapeHtml(r[1])}</td></tr>`).join('')}</tbody></table>
                         <p style="font-size:0.7rem; color:var(--text-muted); margin:8px 0 4px;">Raw barcode text</p>
                         <pre style="font-size:0.68rem; white-space:pre-wrap; word-break:break-all; background:rgba(0,0,0,0.35); border-radius:8px; padding:8px; max-height:160px; overflow:auto; margin:0;">${escapeHtml(idsShowRaw(p.raw))}</pre>
                         <p style="font-size:0.7rem; color:var(--text-muted); margin-top:6px;">${(parseInt(idsGlobal.fullDataHours, 10) || 0) > 0 ? 'The full card data is also kept for admins for ' + idsGlobal.fullDataHours + ' hours, then deleted.' : 'Shown on this screen only. Only the fields listed in the registry are saved; the ID number and address are not.'}</p>
-                    </details>
+                    </details>`}
                     ${p.test ? '' : p.flagged ? '<p style="text-align:center; font-size:0.8rem; color:var(--neon-pink); margin-bottom:10px;">🚩 Flagged for admin review</p>'
                         : idsS.flagOpen ? `<div style="margin-bottom:12px;"><textarea id="idsFlagNote" class="input-field" rows="3" maxlength="1000" style="margin:0 0 8px;" placeholder="What happened? (required)" oninput="idsS.flagNote = this.value">${escapeHtml(idsS.flagNote || '')}</textarea>
                             <div style="display:flex; gap:8px;"><button class="btn btn-magenta btn-sm" style="flex:1;" onclick="idsSendFlag()">Send flag</button><button class="btn btn-outline btn-sm" onclick="idsS.flagOpen = false; idsRenderResult()">Cancel</button></div>
@@ -998,7 +1338,7 @@
                 scannedBy: { uid: actor ? actor.uid : '', name: actor ? actor.user : '' }, method: p.method,
                 firstName: x.firstName, lastName: x.lastName, lastLower: idsNormName(x.lastName), firstLower: idsNormName(x.firstName),
                 dob: x.dob, ageAtScan: p.age, state: x.state, outOfState: !!p.outOfState, country: x.country, expiry: x.expiry,
-                result: p.result, decision: p.decision, reasons: p.reasons, hasPhoto: !!p.photo, seenId, env: IS_DEV_SITE ? 'dev' : 'prod'
+                docType: x.docType || '', result: p.result, decision: p.decision, reasons: p.reasons, hasPhoto: !!p.photo, seenId, env: IS_DEV_SITE ? 'dev' : 'prod'
             };
             idsS.seenLocal[p.dupKey] = { at: rec.scannedAt, result: p.result };
             const batch = db.batch();

@@ -9,7 +9,7 @@ any change, however small, means reading through thousands of lines of
 unrelated code to find the right spot, whether you're a person or an AI
 assistant.
 
-This split reorganizes that same code into `styles.css` plus fifteen
+This split reorganizes that same code into `styles.css` plus sixteen
 `js/*.js` files grouped by feature (see [FILE_GUIDE.md](FILE_GUIDE.md)), so a
 change to, say, the ban list only requires opening `js/12-banlist-chat-misc.js`
 - not the whole app.

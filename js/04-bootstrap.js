@@ -199,6 +199,7 @@
             try { renderAnnouncementBanner(); } catch (err) { console.error('Announcement banner render failed:', err); }
             try { deliverDuePushes(); } catch (err) { console.error('Push delivery failed:', err); }
             try { if (document.getElementById('adminSystem').style.display === 'block') renderPushForm(); } catch (err) { console.error('Push list render failed:', err); }
+            try { smRestoreModuleOnce(); } catch (err) { console.error('Show Manager restore failed:', err); }
             renderEvents();
             if (document.getElementById('eventDetailView').style.display !== 'none' && activeDetailId) renderEventDetail(activeDetailId);
             if (document.getElementById('calendarView').style.display !== 'none') renderCal();

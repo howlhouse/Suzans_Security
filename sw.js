@@ -2,7 +2,10 @@
 // only ever cleans up its own caches, so installing one can't wipe the other's.
 const IS_DEV_SCOPE = self.registration.scope.includes('/dev/');
 const CACHE_PREFIX = IS_DEV_SCOPE ? 'suzans-security-dev-' : 'suzans-security-v';
-const CACHE_NAME = CACHE_PREFIX + '16';
+const CACHE_NAME = CACHE_PREFIX + '19';
+// The ID scanner's WebAssembly barcode reader (about 1 MB, from jsDelivr) is kept in its own cache: the file at a versioned
+// URL never changes, it is shared by PROD and DEV, and it must survive app updates, so it is not part of CACHE_NAME.
+const ZXING_CACHE = 'suzans-security-zxing';
 // index.html used to be one file with an inline <style>/<script> - now it
 // loads styles.css and js/*.js as separate requests, so they need to be
 // precached too for the same offline-cold-boot behavior as before.
@@ -12,7 +15,7 @@ const CORE_ASSETS = [
     './js/03-state-and-persistence.js', './js/04-bootstrap.js', './js/05-catalog-and-announcements.js',
     './js/06-auth-and-shell.js', './js/07-events-and-details.js', './js/08-calendar.js',
     './js/09-admin-events.js', './js/10-admin-ops.js', './js/11-settings-and-calendar.js',
-    './js/12-banlist-chat-misc.js', './js/14-id-scan.js', './js/13-init.js',
+    './js/12-banlist-chat-misc.js', './js/14-id-scan.js', './js/15-show-manager.js', './js/13-init.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -36,7 +39,20 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
     const url = new URL(e.request.url);
 
-    // Never intercept cross-origin requests (Firebase, Firestore, Google Fonts, images).
+    // The ID scanner's barcode reader: cache-first, so it only downloads once and still works with a weak or no connection.
+    if (e.request.method === 'GET' && url.hostname === 'cdn.jsdelivr.net' && url.pathname.startsWith('/npm/zxing-wasm@')) {
+        e.respondWith(
+            caches.open(ZXING_CACHE).then((cache) =>
+                cache.match(e.request).then((hit) => hit || fetch(e.request).then((resp) => {
+                    if (resp.ok) cache.put(e.request, resp.clone()).catch(() => {});
+                    return resp;
+                }))
+            ).catch(() => fetch(e.request))
+        );
+        return;
+    }
+
+    // Never intercept other cross-origin requests (Firebase, Firestore, Google Fonts, images).
     // Those need to hit the real network every time so live data / auth still works.
     if (url.origin !== self.location.origin) return;
 
@@ -52,7 +68,7 @@ self.addEventListener('fetch', (e) => {
                 caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy)).catch(() => {});
                 return resp;
             })
-            .catch(() => caches.match(e.request))
+            .catch(() => caches.match(e.request, { ignoreSearch: true })) // ?v=<build> stamps differ from the precached plain URLs
     );
 });
 
