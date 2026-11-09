@@ -48,6 +48,15 @@ jobs:
             echo "No dev branch yet - publishing PROD only"
             rmdir site/dev
           fi
+          # Cache-busting: index.html links every stylesheet/script as "...?v=__BUILD__". Stamp each site with
+          # its own commit id so a browser can never mix files from two releases (GitHub Pages lets browsers
+          # reuse any file for 10 minutes, which showed up as new scripts running against an old stylesheet).
+          PROD_SHA=$(git -C site rev-parse --short HEAD)
+          sed -i "s/__BUILD__/$PROD_SHA/g" site/index.html
+          if [ -d site/dev ]; then
+            DEV_SHA=$(git -C site rev-parse --short FETCH_HEAD)
+            sed -i "s/__BUILD__/$DEV_SHA/g" site/dev/index.html
+          fi
           rm -rf site/.git site/.github site/dev/.github
           # Keep the upload small: Pages deploy time grows with site size, and everything is
           # published twice (live + /dev/). These files stay in git but aren't served because

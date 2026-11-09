@@ -50,3 +50,14 @@ Activity logged from DEV is tagged `env: "dev"`. The adoption dashboard ignores 
 - GitHub Pages ignores a second deployment of the *same commit*. If `dev` and `main` are at the
   same commit, only the first deployment of that commit takes effect - a new commit on either
   branch always deploys.
+
+## Cache-busting (why `index.html` says `?v=__BUILD__`)
+
+GitHub Pages lets browsers reuse any file for 10 minutes. Two releases close together could leave a browser
+running a new script against an old stylesheet (this happened with the Show Manager floorplan: black shapes
+and unstyled panels). So `index.html` links every stylesheet and script as `styles.css?v=__BUILD__` /
+`js/xx.js?v=__BUILD__`, and the deploy workflow replaces `__BUILD__` with the short commit id of that site
+(PROD and DEV each get their own). A new release therefore changes every file URL, and a page always loads one
+consistent set of files. Locally the placeholder is left as-is, which is harmless. When adding a new
+`<script src="js/...">` or stylesheet to `index.html`, add the `?v=__BUILD__` suffix too. `sw.js` matches the
+offline cache with `ignoreSearch` so the stamped URLs still find the precached files.

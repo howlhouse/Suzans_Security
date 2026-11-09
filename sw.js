@@ -2,7 +2,7 @@
 // only ever cleans up its own caches, so installing one can't wipe the other's.
 const IS_DEV_SCOPE = self.registration.scope.includes('/dev/');
 const CACHE_PREFIX = IS_DEV_SCOPE ? 'suzans-security-dev-' : 'suzans-security-v';
-const CACHE_NAME = CACHE_PREFIX + '18';
+const CACHE_NAME = CACHE_PREFIX + '19';
 // The ID scanner's WebAssembly barcode reader (about 1 MB, from jsDelivr) is kept in its own cache: the file at a versioned
 // URL never changes, it is shared by PROD and DEV, and it must survive app updates, so it is not part of CACHE_NAME.
 const ZXING_CACHE = 'suzans-security-zxing';
@@ -68,7 +68,7 @@ self.addEventListener('fetch', (e) => {
                 caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy)).catch(() => {});
                 return resp;
             })
-            .catch(() => caches.match(e.request))
+            .catch(() => caches.match(e.request, { ignoreSearch: true })) // ?v=<build> stamps differ from the precached plain URLs
     );
 });
 
