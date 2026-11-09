@@ -61,7 +61,7 @@
         let smSeenShow = false, smOpenedAt = 0; // a just-created show may reach the listener a moment after we open it
         let smMode = 'seat';          // 'seat' = seating & check-in, 'layout' = move/add tables
         let smSelId = null;           // selected layout item
-        let smZoom = 1;
+        let smZoom = 1, smFitKey = '';
         let smFilter = { q: '', pending: false, hideEmpty: false };
         let smDrag = null;
         let smListening = false;
@@ -390,7 +390,7 @@
                                     <button data-m="seat" onclick="smSetMode('seat')">🪑 Seating</button>
                                     <button data-m="layout" onclick="smSetMode('layout')">✏️ Edit layout</button>
                                 </div>
-                                <div class="sm-zoom"><button class="btn btn-outline btn-sm" onclick="smSetZoom(smZoom-0.25)" aria-label="Zoom out">−</button><span id="smZoomLbl"></span><button class="btn btn-outline btn-sm" onclick="smSetZoom(smZoom+0.25)" aria-label="Zoom in">+</button></div>
+                                <div class="sm-zoom"><button class="btn btn-outline btn-sm" onclick="smSetZoom(smZoom-0.25)" aria-label="Zoom out">−</button><button class="btn btn-outline btn-sm" id="smZoomLbl" onclick="smSetZoom(1)" title="Fit the whole room on screen"></button><button class="btn btn-outline btn-sm" onclick="smSetZoom(smZoom+0.25)" aria-label="Zoom in">+</button></div>
                             </div>
                             <div id="smPanel"></div>
                             <div class="sm-mapwrap" id="smMapWrap">
@@ -420,6 +420,10 @@
                     </div>
                 </div>`;
             smInitSvgEvents();
+            if (!window._smResizeBound) { // keep the whole room in view when the window / phone orientation changes
+                window._smResizeBound = true;
+                window.addEventListener('resize', () => { if (window._module === 'shows' && smShowId && smEl('smSvg')) smFitMap(); });
+            }
             smShellId = smShowId;
             smHeadSig = ''; smPanelSig = '';
         }
@@ -428,7 +432,7 @@
             if (!show) { smEl('smShowRoot').innerHTML = `<button class="btn btn-outline btn-sm" style="margin-bottom:14px;" onclick="smCloseShow()">← All Shows</button><p style="color:var(--text-muted); padding:20px 4px;">${smDataError ? escapeHtml(smDataError) : 'Loading show…'}</p>`; smShellId = null; return; }
             if (smShellId !== show.id) {
                 smMode = 'seat'; smSelId = null; smFilter = { q: '', pending: false, hideEmpty: false };
-                smZoom = window.innerWidth < 700 ? 1.8 : 1;
+                smZoom = 1; // 1 = fit the whole room on screen
                 smBuildShell();
             }
             smRenderHead(show);
@@ -439,16 +443,25 @@
             smRenderList(show);
             smSyncUi();
         }
+        // Size the map so the WHOLE room is visible without scrolling: as wide as the card allows, but never taller than
+        // the screen. Zoom 1 is "fit"; the +/- buttons zoom relative to it (the frame only scrolls once you zoom in).
+        function smFitMap() {
+            const svg = smEl('smSvg'), wrap = smEl('smMapWrap'); if (!svg || !wrap) return;
+            const cv = smCV(), availW = wrap.clientWidth || 300, maxH = Math.max(300, window.innerHeight - 190);
+            const fitW = Math.max(200, Math.min(availW, maxH * cv.w / cv.h));
+            svg.style.width = Math.round(fitW * smZoom) + 'px';
+            smFitKey = cv.w + 'x' + cv.h + '|' + availW + '|' + window.innerHeight;
+        }
         function smRenderChrome() {
             smEl('smModeToggle').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.m === smMode));
             smEl('smSvg').classList.toggle('layout', smMode === 'layout');
-            smEl('smSvg').style.width = (smZoom * 100) + '%';
-            smEl('smZoomLbl').textContent = Math.round(smZoom * 100) + '%';
+            smFitMap();
+            smEl('smZoomLbl').textContent = smZoom === 1 ? 'Fit' : Math.round(smZoom * 100) + '%';
             smEl('smFPending').classList.toggle('active', smFilter.pending);
             smEl('smFEmpty').classList.toggle('active', smFilter.hideEmpty);
         }
         function smSetMode(m) { smMode = m; smPanelSig = ''; const s = smCurShow(); smRenderChrome(); if (s) { smRenderPanel(s); smRenderMap(s); } }
-        function smSetZoom(z) { smZoom = Math.min(2.5, Math.max(0.5, Math.round(z * 100) / 100)); smRenderChrome(); }
+        function smSetZoom(z) { smZoom = Math.min(4, Math.max(0.5, Math.round(z * 100) / 100)); smRenderChrome(); }
         function smToggleFilter(k) { smFilter[k] = !smFilter[k]; smRenderChrome(); smRenderListNow(); }
         function smRenderListNow() { const s = smCurShow(); if (s) smRenderList(s); }
 
@@ -614,13 +627,28 @@
             if (smIsZone(it)) {
                 const kind = smKind(it), z = SM_ZONES[kind] || SM_ZONES.area;
                 const label = String(it.label != null && it.label !== '' ? it.label : (kind === 'stage' && (it.shape === 'runway' || (!it.w && !it.shape)) ? 'RUNWAY' : z.label)).toUpperCase();
-                const avail = Math.abs(Math.cos(rot * Math.PI / 180)) >= 0.5 ? d.w : d.h;
-                const fs = Math.max(8, Math.min(20, Math.min(d.w, d.h) / 3.5, (avail - 14) / (label.length * 1.2)));
+                // The label runs along the piece's long side (so a tall room reads vertically), is never upside-down,
+                // and wraps onto two lines when that lets it be bigger.
+                const longSide = Math.max(d.w, d.h), shortSide = Math.min(d.w, d.h), base = d.h > d.w ? 90 : 0;
+                let ang = (((rot + base) % 360) + 360) % 360; if (ang > 90 && ang <= 270) ang -= 180; else if (ang > 270) ang -= 360;
+                const lblRot = ang - rot;
+                const fit1 = Math.max(8, Math.min(20, shortSide / 3.5, (longSide - 14) / (label.length * 1.2)));
+                const words = label.split(' ');
+                let lines = [label], fs = fit1;
+                if (words.length > 1) {
+                    let best = 0, bestD = 1e9; for (let i = 1; i < words.length; i++) { const dd = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length); if (dd < bestD) { bestD = dd; best = i; } }
+                    const l1 = words.slice(0, best).join(' '), l2 = words.slice(best).join(' ');
+                    const fit2 = Math.max(8, Math.min(20, shortSide / 2.9, (longSide - 14) / (Math.max(l1.length, l2.length) * 1.2)));
+                    if (fit2 > fit1 * 1.15) { lines = [l1, l2]; fs = fit2; }
+                }
+                const textEl = lines.length === 1
+                    ? `<text class="sm-stage-lbl" fill="#fff" font-size="${fs}" font-weight="800" letter-spacing="${Math.round(fs * 0.2)}" pointer-events="none" transform="rotate(${lblRot})" text-anchor="middle" dy=".35em">${escapeHtml(lines[0])}</text>`
+                    : `<text class="sm-stage-lbl" fill="#fff" font-size="${fs}" font-weight="800" letter-spacing="${Math.round(fs * 0.2)}" pointer-events="none" transform="rotate(${lblRot})" text-anchor="middle"><tspan x="0" dy="-0.25em">${escapeHtml(lines[0])}</tspan><tspan x="0" dy="1.2em">${escapeHtml(lines[1])}</tspan></text>`;
                 const handle = selected && smMode === 'layout'
                     ? `<g class="sm-rh"><circle cx="${d.w / 2}" cy="${d.h / 2}" r="13" fill="#00f5d4" stroke="#08080c" stroke-width="2"/><path d="M ${d.w / 2 - 5} ${d.h / 2 + 5} L ${d.w / 2 + 5} ${d.h / 2 - 5} M ${d.w / 2 + 5} ${d.h / 2 - 1} L ${d.w / 2 + 5} ${d.h / 2 - 5} L ${d.w / 2 + 1} ${d.h / 2 - 5}" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>` : '';
                 return `<g class="sm-it sm-stage${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
                     <rect ${kind === 'stage' ? 'class="sm-stage-body" ' : ''}fill="${z.fill}" stroke="${z.stroke}" stroke-width="2.5"${z.dash ? ` stroke-dasharray="${z.dash}"` : ''} x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="${Math.min(14, d.h / 3)}"/>
-                    <text class="sm-stage-lbl" fill="#fff" font-size="${fs}" font-weight="800" letter-spacing="${Math.round(fs * 0.2)}" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" dy=".35em">${escapeHtml(label)}</text>
+                    ${textEl}
                     ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - 6}" y="${-d.h / 2 - 6}" width="${d.w + 12}" height="${d.h + 12}" rx="18"/>` : ''}
                     ${handle}
                     ${selected ? smRotHandle(it.id, 0, -d.h / 2 - 32, 0, -d.h / 2 - 6, rot) : ''}
@@ -659,6 +687,8 @@
             svg.setAttribute('viewBox', `0 0 ${cv.w} ${cv.h}`);
             ['smFloor', 'smFloorGrid'].forEach(id => { const e = smEl(id); if (e) { e.setAttribute('width', cv.w); e.setAttribute('height', cv.h); } });
             const b = smEl('smBorder'); if (b) { b.setAttribute('width', cv.w - 3); b.setAttribute('height', cv.h - 3); }
+            const wrap = smEl('smMapWrap');
+            if (wrap && smFitKey !== cv.w + 'x' + cv.h + '|' + (wrap.clientWidth || 300) + '|' + window.innerHeight) smFitMap(); // room size changed
         }
         function smRenderMap(show) {
             const layer = smEl('smItems'); if (!layer) return;

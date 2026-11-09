@@ -549,9 +549,9 @@
         .sm-seg button.active { background: var(--neon-teal); color: #08080c; }
         .sm-zoom { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-muted); }
         .sm-zoom .btn { padding: 4px 11px; }
-        .sm-zoom span { min-width: 38px; text-align: center; }
-        .sm-mapwrap { overflow: auto; border-radius: 14px; max-height: 76vh; -webkit-overflow-scrolling: touch; }
-        .sm-svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+        .sm-zoom #smZoomLbl { min-width: 54px; }
+        .sm-mapwrap { overflow: auto; border-radius: 14px; -webkit-overflow-scrolling: touch; }  /* only scrolls once you zoom in past Fit */
+        .sm-svg { display: block; margin: 0 auto; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
         .sm-svg.layout .sm-it { cursor: grab; touch-action: none; }
         .sm-svg:not(.layout) .sm-tbl { cursor: pointer; }
         .sm-hit { fill: none; pointer-events: all; }
