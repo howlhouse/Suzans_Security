@@ -363,10 +363,10 @@
                             <div id="smPanel"></div>
                             <div class="sm-mapwrap" id="smMapWrap">
                                 <svg id="smSvg" class="sm-svg" viewBox="0 0 ${SM_W} ${SM_H}" xmlns="http://www.w3.org/2000/svg">
-                                    <defs><pattern id="smGridPat" width="${SM_GRID * 4}" height="${SM_GRID * 4}" patternUnits="userSpaceOnUse"><path d="M ${SM_GRID * 4} 0 L 0 0 0 ${SM_GRID * 4}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></pattern></defs>
-                                    <rect x="0" y="0" width="${SM_W}" height="${SM_H}" rx="18" fill="rgba(10,10,16,0.85)"/>
+                                    <defs><pattern id="smGridPat" width="${SM_GRID * 4}" height="${SM_GRID * 4}" patternUnits="userSpaceOnUse"><path d="M ${SM_GRID * 4} 0 L 0 0 0 ${SM_GRID * 4}" fill="none" stroke="rgba(255,255,255,0.11)" stroke-width="1"/></pattern></defs>
+                                    <rect class="sm-floor" x="0" y="0" width="${SM_W}" height="${SM_H}" rx="18" fill="#232334"/>
                                     <rect x="0" y="0" width="${SM_W}" height="${SM_H}" rx="18" fill="url(#smGridPat)"/>
-                                    <rect x="1" y="1" width="${SM_W - 2}" height="${SM_H - 2}" rx="18" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>
+                                    <rect x="1.5" y="1.5" width="${SM_W - 3}" height="${SM_H - 3}" rx="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
                                     <g id="smItems"></g>
                                 </svg>
                             </div>
@@ -540,30 +540,34 @@
             if (it.type === 'stage') {
                 const label = it.shape === 'square' ? 'STAGE' : it.shape === 'wide' ? 'STAGE' : 'RUNWAY';
                 return `<g class="sm-it sm-stage${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
-                    <rect class="sm-stage-body" x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="14"/>
-                    <text class="sm-stage-lbl" transform="rotate(${-rot})" text-anchor="middle" dy=".35em">${label}</text>
-                    ${selected ? `<rect class="sm-selbox" x="${-d.w / 2 - 6}" y="${-d.h / 2 - 6}" width="${d.w + 12}" height="${d.h + 12}" rx="18"/>` : ''}
+                    <rect class="sm-stage-body" fill="rgba(121,40,202,0.45)" stroke="#be78ff" stroke-width="2.5" x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="14"/>
+                    <text class="sm-stage-lbl" fill="#fff" font-size="20" font-weight="800" letter-spacing="6" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" dy=".35em">${label}</text>
+                    ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - 6}" y="${-d.h / 2 - 6}" width="${d.w + 12}" height="${d.h + 12}" rx="18"/>` : ''}
                 </g>`;
             }
             const cap = smCap(it);
             const status = st.total === 0 ? 'empty' : st.arrived >= st.total ? 'done' : st.arrived > 0 ? 'partial' : 'reserved';
             const over = st.total > cap;
-            const chairs = smChairs(it).map((c, k) => `<circle class="sm-ch ${k < st.arrived ? 'arrived' : k < st.total ? 'reserved' : 'free'}" cx="${c.x}" cy="${c.y}" r="8"/>`).join('');
+            // Literal colours are only a fallback (SVG paints black by default if the stylesheet is stale or blocked);
+            // the .sm-* CSS classes override them and carry the app theme.
+            const FB = { free: '#4a4a5c', reserved: '#ff2a85', arrived: '#00ff87' };
+            const chairs = smChairs(it).map((c, k) => { const cs = k < st.arrived ? 'arrived' : k < st.total ? 'reserved' : 'free'; return `<circle class="sm-ch ${cs}" fill="${FB[cs]}" cx="${c.x}" cy="${c.y}" r="8"/>`; }).join('');
+            const bodyAttr = `fill="${{ empty: '#2c2c3e', reserved: '#5a1f3d', partial: '#5a4416', done: '#14573a' }[status]}" stroke="${over ? '#ff3366' : { empty: '#9a9ab0', reserved: '#ff2a85', partial: '#ffb020', done: '#00ff87' }[status]}" stroke-width="2.5"`;
             const body = it.type === 't2' || it.type === 't4'
-                ? `<circle class="sm-tb ${status}${over ? ' over' : ''}" r="${d.w / 2}"/>`
-                : `<rect class="sm-tb ${status}${over ? ' over' : ''}" x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="${it.type === 'bar' ? 8 : 22}"/>`;
+                ? `<circle class="sm-tb ${status}${over ? ' over' : ''}" ${bodyAttr} r="${d.w / 2}"/>`
+                : `<rect class="sm-tb ${status}${over ? ' over' : ''}" ${bodyAttr} x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="${it.type === 'bar' ? 8 : 22}"/>`;
             const label = it.type === 'bar' ? 'Bar ' + (it.num || '?') : (it.num || '?');
             const subTxt = st.total > 0 ? `${st.arrived}/${st.total} in` : '';
             // Labels sit at the item's centre and are counter-rotated so they stay upright on a rotated table.
             const texts = it.type === 'bar'
-                ? `<text class="sm-num sm-num-bar" transform="rotate(${-rot})" text-anchor="middle" dy=".35em">${escapeHtml(label)}${subTxt ? ` <tspan class="sm-sub-in">· ${subTxt}</tspan>` : ''}</text>`
-                : `<text class="sm-num" transform="rotate(${-rot})" text-anchor="middle" y="${subTxt ? -5 : 0}" dy=".35em">${escapeHtml(label)}</text>`
-                  + (subTxt ? `<text class="sm-sub" transform="rotate(${-rot})" text-anchor="middle" y="14">${subTxt}</text>` : '');
+                ? `<text class="sm-num sm-num-bar" fill="#fff" font-size="15" font-weight="800" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" dy=".35em">${escapeHtml(label)}${subTxt ? ` <tspan class="sm-sub-in" fill="#ddd" font-size="12">· ${subTxt}</tspan>` : ''}</text>`
+                : `<text class="sm-num" fill="#fff" font-size="22" font-weight="800" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" y="${subTxt ? -5 : 0}" dy=".35em">${escapeHtml(label)}</text>`
+                  + (subTxt ? `<text class="sm-sub" fill="#ddd" font-size="12" font-weight="700" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" y="14">${subTxt}</text>` : '');
             const ext = smIsSeat(it) ? 22 : 0;
             return `<g class="sm-it sm-tbl${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
-                <rect class="sm-hit" x="${-d.w / 2 - ext}" y="${-d.h / 2 - ext}" width="${d.w + ext * 2}" height="${d.h + ext * 2}"/>
+                <rect class="sm-hit" fill="none" pointer-events="all" x="${-d.w / 2 - ext}" y="${-d.h / 2 - ext}" width="${d.w + ext * 2}" height="${d.h + ext * 2}"/>
                 ${chairs}${body}${texts}
-                ${selected ? `<rect class="sm-selbox" x="${-d.w / 2 - ext - 4}" y="${-d.h / 2 - ext - 4}" width="${d.w + ext * 2 + 8}" height="${d.h + ext * 2 + 8}" rx="16"/>` : ''}
+                ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - ext - 4}" y="${-d.h / 2 - ext - 4}" width="${d.w + ext * 2 + 8}" height="${d.h + ext * 2 + 8}" rx="16"/>` : ''}
             </g>`;
         }
         function smRenderMap(show) {
@@ -571,7 +575,8 @@
             const items = smItems(show), { stats } = smTableStats(show);
             const ordered = [...items.filter(i => i.type === 'stage'), ...items.filter(smIsSeat)];
             layer.innerHTML = ordered.map(i => smItemSvg(i, stats[i.id] || { total: 0, arrived: 0 }, i.id === smSelId)).join('')
-                || `<text x="${SM_W / 2}" y="${SM_H / 2}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="22">No tables yet — tap “Edit layout” to add tables, or load a saved floorplan.</text>`;
+                || `<text x="${SM_W / 2}" y="${SM_H / 2 - 8}" text-anchor="middle" fill="#fff" font-size="26" font-weight="700">The room is empty</text>
+                    <text x="${SM_W / 2}" y="${SM_H / 2 + 28}" text-anchor="middle" fill="#c8c8d8" font-size="20">${smMode === 'layout' ? 'Use the Add buttons above to place tables, bar seats and the stage.' : 'Tap “Edit layout” to add tables, or load a saved floorplan.'}</text>`;
         }
 
         // Drag + tap handling, delegated on the <svg>. Pointer events cover mouse, touch and pen.

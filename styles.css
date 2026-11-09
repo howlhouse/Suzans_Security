@@ -554,13 +554,14 @@
         .sm-svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
         .sm-svg.layout .sm-it { cursor: grab; touch-action: none; }
         .sm-svg:not(.layout) .sm-tbl { cursor: pointer; }
-        .sm-hit { fill: transparent; }
-        .sm-tb { fill: #1c1c28; stroke: rgba(255,255,255,0.35); stroke-width: 2.5; }
+        .sm-hit { fill: none; pointer-events: all; }
+        .sm-floor { fill: #232334; }
+        .sm-tb { fill: #2c2c3e; stroke: rgba(255,255,255,0.45); stroke-width: 2.5; }
         .sm-tb.reserved { fill: rgba(var(--pink-rgb), 0.28); stroke: var(--neon-pink); }
         .sm-tb.partial { fill: rgba(255, 176, 32, 0.25); stroke: #ffb020; }
         .sm-tb.done { fill: rgba(var(--green-rgb), 0.28); stroke: var(--neon-saguaro); }
         .sm-tb.over { stroke: var(--danger-glow); stroke-dasharray: 6 4; }
-        .sm-ch { fill: rgba(255,255,255,0.14); stroke: rgba(255,255,255,0.25); stroke-width: 1; }
+        .sm-ch { fill: #4a4a5c; stroke: rgba(255,255,255,0.3); stroke-width: 1; }
         .sm-ch.reserved { fill: var(--neon-pink); stroke: none; }
         .sm-ch.arrived { fill: var(--neon-saguaro); stroke: none; }
         .sm-num { fill: #fff; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 22px; pointer-events: none; }
