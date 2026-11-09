@@ -1034,6 +1034,17 @@
         </div>
     </div>
 
+    <!-- Show Manager: a table has more people than seats - tell the host to charge the purchaser -->
+    <div class="modal" id="smOverModal" style="z-index: 3200;">
+        <div class="modal-sheet sm-over-sheet">
+            <div class="sm-over-icon">⚠️</div>
+            <h3 id="smOverTitle">Table is full</h3>
+            <p id="smOverMsg"></p>
+            <button class="btn" style="width:100%;" onclick="smOverAck()">OK — I'll charge them</button>
+            <button class="btn btn-outline" style="width:100%; margin-top:8px;" onclick="smOverUndo()">Undo that check-in</button>
+        </div>
+    </div>
+
     <div class="modal" id="newEventModal">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">

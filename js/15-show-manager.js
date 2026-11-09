@@ -10,16 +10,20 @@
              shows/{id}       { id, title, date, startTime, endTime, venueId, venueName, image, ticketLink,
                                 desc, tags[], floorplanId, floorplanName,
                                 layout: { items[] },          <- this show's own copy of the room
-                                guests: { [guestId]: { id, name, tableId, arrived, arrivedAt } } }
+                                guests: { [bookingId]: { id, name (purchaser), tableId, size (people in the party), arrived (how many are here), arrivedAt } } }
            Layout items: { id, type: 't2'|'t4'|'t6'|'bar'|'stage', x, y, rot, num (label), seats (bar), w/h/label (stage + zone), kind (zone/line), flip (door) }.
            Piece types: seating (t2/t4/t6/bar) holds guests; 'stage' and 'zone' are resizable room areas (bar counter, bathrooms,
            green room, bar storage, A/V booth, patio...); 'line' is a wall, doorway, garage door or curtain (w = length, h = thickness).
            Each layout also has its own room size: layout.w / layout.h (default 1000 x 640 units), saved with floorplans.
            x/y are the item's centre on a fixed 1000 x 640 canvas.
 
-           Guests are a MAP on the show doc and are written with dotted field paths
-           ('guests.<id>.arrived'), so two phones checking people in at once never overwrite each other,
-           and moving a table (which only writes 'layout.items') never touches the guest list.
+           A "guest" entry is really a BOOKING: one purchaser's name plus how many people are in the party, and a count of
+           how many have arrived so far (the party need not arrive together). Older entries - one per person with a true/false
+           `arrived` - still load: they read as a party of 1. When the people arrived at a table exceed its seats, the host
+           gets a popup to charge the purchaser for the extra guest.
+           Bookings are a MAP on the show doc and are written with dotted field paths ('guests.<id>.arrived', using Firestore
+           increment()), so two phones checking people in at once never overwrite each other, and moving a table (which only
+           writes 'layout.items') never touches them.
 
            These three collections are deliberately NOT in allCollections (js/03): they are loaded by
            their own listeners the first time someone opens the module, so security-only users pay nothing. */
@@ -78,7 +82,13 @@
         const smPlans = () => getDB('floorplans');
         const smCurShow = () => smShows().find(s => s.id === smShowId);
         const smItems = show => (show && show.layout && show.layout.items) || [];
-        const smGuests = show => Object.values((show && show.guests) || {}).filter(g => g && g.name);
+        // A booking: purchaser name, party size, and how many of the party have arrived. Older per-person entries (arrived: true/false) read as a party of 1.
+        const smNormBooking = g => {
+            const size = Math.max(1, parseInt(g.size, 10) || 1);
+            const rawNum = typeof g.arrived === 'number';
+            return { ...g, size, arrived: rawNum ? Math.max(0, g.arrived) : (g.arrived ? size : 0), rawNum };
+        };
+        const smGuests = show => Object.values((show && show.guests) || {}).filter(g => g && g.name).map(smNormBooking);
         const smUid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         const smIsSeat = it => it.type === 't2' || it.type === 't4' || it.type === 't6' || it.type === 'bar';
         const smIsLine = it => it.type === 'line';
@@ -192,7 +202,7 @@
         // ---------- SHOW LIST (same flyer tiles as the security Events feed) ----------
         function smGuestStats(show) {
             const gs = smGuests(show);
-            return { total: gs.length, arrived: gs.filter(g => g.arrived).length };
+            return { total: gs.reduce((n, g) => n + g.size, 0), arrived: gs.reduce((n, g) => n + g.arrived, 0) };
         }
         function smImgLoaded(img) {
             const tile = img.closest('.ev2'), list = smEl('smShowList');
@@ -221,7 +231,7 @@
                     html += `<div class="ev2-group">${escapeHtml(group)} <small>${n} show${n === 1 ? '' : 's'}</small></div>`;
                 }
                 const st = smGuestStats(s), dp = evDateParts(s), mode = evMode(s.image, box.w, box.h);
-                const status = st.total === 0 ? ['full', 'NO GUESTS YET'] : st.arrived === st.total ? ['in', `ALL ${st.total} HERE`] : ['open', `${st.arrived} / ${st.total} HERE`];
+                const status = st.total === 0 ? ['full', 'NO BOOKINGS YET'] : st.arrived === st.total ? ['in', `ALL ${st.total} HERE`] : ['open', `${st.arrived} / ${st.total} HERE`];
                 const titleHtml = `<h3 class="ev2-name">${escapeHtml(s.title)}</h3>`;
                 const hours = shiftHoursLabel(s);
                 const cls = ['ev2', 'event-tile', mode === 'poster' ? 'is-poster' : '', isPast ? 'is-full' : '', group === 'TONIGHT' ? 'is-tonight' : ''].filter(Boolean).join(' ');
@@ -410,7 +420,7 @@
                     <div class="sm-right">
                         <div class="glass-card sm-listcard">
                             <div id="smSummary"></div>
-                            <input type="search" id="smQ" class="input-field" style="margin:10px 0 8px;" placeholder="Find a guest or table…" oninput="smFilter.q=this.value; smRenderListNow()" data-1p-ignore>
+                            <input type="search" id="smQ" class="input-field" style="margin:10px 0 8px;" placeholder="Find a purchaser or table…" oninput="smFilter.q=this.value; smRenderListNow()" data-1p-ignore>
                             <div class="sm-filters">
                                 <button class="ev-chip" id="smFPending" onclick="smToggleFilter('pending')">Still to arrive</button>
                                 <button class="ev-chip" id="smFEmpty" onclick="smToggleFilter('hideEmpty')">Hide empty tables</button>
@@ -573,12 +583,12 @@
         }
         function smTableStats(show) {
             const stats = {};
-            smItems(show).forEach(i => { if (smIsSeat(i)) stats[i.id] = { total: 0, arrived: 0 }; });
+            smItems(show).forEach(i => { if (smIsSeat(i)) stats[i.id] = { total: 0, arrived: 0, parties: 0 }; });
             const unseated = [];
             smGuests(show).forEach(g => {
                 const s = stats[g.tableId];
                 if (!s) { unseated.push(g); return; }
-                s.total++; if (g.arrived) s.arrived++;
+                s.total += g.size; s.arrived += g.arrived; s.parties++;
             });
             return { stats, unseated };
         }
@@ -656,8 +666,8 @@
             }
             if (smIsLine(it)) return smLineSvg(it, d, tf, selected);
             const cap = smCap(it);
-            const status = st.total === 0 ? 'empty' : st.arrived >= st.total ? 'done' : st.arrived > 0 ? 'partial' : 'reserved';
-            const over = st.total > cap;
+            const status = st.total === 0 && st.arrived === 0 ? 'empty' : st.arrived >= st.total ? 'done' : st.arrived > 0 ? 'partial' : 'reserved';
+            const over = st.total > cap || st.arrived > cap;
             // Literal colours are only a fallback (SVG paints black by default if the stylesheet is stale or blocked);
             // the .sm-* CSS classes override them and carry the app theme.
             const FB = { free: '#4a4a5c', reserved: '#ff2a85', arrived: '#00ff87' };
@@ -937,7 +947,7 @@
             const show = smCurShow(); if (!show) return;
             const it = smItems(show).find(i => i.id === id); if (!it) return;
             const n = smGuests(show).filter(g => g.tableId === id).length;
-            if (!confirm(`Remove ${smIsSeat(it) ? smItemName(it) : 'this ' + smPieceName(it).toLowerCase()}?${n ? `\n\n${n} guest${n === 1 ? ' is' : 's are'} assigned here — they'll move to "Not seated" in the list so you can reseat them.` : ''}`)) return;
+            if (!confirm(`Remove ${smIsSeat(it) ? smItemName(it) : 'this ' + smPieceName(it).toLowerCase()}?${n ? `\n\n${n} booking${n === 1 ? ' is' : 's are'} assigned here — they'll move to "Not seated" in the list so you can reseat them.` : ''}`)) return;
             smSelId = null; smPanelSig = '';
             smSaveItems(smClone(smItems(show)).filter(i => i.id !== id));
         }
@@ -1008,20 +1018,20 @@
         function smPreserve(container, fn) {
             const act = document.activeElement;
             const vals = {};
-            container.querySelectorAll('input[id]:not([type=checkbox])').forEach(el => { vals[el.id] = el.value; });
+            container.querySelectorAll('input[id]:not([type=checkbox])').forEach(el => { if (el.value !== el.defaultValue) vals[el.id] = el.value; }); // only what someone typed - untouched defaults refresh
             const focus = act && container.contains(act) && act.id ? { id: act.id, s: act.selectionStart, e: act.selectionEnd } : null;
             fn();
             Object.keys(vals).forEach(id => { const el = smEl(id); if (el && vals[id] !== '') el.value = vals[id]; });
             if (focus) { const el = smEl(focus.id); if (el) { el.focus(); try { el.setSelectionRange(focus.s, focus.e); } catch (err) { /* not a text input */ } } }
         }
         function smRenderSummary(show) {
-            const gs = smGuests(show), total = gs.length, arr = gs.filter(g => g.arrived).length;
+            const gs = smGuests(show), total = gs.reduce((n, g) => n + g.size, 0), arr = gs.reduce((n, g) => n + g.arrived, 0);
             const seats = smItems(show).filter(smIsSeat).reduce((n, i) => n + smCap(i), 0);
             const used = new Set(gs.map(g => g.tableId)).size;
             smEl('smSummary').innerHTML = `
-                <div class="sm-sum-top"><div><span class="sm-sum-big">${arr}</span><span class="sm-sum-of"> / ${total} arrived</span></div><div class="sm-sum-sub">${total - arr} still to come</div></div>
-                <div class="ev2-bar" style="height:7px; margin:8px 0 6px;"><i style="width:${total ? Math.round(arr / total * 100) : 0}%"></i></div>
-                <div class="sm-sum-sub">${used} table${used === 1 ? '' : 's'} with guests · ${seats} seats in this layout</div>`;
+                <div class="sm-sum-top"><div><span class="sm-sum-big">${arr}</span><span class="sm-sum-of"> / ${total} people arrived</span></div><div class="sm-sum-sub">${Math.max(0, total - arr)} still to come</div></div>
+                <div class="ev2-bar" style="height:7px; margin:8px 0 6px;"><i style="width:${total ? Math.min(100, Math.round(arr / total * 100)) : 0}%"></i></div>
+                <div class="sm-sum-sub">${gs.length} booking${gs.length === 1 ? '' : 's'} · ${used} table${used === 1 ? '' : 's'} · ${seats} seats in this layout</div>`;
         }
         function smRenderList(show) {
             smPreserve(smEl('smListBody'), () => {
@@ -1030,65 +1040,127 @@
                 const byTable = {};
                 smGuests(show).forEach(g => { (byTable[g.tableId] = byTable[g.tableId] || []).push(g); });
                 const q = smFilter.q.trim().toLowerCase();
-                const guestRow = g => {
-                    const when = g.arrived && g.arrivedAt ? new Date(g.arrivedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-                    return `<div class="sm-g${g.arrived ? ' here' : ''}">
-                        <label class="sm-g-main"><input type="checkbox" ${g.arrived ? 'checked' : ''} onchange="smToggleArrived('${g.id}', this.checked)"><span class="nm">${escapeHtml(g.name)}</span>${when ? `<span class="tm">${when}</span>` : ''}</label>
-                        <button class="sm-ib" title="Rename" onclick="smRenameGuest('${g.id}')">✎</button>
-                        <button class="sm-ib" title="Move to another table" onclick="smMoveGuest('${g.id}')">⇄</button>
-                        <button class="sm-ib danger" title="Remove" onclick="smRemoveGuest('${g.id}')">✕</button>
+                // One row per purchaser: name, party size, and a counter for how many of the party are here.
+                const bookingRow = g => {
+                    const full = g.arrived >= g.size;
+                    const when = g.arrived > 0 && g.arrivedAt ? new Date(g.arrivedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+                    return `<div class="sm-g${full ? ' here' : g.arrived > 0 ? ' some' : ''}">
+                        <div class="sm-g-main"><span class="nm">${escapeHtml(g.name)}</span><button class="sm-size" title="Change the party size" onclick="smEditSize('${g.id}')">party of ${g.size}</button>${when ? `<span class="tm">${when}</span>` : ''}</div>
+                        <div class="sm-count">
+                            <button class="sm-cb" aria-label="One fewer here" ${g.arrived <= 0 ? 'disabled' : ''} onclick="smArrive('${g.id}', -1)">−</button>
+                            <span class="sm-cn"><b>${g.arrived}</b> of ${g.size} here</span>
+                            <button class="sm-cb plus" aria-label="One more here" onclick="smArrive('${g.id}', 1)">+</button>
+                            <button class="sm-cb all" title="Everyone in this party is here" ${full ? 'disabled' : ''} onclick="smArriveAll('${g.id}')">✓ all</button>
+                        </div>
+                        <div class="sm-g-tools">
+                            <button class="sm-ib" title="Rename" onclick="smRenameGuest('${g.id}')">✎</button>
+                            <button class="sm-ib" title="Move to another table" onclick="smMoveGuest('${g.id}')">⇄</button>
+                            <button class="sm-ib danger" title="Remove" onclick="smRemoveGuest('${g.id}')">✕</button>
+                        </div>
                     </div>`;
                 };
-                const visibleGuests = list => (list || []).filter(g => (!smFilter.pending || !g.arrived) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => smNatural(a.name, b.name));
+                const visible = list => (list || []).filter(g => (!smFilter.pending || g.arrived < g.size) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => smNatural(a.name, b.name));
                 let html = '';
                 if (unseated.length) {
-                    const vg = visibleGuests(unseated);
-                    if (vg.length) html += `<div class="sm-tcard warn"><div class="sm-tc-head"><b>Not seated</b><span class="sm-tc-type">table was removed</span></div>${vg.map(guestRow).join('')}<div class="sm-tc-note">Use ⇄ to move each person to a table.</div></div>`;
+                    const vg = visible(unseated);
+                    if (vg.length) html += `<div class="sm-tcard warn"><div class="sm-tc-head"><b>Not seated</b><span class="sm-tc-type">table was removed</span></div>${vg.map(bookingRow).join('')}<div class="sm-tc-note">Use ⇄ to move each booking to a table.</div></div>`;
                 }
                 items.forEach(it => {
-                    const st = stats[it.id], all = byTable[it.id] || [], vg = visibleGuests(all);
+                    const st = stats[it.id], all = byTable[it.id] || [], vg = visible(all);
                     const nameHit = q && smItemName(it).toLowerCase().includes(q);
                     if (q && !vg.length && !nameHit) return;
                     if (!q && smFilter.pending && !vg.length && all.length) return; // everyone here already - nothing left to check off
                     if (!q && smFilter.hideEmpty && !all.length && it.id !== smSelId) return;
-                    const cap = smCap(it), over = st.total > cap;
-                    const done = st.total > 0 && st.arrived === st.total;
-                    html += `<div class="sm-tcard${it.id === smSelId ? ' sel' : ''}${done ? ' done' : ''}${over ? ' over' : ''}" id="smT_${it.id}">
+                    const cap = smCap(it), extra = Math.max(0, st.arrived - cap), overbooked = Math.max(0, st.total - cap);
+                    const done = st.total > 0 && st.arrived >= st.total;
+                    html += `<div class="sm-tcard${it.id === smSelId ? ' sel' : ''}${done ? ' done' : ''}${extra || overbooked ? ' over' : ''}" id="smT_${it.id}">
                         <div class="sm-tc-head" onclick="smSelectTable('${it.id}')">
                             <b>${escapeHtml(smItemName(it))}</b><span class="sm-tc-type">${it.type === 'bar' ? cap + ' bar seats' : SM_TYPES[it.type].label}</span>
-                            <span class="sm-tc-count">${st.total ? `${st.arrived}/${st.total} here` : 'empty'}</span>
-                            ${over ? `<span class="sm-tc-over">${st.total - cap} over</span>` : ''}
+                            <span class="sm-tc-count">${st.total || st.arrived ? `${st.arrived} of ${cap} seats filled` : 'empty'}</span>
+                            ${extra ? `<span class="sm-tc-over">${extra} extra — charge</span>` : overbooked ? `<span class="sm-tc-over soft">${overbooked} over seats</span>` : ''}
                         </div>
-                        ${vg.map(guestRow).join('')}
-                        <div class="sm-add"><input id="smAdd_${it.id}" class="input-field" placeholder="+ Add name (commas add several)" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddGuests('${it.id}');}" autocomplete="off" data-1p-ignore><button class="btn btn-sm" onclick="smAddGuests('${it.id}')">Add</button></div>
+                        ${vg.map(bookingRow).join('')}
+                        <div class="sm-add"><input id="smAdd_${it.id}" class="input-field" placeholder="+ Purchaser name" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${it.id}');}" autocomplete="off" data-1p-ignore>
+                            <input id="smSz_${it.id}" class="input-field sm-sz" type="number" inputmode="numeric" min="1" max="99" value="${Math.max(1, cap - st.total)}" title="People in the party" aria-label="People in the party" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${it.id}');}">
+                            <button class="btn btn-sm" onclick="smAddBooking('${it.id}')">Add</button></div>
                     </div>`;
                 });
                 smEl('smListBody').innerHTML = html || `<p style="color:var(--text-muted); text-align:center; padding:24px 8px; font-size:0.9rem;">${items.length ? 'Nothing matches that filter.' : 'No tables yet. Switch to “Edit layout” to add tables, or load a saved floorplan.'}</p>`;
             });
         }
 
-        function smAddGuests(tableId) {
+        // Add one booking: the purchaser's name and how many people are in the party (defaults to the seats still free).
+        function smAddBooking(tableId) {
             const input = smEl('smAdd_' + tableId); if (!input) return;
-            const names = input.value.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
-            if (!names.length) return;
-            const upd = {};
-            names.forEach(n => { const id = smUid('g'); upd['guests.' + id] = { id, name: n.slice(0, 80), tableId, arrived: false, arrivedAt: null, addedAt: Date.now() }; });
+            const name = input.value.trim(); if (!name) { input.focus(); return; }
+            const size = Math.max(1, Math.min(99, parseInt((smEl('smSz_' + tableId) || {}).value, 10) || 1));
+            const id = smUid('g');
             input.value = '';
+            const szEl = smEl('smSz_' + tableId); if (szEl) szEl.value = szEl.defaultValue; // next purchaser starts from the seats still free
+            smWrite(smShowRef().update({ ['guests.' + id]: { id, name: name.slice(0, 80), tableId, size, arrived: 0, arrivedAt: null, addedAt: Date.now() } }));
+        }
+        // +1 / -1 person arrived. Uses an atomic increment so two hosts checking in at once both count.
+        function smArrive(gid, delta) {
+            const show = smCurShow(); if (!show) return;
+            const g = smGuests(show).find(x => x.id === gid); if (!g) return;
+            const next = Math.max(0, g.arrived + delta); if (next === g.arrived) return;
+            smSetArrived(g, next, g.rawNum ? firebase.firestore.FieldValue.increment(next - g.arrived) : next);
+        }
+        function smArriveAll(gid) {
+            const show = smCurShow(); if (!show) return;
+            const g = smGuests(show).find(x => x.id === gid); if (!g || g.arrived >= g.size) return;
+            smSetArrived(g, g.size, g.size);
+        }
+        function smSetArrived(g, next, value) {
+            const show = smCurShow(); if (!show) return;
+            const upd = { ['guests.' + g.id + '.arrived']: value, ['guests.' + g.id + '.arrivedAt']: next > 0 ? Date.now() : null };
+            if (next > g.size) upd['guests.' + g.id + '.size'] = next; // more people showed up than were booked - the party grows
+            // Will this arrival put more people at the table than it has seats?
+            const it = smItems(show).find(i => i.id === g.tableId);
+            let alertInfo = null;
+            if (it && next > g.arrived) {
+                const before = (smTableStats(show).stats[it.id] || { arrived: 0 }).arrived, after = before + (next - g.arrived), cap = smCap(it);
+                if (after > cap) alertInfo = { tableName: smItemName(it), cap, after, name: g.name, gid: g.id, prevArrived: g.arrived, prevSize: g.size };
+            }
+            smWrite(smShowRef().update(upd));
+            if (alertInfo) smShowOverCapacity(alertInfo);
+        }
+        function smEditSize(gid) {
+            const g = smGuests(smCurShow()).find(x => x.id === gid); if (!g) return;
+            const v = prompt(`How many people are in ${g.name}'s party?`, String(g.size));
+            if (v === null) return;
+            const n = Math.max(1, Math.min(99, parseInt(v, 10) || g.size));
+            const upd = { ['guests.' + gid + '.size']: n };
+            if (g.arrived > n) upd['guests.' + gid + '.arrived'] = n;
             smWrite(smShowRef().update(upd));
         }
-        function smToggleArrived(gid, on) {
-            smWrite(smShowRef().update({ ['guests.' + gid + '.arrived']: !!on, ['guests.' + gid + '.arrivedAt']: on ? Date.now() : null }));
+        // ---- "table is full" popup: the host has to charge the purchaser ----
+        let smOverCtx = null;
+        function smShowOverCapacity(info) {
+            smOverCtx = info;
+            const extra = info.after - info.cap;
+            smEl('smOverTitle').textContent = `${info.tableName} is full`;
+            smEl('smOverMsg').innerHTML = `All <b>${info.cap}</b> seat${info.cap === 1 ? '' : 's'} at ${escapeHtml(info.tableName)} are taken, and <b>${info.after}</b> people have now arrived.<div class="sm-over-charge">Charge <b>${escapeHtml(info.name)}</b> for ${extra === 1 ? 'the extra guest' : `${extra} extra guests`}.</div>`;
+            smEl('smOverModal').style.display = 'flex';
+            try { if (navigator.vibrate) navigator.vibrate([150, 80, 150]); } catch (err) { /* not supported */ }
+        }
+        function smOverAck() { smOverCtx = null; closeModal('smOverModal'); }
+        function smOverUndo() {
+            const c = smOverCtx; smOverCtx = null; closeModal('smOverModal');
+            if (!c) return;
+            const g = smGuests(smCurShow()).find(x => x.id === c.gid); if (!g) return;
+            smWrite(smShowRef().update({ ['guests.' + c.gid + '.arrived']: c.prevArrived, ['guests.' + c.gid + '.size']: c.prevSize }));
         }
         function smRenameGuest(gid) {
             const g = smGuests(smCurShow()).find(x => x.id === gid); if (!g) return;
-            const name = prompt('Guest name:', g.name);
+            const name = prompt('Purchaser name:', g.name);
             if (name === null || !name.trim()) return;
             smWrite(smShowRef().update({ ['guests.' + gid + '.name']: name.trim().slice(0, 80) }));
         }
         function smMoveGuest(gid) {
             const show = smCurShow(); if (!show) return;
             const g = smGuests(show).find(x => x.id === gid); if (!g) return;
-            const label = prompt(`Move ${g.name} to which table? Type the table number (for a bar section, type "bar 1").`);
+            const label = prompt(`Move ${g.name}'s booking to which table? Type the table number (for a bar section, type "bar 1").`);
             if (label === null || !label.trim()) return;
             const t = label.trim().toLowerCase();
             const seats = smItems(show).filter(smIsSeat);
@@ -1098,7 +1170,7 @@
         }
         function smRemoveGuest(gid) {
             const g = smGuests(smCurShow()).find(x => x.id === gid); if (!g) return;
-            if (!confirm(`Remove ${g.name} from the guest list?`)) return;
+            if (!confirm(`Remove ${g.name}'s booking${g.size > 1 ? ` (party of ${g.size})` : ''}?`)) return;
             smWrite(smShowRef().update({ ['guests.' + gid]: firebase.firestore.FieldValue.delete() }));
         }
 

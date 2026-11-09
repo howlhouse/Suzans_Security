@@ -639,3 +639,26 @@
         .sm-plan { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border-glass); border-radius: 10px; background: rgba(255,255,255,0.03); }
         .sm-plan b { display: block; font-size: 0.9rem; } .sm-plan span { font-size: 0.74rem; color: var(--text-muted); }
         .sm-plan-empty { font-size: 0.8rem; color: var(--text-muted); padding: 4px 2px; }
+
+        /* Bookings (purchaser + party size + arrived counter) and the "table is full" popup */
+        .sm-g { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main tools" "count count"; align-items: center; gap: 2px 8px; padding: 10px 8px 10px 12px; }
+        .sm-g > .sm-g-main { grid-area: main; } .sm-g > .sm-count { grid-area: count; } .sm-g > .sm-g-tools { grid-area: tools; }
+        .sm-g-main { min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0; cursor: default; }
+        .sm-size { background: rgba(255,255,255,0.08); border: 1px solid var(--border-glass); color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; border-radius: 999px; padding: 2px 9px; cursor: pointer; white-space: nowrap; }
+        .sm-count { display: flex; align-items: center; gap: 6px; padding: 4px 0 2px; }
+        .sm-cn { flex: 1; font-size: 0.85rem; color: var(--text-secondary); white-space: nowrap; text-align: center; }
+        .sm-cn b { font-family: 'Outfit', sans-serif; font-size: 1.15rem; color: #fff; }
+        .sm-g.here .sm-cn b { color: var(--neon-saguaro); } .sm-g.some .sm-cn b { color: #ffb020; }
+        .sm-cb { min-width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.07); color: #fff; font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; cursor: pointer; }
+        .sm-cb.plus { background: var(--neon-saguaro); border-color: var(--neon-saguaro); color: #08080c; }
+        .sm-cb.all { font-size: 0.78rem; padding: 0 10px; }
+        .sm-cb:disabled { opacity: 0.35; cursor: default; }
+        .sm-g-tools { display: flex; }
+        .sm-g.some { background: rgba(255, 176, 32, 0.07); }
+        .sm-add .sm-sz { width: 68px; flex: 0 0 68px; text-align: center; padding-left: 6px; padding-right: 6px; }
+        .sm-tc-over.soft { background: rgba(255, 176, 32, 0.9); color: #08080c; }
+        .sm-over-sheet { text-align: center; border: 2px solid var(--danger-glow); box-shadow: 0 0 40px rgba(255, 51, 102, 0.45); max-width: 420px; }
+        .sm-over-icon { font-size: 3.2rem; line-height: 1; margin-bottom: 6px; }
+        .sm-over-sheet h3 { font-size: 1.7rem; color: var(--danger-glow); margin-bottom: 10px; }
+        .sm-over-sheet p { font-size: 1.05rem; line-height: 1.5; color: var(--text-primary); margin-bottom: 18px; }
+        .sm-over-charge { margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(255, 51, 102, 0.16); border: 1px solid var(--danger-glow); font-size: 1.15rem; }
