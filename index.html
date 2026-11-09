@@ -1034,6 +1034,18 @@
         </div>
     </div>
 
+    <!-- Show Manager: tap a table to edit its bookings (js/15-show-manager.js) -->
+    <div class="modal sm-tmodal" id="smTableModal" onclick="if (event.target === this) smCloseTable()">
+        <div class="modal-sheet sm-tsheet">
+            <div class="sm-tm-head">
+                <div style="min-width:0;"><h3 id="smTmTitle">Table</h3><div class="sm-tm-sub" id="smTmSub"></div></div>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 10px; flex-shrink:0;" onclick="smCloseTable()" aria-label="Close">✕</button>
+            </div>
+            <div id="smTmBody"></div>
+            <button class="btn" style="width:100%; margin-top:14px;" onclick="smCloseTable()">Done</button>
+        </div>
+    </div>
+
     <!-- Show Manager: a table has more people than seats - tell the host to charge the purchaser -->
     <div class="modal" id="smOverModal" style="z-index: 3200;">
         <div class="modal-sheet sm-over-sheet">

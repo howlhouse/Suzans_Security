@@ -67,6 +67,7 @@
         let smSelId = null;           // selected layout item
         let smZoom = 1, smFitKey = '';
         let smFilter = { q: '', pending: false, hideEmpty: false };
+        let smTableOpenId = null;     // the table whose popup is open
         let smDrag = null;
         let smListening = false;
         const smLoaded = { shows: false, venues: false, floorplans: false };
@@ -390,7 +391,16 @@
         // ---------- SHOW VIEW SHELL ----------
         function smBuildShell() {
             smEl('smShowRoot').innerHTML = `
-                <button class="btn btn-outline btn-sm" style="margin-bottom:14px;" onclick="smCloseShow()">← All Shows</button>
+                <div class="sm-sticky" id="smSticky">
+                    <div class="sm-topbar">
+                        <button class="btn btn-outline btn-sm" onclick="smCloseShow()" title="Back to all shows">← Shows</button>
+                        <div class="sm-searchwrap">
+                            <input type="search" id="smQ" class="input-field" placeholder="🔍 Find a party or table…" oninput="smOnSearch(this.value)" onkeydown="if(event.key==='Escape')smClearSearch()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" name="sm_find" data-1p-ignore>
+                            <button class="sm-qx" id="smQx" onclick="smClearSearch()" aria-label="Clear search" style="display:none;">✕</button>
+                        </div>
+                    </div>
+                    <div class="sm-results" id="smResults" style="display:none;"><div id="smSearchBody"></div></div>
+                </div>
                 <div id="smHead"></div>
                 <div class="sm-grid">
                     <div class="sm-left">
@@ -420,7 +430,7 @@
                     <div class="sm-right">
                         <div class="glass-card sm-listcard">
                             <div id="smSummary"></div>
-                            <input type="search" id="smQ" class="input-field" style="margin:10px 0 8px;" placeholder="Find a purchaser or table…" oninput="smFilter.q=this.value; smRenderListNow()" data-1p-ignore>
+                            <div style="height:10px;"></div>
                             <div class="sm-filters">
                                 <button class="ev-chip" id="smFPending" onclick="smToggleFilter('pending')">Still to arrive</button>
                                 <button class="ev-chip" id="smFEmpty" onclick="smToggleFilter('hideEmpty')">Hide empty tables</button>
@@ -430,9 +440,10 @@
                     </div>
                 </div>`;
             smInitSvgEvents();
+            smStickyTop();
             if (!window._smResizeBound) { // keep the whole room in view when the window / phone orientation changes
                 window._smResizeBound = true;
-                window.addEventListener('resize', () => { if (window._module === 'shows' && smShowId && smEl('smSvg')) smFitMap(); });
+                window.addEventListener('resize', () => { if (window._module === 'shows' && smShowId && smEl('smSvg')) { smFitMap(); smStickyTop(); } });
             }
             smShellId = smShowId;
             smHeadSig = ''; smPanelSig = '';
@@ -441,7 +452,7 @@
         function smRenderShow(show) {
             if (!show) { smEl('smShowRoot').innerHTML = `<button class="btn btn-outline btn-sm" style="margin-bottom:14px;" onclick="smCloseShow()">← All Shows</button><p style="color:var(--text-muted); padding:20px 4px;">${smDataError ? escapeHtml(smDataError) : 'Loading show…'}</p>`; smShellId = null; return; }
             if (smShellId !== show.id) {
-                smMode = 'seat'; smSelId = null; smFilter = { q: '', pending: false, hideEmpty: false };
+                smMode = 'seat'; smSelId = null; smTableOpenId = null; smFilter = { q: '', pending: false, hideEmpty: false };
                 smZoom = 1; // 1 = fit the whole room on screen
                 smBuildShell();
             }
@@ -451,8 +462,12 @@
             smRenderMap(show);
             smRenderSummary(show);
             smRenderList(show);
+            smRenderSearch(show);
+            smRenderTableModal(show);
             smSyncUi();
         }
+        // The search bar sticks just under the (sticky) app header, whatever height that is on this screen.
+        function smStickyTop() { const h = document.querySelector('header'), st = smEl('smSticky'); if (st) st.style.top = ((h ? h.offsetHeight : 66) + 8) + 'px'; }
         // Size the map so the WHOLE room is visible without scrolling: as wide as the card allows, but never taller than
         // the screen. Zoom 1 is "fit"; the +/- buttons zoom relative to it (the frame only scrolls once you zoom in).
         function smFitMap() {
@@ -809,15 +824,9 @@
         }
         function smTapItem(id) {
             const show = smCurShow(); if (!show) return;
+            const it = smItems(show).find(i => i.id === id); if (!it) return;
+            if (smMode === 'seat' && smIsSeat(it)) { smOpenTable(id); return; } // seating mode: tap a table to edit its bookings
             smSelId = id; smPanelSig = '';
-            smRenderPanel(show); smRenderMap(show); smRenderList(show);
-            const card = smEl('smT_' + id);
-            if (card && smMode === 'seat') card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
-        // Tap a table card's header in the list to highlight it on the map.
-        function smSelectTable(id) {
-            const show = smCurShow(); if (!show) return;
-            smSelId = smSelId === id ? null : id; smPanelSig = '';
             smRenderPanel(show); smRenderMap(show); smRenderList(show);
         }
 
@@ -1033,59 +1042,110 @@
                 <div class="ev2-bar" style="height:7px; margin:8px 0 6px;"><i style="width:${total ? Math.min(100, Math.round(arr / total * 100)) : 0}%"></i></div>
                 <div class="sm-sum-sub">${gs.length} booking${gs.length === 1 ? '' : 's'} · ${used} table${used === 1 ? '' : 's'} · ${seats} seats in this layout</div>`;
         }
+        // One row per purchaser: name, party size, and a counter for how many of the party are here.
+        function smBookingRow(g) {
+            const full = g.arrived >= g.size;
+            const when = g.arrived > 0 && g.arrivedAt ? new Date(g.arrivedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+            return `<div class="sm-g${full ? ' here' : g.arrived > 0 ? ' some' : ''}">
+                <div class="sm-g-main"><span class="nm">${escapeHtml(g.name)}</span><button class="sm-size" title="Change the party size" onclick="smEditSize('${g.id}')">party of ${g.size}</button>${when ? `<span class="tm">${when}</span>` : ''}</div>
+                <div class="sm-count">
+                    <button class="sm-cb" aria-label="One fewer here" ${g.arrived <= 0 ? 'disabled' : ''} onclick="smArrive('${g.id}', -1)">−</button>
+                    <span class="sm-cn"><b>${g.arrived}</b> of ${g.size} here</span>
+                    <button class="sm-cb plus" aria-label="One more here" onclick="smArrive('${g.id}', 1)">+</button>
+                    <button class="sm-cb all" title="Everyone in this party is here" ${full ? 'disabled' : ''} onclick="smArriveAll('${g.id}')">✓ all</button>
+                </div>
+                <div class="sm-g-tools">
+                    <button class="sm-ib" title="Rename" onclick="smRenameGuest('${g.id}')">✎</button>
+                    <button class="sm-ib" title="Move to another table" onclick="smMoveGuest('${g.id}')">⇄</button>
+                    <button class="sm-ib danger" title="Remove" onclick="smRemoveGuest('${g.id}')">✕</button>
+                </div>
+            </div>`;
+        }
+        // Table cards for the list (all tables) and for the search results (only matches). opts: q, pending, hideEmpty.
+        function smTableCardsHtml(show, opts) {
+            const items = smItems(show).filter(smIsSeat).sort((a, b) => ((a.type === 'bar') - (b.type === 'bar')) || smNatural(a.num, b.num));
+            const { stats, unseated } = smTableStats(show);
+            const byTable = {};
+            smGuests(show).forEach(g => { (byTable[g.tableId] = byTable[g.tableId] || []).push(g); });
+            const q = opts.q || '';
+            const visible = list => (list || []).filter(g => (!opts.pending || g.arrived < g.size) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => smNatural(a.name, b.name));
+            let html = '';
+            if (unseated.length) {
+                const vg = visible(unseated);
+                if (vg.length) html += `<div class="sm-tcard warn"><div class="sm-tc-head"><b>Not seated</b><span class="sm-tc-type">table was removed</span></div>${vg.map(smBookingRow).join('')}<div class="sm-tc-note">Use ⇄ to move each booking to a table.</div></div>`;
+            }
+            items.forEach(it => {
+                const st = stats[it.id], all = byTable[it.id] || [], vg = visible(all);
+                const nameHit = q && smItemName(it).toLowerCase().includes(q);
+                if (q && !vg.length && !nameHit) return;
+                if (!q && opts.pending && !vg.length && all.length) return; // everyone here already - nothing left to check off
+                if (!q && opts.hideEmpty && !all.length && it.id !== smSelId) return;
+                const cap = smCap(it), extra = Math.max(0, st.arrived - cap), overbooked = Math.max(0, st.total - cap);
+                const done = st.total > 0 && st.arrived >= st.total;
+                html += `<div class="sm-tcard${it.id === smSelId ? ' sel' : ''}${done ? ' done' : ''}${extra || overbooked ? ' over' : ''}" id="smT_${it.id}">
+                    <div class="sm-tc-head" onclick="smOpenTable('${it.id}')" title="Open this table">
+                        <b>${escapeHtml(smItemName(it))}</b><span class="sm-tc-type">${it.type === 'bar' ? cap + ' bar seats' : SM_TYPES[it.type].label}</span>
+                        <span class="sm-tc-count">${st.total || st.arrived ? `${st.arrived} of ${cap} seats filled` : 'empty'}</span>
+                        ${extra ? `<span class="sm-tc-over">${extra} extra — charge</span>` : overbooked ? `<span class="sm-tc-over soft">${overbooked} over seats</span>` : ''}
+                    </div>
+                    ${vg.map(smBookingRow).join('')}
+                    <button class="sm-addbtn" onclick="smOpenTable('${it.id}')">+ Add purchaser</button>
+                </div>`;
+            });
+            return html;
+        }
         function smRenderList(show) {
-            smPreserve(smEl('smListBody'), () => {
-                const items = smItems(show).filter(smIsSeat).sort((a, b) => ((a.type === 'bar') - (b.type === 'bar')) || smNatural(a.num, b.num));
-                const { stats, unseated } = smTableStats(show);
-                const byTable = {};
-                smGuests(show).forEach(g => { (byTable[g.tableId] = byTable[g.tableId] || []).push(g); });
-                const q = smFilter.q.trim().toLowerCase();
-                // One row per purchaser: name, party size, and a counter for how many of the party are here.
-                const bookingRow = g => {
-                    const full = g.arrived >= g.size;
-                    const when = g.arrived > 0 && g.arrivedAt ? new Date(g.arrivedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-                    return `<div class="sm-g${full ? ' here' : g.arrived > 0 ? ' some' : ''}">
-                        <div class="sm-g-main"><span class="nm">${escapeHtml(g.name)}</span><button class="sm-size" title="Change the party size" onclick="smEditSize('${g.id}')">party of ${g.size}</button>${when ? `<span class="tm">${when}</span>` : ''}</div>
-                        <div class="sm-count">
-                            <button class="sm-cb" aria-label="One fewer here" ${g.arrived <= 0 ? 'disabled' : ''} onclick="smArrive('${g.id}', -1)">−</button>
-                            <span class="sm-cn"><b>${g.arrived}</b> of ${g.size} here</span>
-                            <button class="sm-cb plus" aria-label="One more here" onclick="smArrive('${g.id}', 1)">+</button>
-                            <button class="sm-cb all" title="Everyone in this party is here" ${full ? 'disabled' : ''} onclick="smArriveAll('${g.id}')">✓ all</button>
-                        </div>
-                        <div class="sm-g-tools">
-                            <button class="sm-ib" title="Rename" onclick="smRenameGuest('${g.id}')">✎</button>
-                            <button class="sm-ib" title="Move to another table" onclick="smMoveGuest('${g.id}')">⇄</button>
-                            <button class="sm-ib danger" title="Remove" onclick="smRemoveGuest('${g.id}')">✕</button>
-                        </div>
-                    </div>`;
-                };
-                const visible = list => (list || []).filter(g => (!smFilter.pending || g.arrived < g.size) && (!q || g.name.toLowerCase().includes(q))).sort((a, b) => smNatural(a.name, b.name));
-                let html = '';
-                if (unseated.length) {
-                    const vg = visible(unseated);
-                    if (vg.length) html += `<div class="sm-tcard warn"><div class="sm-tc-head"><b>Not seated</b><span class="sm-tc-type">table was removed</span></div>${vg.map(bookingRow).join('')}<div class="sm-tc-note">Use ⇄ to move each booking to a table.</div></div>`;
-                }
-                items.forEach(it => {
-                    const st = stats[it.id], all = byTable[it.id] || [], vg = visible(all);
-                    const nameHit = q && smItemName(it).toLowerCase().includes(q);
-                    if (q && !vg.length && !nameHit) return;
-                    if (!q && smFilter.pending && !vg.length && all.length) return; // everyone here already - nothing left to check off
-                    if (!q && smFilter.hideEmpty && !all.length && it.id !== smSelId) return;
-                    const cap = smCap(it), extra = Math.max(0, st.arrived - cap), overbooked = Math.max(0, st.total - cap);
-                    const done = st.total > 0 && st.arrived >= st.total;
-                    html += `<div class="sm-tcard${it.id === smSelId ? ' sel' : ''}${done ? ' done' : ''}${extra || overbooked ? ' over' : ''}" id="smT_${it.id}">
-                        <div class="sm-tc-head" onclick="smSelectTable('${it.id}')">
-                            <b>${escapeHtml(smItemName(it))}</b><span class="sm-tc-type">${it.type === 'bar' ? cap + ' bar seats' : SM_TYPES[it.type].label}</span>
-                            <span class="sm-tc-count">${st.total || st.arrived ? `${st.arrived} of ${cap} seats filled` : 'empty'}</span>
-                            ${extra ? `<span class="sm-tc-over">${extra} extra — charge</span>` : overbooked ? `<span class="sm-tc-over soft">${overbooked} over seats</span>` : ''}
-                        </div>
-                        ${vg.map(bookingRow).join('')}
-                        <div class="sm-add"><input id="smAdd_${it.id}" class="input-field" placeholder="+ Purchaser name" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${it.id}');}" autocomplete="off" data-1p-ignore>
-                            <input id="smSz_${it.id}" class="input-field sm-sz" type="number" inputmode="numeric" min="1" max="99" value="${Math.max(1, cap - st.total)}" title="People in the party" aria-label="People in the party" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${it.id}');}">
-                            <button class="btn btn-sm" onclick="smAddBooking('${it.id}')">Add</button></div>
-                    </div>`;
-                });
-                smEl('smListBody').innerHTML = html || `<p style="color:var(--text-muted); text-align:center; padding:24px 8px; font-size:0.9rem;">${items.length ? 'Nothing matches that filter.' : 'No tables yet. Switch to “Edit layout” to add tables, or load a saved floorplan.'}</p>`;
+            const html = smTableCardsHtml(show, { q: '', pending: smFilter.pending, hideEmpty: smFilter.hideEmpty });
+            const hasTables = smItems(show).some(smIsSeat);
+            smEl('smListBody').innerHTML = html || `<p style="color:var(--text-muted); text-align:center; padding:24px 8px; font-size:0.9rem;">${hasTables ? 'Nothing matches that filter.' : 'No tables yet. Switch to “Edit layout” to add tables, or load a saved floorplan.'}</p>`;
+        }
+        // ---- search bar at the top of the show: results appear right under it, with the check-in buttons ----
+        function smOnSearch(v) {
+            smFilter.q = v;
+            const x = smEl('smQx'); if (x) x.style.display = v ? 'block' : 'none';
+            const s = smCurShow(); if (s) smRenderSearch(s);
+        }
+        function smClearSearch() { const i = smEl('smQ'); if (i) i.value = ''; smOnSearch(''); }
+        function smRenderSearch(show) {
+            const box = smEl('smResults'), body = smEl('smSearchBody'); if (!box || !body) return;
+            const q = smFilter.q.trim();
+            if (!q) { box.style.display = 'none'; body.innerHTML = ''; return; }
+            body.innerHTML = smTableCardsHtml(show, { q: q.toLowerCase(), pending: false, hideEmpty: true }) || `<p class="sm-noresult">Nothing matches “${escapeHtml(q)}”.</p>`;
+            box.style.display = 'block';
+        }
+        // ---- table popup: tap a table (on the map or in the list) to edit everything about it ----
+        function smOpenTable(id) {
+            const show = smCurShow(); if (!show || !smItems(show).some(i => i.id === id && smIsSeat(i))) return;
+            smTableOpenId = id; smSelId = id; smPanelSig = '';
+            smRenderMap(show); smRenderList(show); smRenderTableModal(show);
+            smEl('smTableModal').style.display = 'flex';
+            const empty = !smGuests(show).some(g => g.tableId === id);
+            if (empty) { const inp = smEl('smAdd_' + id); if (inp) try { inp.focus(); } catch (err) { /* ignore */ } } // an empty table is for adding someone
+        }
+        function smCloseTable() {
+            smTableOpenId = null; smSelId = null;
+            smEl('smTableModal').style.display = 'none';
+            const s = smCurShow(); if (s) { smPanelSig = ''; smRenderPanel(s); smRenderMap(s); smRenderList(s); smRenderSearch(s); }
+        }
+        function smRenderTableModal(show) {
+            if (!smTableOpenId) return;
+            const it = smItems(show).find(i => i.id === smTableOpenId);
+            if (!it) { smCloseTable(); return; } // the table was removed while its popup was open
+            const st = smTableStats(show).stats[it.id] || { total: 0, arrived: 0 }, cap = smCap(it), id = it.id;
+            const extra = Math.max(0, st.arrived - cap), overbooked = Math.max(0, st.total - cap);
+            const rows = smGuests(show).filter(g => g.tableId === id).sort((a, b) => smNatural(a.name, b.name));
+            smEl('smTmTitle').textContent = smItemName(it);
+            smEl('smTmSub').innerHTML = `${it.type === 'bar' ? cap + ' bar seats' : SM_TYPES[it.type].label} · <b>${st.arrived}</b> of ${cap} seats filled${extra ? ` <span class="sm-tc-over">${extra} extra — charge</span>` : overbooked ? ` <span class="sm-tc-over soft">${overbooked} over seats</span>` : ''}`;
+            smPreserve(smEl('smTmBody'), () => {
+                // The add form comes first so it stays in view above the phone keyboard.
+                smEl('smTmBody').innerHTML = `
+                    <div class="sm-tm-add">
+                        <label class="sm-tm-f1"><span>Purchaser</span><input id="smAdd_${id}" class="input-field" placeholder="Who bought it?" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${id}');}" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" name="sm_buyer" data-1p-ignore></label>
+                        <label class="sm-tm-f2"><span>People</span><input id="smSz_${id}" class="input-field sm-sz" type="number" inputmode="numeric" min="1" max="99" value="${Math.max(1, cap - st.total)}" aria-label="People in the party" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${id}');}"></label>
+                        <button class="btn" onclick="smAddBooking('${id}')">Add</button>
+                    </div>
+                    <div class="sm-tm-label">${rows.length ? `Bookings at this table (${rows.length})` : 'No one booked at this table yet'}</div>
+                    ${rows.map(smBookingRow).join('')}`;
             });
         }
 
