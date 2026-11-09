@@ -11,7 +11,10 @@
                                 desc, tags[], floorplanId, floorplanName,
                                 layout: { items[] },          <- this show's own copy of the room
                                 guests: { [guestId]: { id, name, tableId, arrived, arrivedAt } } }
-           Layout items: { id, type: 't2'|'t4'|'t6'|'bar'|'stage', x, y, rot, num (label), seats (bar), shape (stage) }.
+           Layout items: { id, type: 't2'|'t4'|'t6'|'bar'|'stage', x, y, rot, num (label), seats (bar), w/h/label (stage + zone), kind (zone/line), flip (door) }.
+           Piece types: seating (t2/t4/t6/bar) holds guests; 'stage' and 'zone' are resizable room areas (bar counter, bathrooms,
+           green room, bar storage, A/V booth, patio...); 'line' is a wall, doorway, garage door or curtain (w = length, h = thickness).
+           Each layout also has its own room size: layout.w / layout.h (default 1000 x 640 units), saved with floorplans.
            x/y are the item's centre on a fixed 1000 x 640 canvas.
 
            Guests are a MAP on the show doc and are written with dotted field paths
@@ -21,10 +24,30 @@
            These three collections are deliberately NOT in allCollections (js/03): they are loaded by
            their own listeners the first time someone opens the module, so security-only users pay nothing. */
 
-        const SM_W = 1000, SM_H = 640, SM_GRID = 10;
+        const SM_GRID = 10, SM_DEF_W = 1000, SM_DEF_H = 640, SM_CANVAS_MIN = 400, SM_CANVAS_MAX = 3000;
         const SM_DEFAULT_IMG = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700';
         // Every top-level view of the security module - hidden while the Show Manager is open.
         const SM_SECURITY_VIEWS = ['eventsFeedView', 'eventDetailView', 'calendarView', 'teamChatView', 'banListView', 'myShiftsView', 'contactsDirectoryView', 'licensesView', 'dashboardView', 'settingsView', 'adminConsoleView'];
+        // Quick sizes for a stage piece; the width/height boxes and the corner handle fine-tune from there.
+        const SM_STAGE_PRESETS = { runway: { w: 440, h: 70, label: 'RUNWAY' }, square: { w: 240, h: 240, label: 'STAGE' }, wide: { w: 320, h: 110, label: 'STAGE' } };
+        const SM_ZONE_MIN = 30;
+        // Room areas (resizable rectangles) and line pieces (walls, openings) the builder can place.
+        const SM_ZONES = {
+            stage:      { label: 'Stage',       w: 320, h: 110, fill: 'rgba(121,40,202,0.45)',  stroke: '#be78ff' },
+            barcounter: { label: 'Bar',         w: 280, h: 50,  fill: 'rgba(255,176,32,0.32)',  stroke: '#ffb020' },
+            bathroom:   { label: 'Bathrooms',   w: 130, h: 100, fill: 'rgba(79,195,247,0.30)',  stroke: '#4fc3f7' },
+            greenroom:  { label: 'Green room',  w: 150, h: 110, fill: 'rgba(0,255,135,0.22)',   stroke: '#00ff87' },
+            storage:    { label: 'Bar storage', w: 110, h: 80,  fill: 'rgba(160,140,120,0.35)', stroke: '#b8a58e' },
+            av:         { label: 'A/V booth',   w: 110, h: 70,  fill: 'rgba(255,122,60,0.32)',  stroke: '#ff7a3c' },
+            patio:      { label: 'Patio',       w: 280, h: 190, fill: 'rgba(120,200,80,0.14)',  stroke: '#8fd45a', dash: '10 7' },
+            area:       { label: 'Area',        w: 200, h: 150, fill: 'rgba(255,255,255,0.07)', stroke: 'rgba(255,255,255,0.55)', dash: '4 4' }
+        };
+        const SM_LINES = {
+            wall:    { label: 'Wall',        len: 200, thick: 10 },
+            door:    { label: 'Doorway',     len: 60,  thick: 8 },
+            garage:  { label: 'Garage door', len: 160, thick: 12 },
+            curtain: { label: 'Curtain',     len: 200, thick: 8 }
+        };
         const SM_OWN_VIEWS = ['smShowsView', 'smShowView', 'smVenuesView'];
         const SM_TYPES = {
             t2: { label: '2-top', cap: 2 }, t4: { label: '4-top', cap: 4 }, t6: { label: '6-top', cap: 6 },
@@ -57,7 +80,13 @@
         const smItems = show => (show && show.layout && show.layout.items) || [];
         const smGuests = show => Object.values((show && show.guests) || {}).filter(g => g && g.name);
         const smUid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-        const smIsSeat = it => it.type !== 'stage';
+        const smIsSeat = it => it.type === 't2' || it.type === 't4' || it.type === 't6' || it.type === 'bar';
+        const smIsLine = it => it.type === 'line';
+        const smIsZone = it => it.type === 'stage' || it.type === 'zone';
+        const smKind = it => it.type === 'stage' ? 'stage' : it.kind;
+        const smPieceName = it => smIsLine(it) ? (SM_LINES[it.kind] || SM_LINES.wall).label : smIsZone(it) ? (SM_ZONES[smKind(it)] || SM_ZONES.area).label : smItemName(it);
+        // Size of the room for a show (each layout has its own; older ones use the default).
+        const smCV = show => { const l = ((show || smCurShow() || {}).layout) || {}; return { w: l.w || SM_DEF_W, h: l.h || SM_DEF_H }; };
         const smCap = it => it.type === 'bar' ? Math.max(1, it.seats || 6) : (SM_TYPES[it.type] ? SM_TYPES[it.type].cap : 0);
         const smNatural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
         const smItemName = it => (it.type === 'bar' ? 'Bar ' : 'Table ') + (it.num || '?');
@@ -304,7 +333,7 @@
                 const show = {
                     id: smUid('s'), ...fields, createdAt: Date.now(), createdBy: (currUser() || {}).name || '',
                     floorplanId: plan ? plan.id : '', floorplanName: plan ? plan.name : '',
-                    layout: { items: plan ? smClone(plan.items || []) : [] }, guests: {}
+                    layout: { items: plan ? smClone(plan.items || []) : [], w: plan ? (plan.w || SM_DEF_W) : SM_DEF_W, h: plan ? (plan.h || SM_DEF_H) : SM_DEF_H }, guests: {}
                 };
                 job = saveDoc('shows', show.id, show).then(() => { smFormEditId = show.id; });
             }
@@ -342,6 +371,9 @@
                 .finally(() => { smSyncCount--; smSyncUi(); });
         }
         function smSaveItems(items) {
+            // Optimistic: later edits must build on this one even before the listener echoes the write back.
+            const live = smCurShow();
+            if (live) { live.layout = live.layout || {}; live.layout.items = smClone(items); }
             return smWrite(smShowRef().update({ 'layout.items': cleanData(items) }));
         }
 
@@ -362,11 +394,11 @@
                             </div>
                             <div id="smPanel"></div>
                             <div class="sm-mapwrap" id="smMapWrap">
-                                <svg id="smSvg" class="sm-svg" viewBox="0 0 ${SM_W} ${SM_H}" xmlns="http://www.w3.org/2000/svg">
+                                <svg id="smSvg" class="sm-svg" viewBox="0 0 ${SM_DEF_W} ${SM_DEF_H}" xmlns="http://www.w3.org/2000/svg">
                                     <defs><pattern id="smGridPat" width="${SM_GRID * 4}" height="${SM_GRID * 4}" patternUnits="userSpaceOnUse"><path d="M ${SM_GRID * 4} 0 L 0 0 0 ${SM_GRID * 4}" fill="none" stroke="rgba(255,255,255,0.11)" stroke-width="1"/></pattern></defs>
-                                    <rect class="sm-floor" x="0" y="0" width="${SM_W}" height="${SM_H}" rx="18" fill="#232334"/>
-                                    <rect x="0" y="0" width="${SM_W}" height="${SM_H}" rx="18" fill="url(#smGridPat)"/>
-                                    <rect x="1.5" y="1.5" width="${SM_W - 3}" height="${SM_H - 3}" rx="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
+                                    <rect id="smFloor" class="sm-floor" x="0" y="0" width="${SM_DEF_W}" height="${SM_DEF_H}" rx="18" fill="#232334"/>
+                                    <rect id="smFloorGrid" x="0" y="0" width="${SM_DEF_W}" height="${SM_DEF_H}" rx="18" fill="url(#smGridPat)"/>
+                                     <rect id="smBorder" x="1.5" y="1.5" width="${SM_DEF_W - 3}" height="${SM_DEF_H - 3}" rx="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
                                     <g id="smItems"></g>
                                 </svg>
                             </div>
@@ -463,7 +495,7 @@
             const n = smGuests(show).length;
             if (!confirm(`Replace this show's room with "${plan.name}"?${n ? `\n\nGuests are kept — anyone at a table number that exists in the new layout stays at that number; the rest show up as "Not seated" so you can move them.` : ''}`)) return;
             const items = smClone(plan.items || []);
-            const upd = { 'layout.items': cleanData(items), floorplanId: plan.id, floorplanName: plan.name };
+            const upd = { 'layout.items': cleanData(items), 'layout.w': plan.w || SM_DEF_W, 'layout.h': plan.h || SM_DEF_H, floorplanId: plan.id, floorplanName: plan.name };
             // Keep people at the same table NUMBER when the new room has it.
             const oldById = {}; smItems(show).forEach(i => { oldById[i.id] = i; });
             smGuests(show).forEach(g => {
@@ -481,7 +513,7 @@
             const existing = smPlans().filter(p => p.venueId === show.venueId).length;
             const name = prompt('Name this floorplan (e.g. "Runway night", "Square stage"):', 'Layout ' + (existing + 1));
             if (!name || !name.trim()) return;
-            const plan = { id: smUid('f'), venueId: show.venueId, name: name.trim(), items: smClone(smItems(show)), updatedAt: Date.now() };
+            const plan = { id: smUid('f'), venueId: show.venueId, name: name.trim(), items: smClone(smItems(show)), w: smCV(show).w, h: smCV(show).h, updatedAt: Date.now() };
             smSyncCount++; smSyncUi();
             saveDoc('floorplans', plan.id, plan).then(() => smWrite(smShowRef().update({ floorplanId: plan.id, floorplanName: plan.name })))
                 .catch(() => {}).finally(() => { smSyncCount--; smSyncUi(); });
@@ -490,7 +522,7 @@
             const show = smCurShow(); if (!show) return;
             const plan = smPlans().find(p => p.id === show.floorplanId); if (!plan) return;
             if (!confirm(`Overwrite the saved floorplan "${plan.name}" with this show's current layout? Other shows keep their own copies.`)) return;
-            smWrite(db.collection('floorplans').doc(plan.id).update({ items: cleanData(smItems(show)), updatedAt: Date.now() }));
+            smWrite(db.collection('floorplans').doc(plan.id).update({ items: cleanData(smItems(show)), w: smCV(show).w, h: smCV(show).h, updatedAt: Date.now() }));
         }
 
         // ---------- MAP (SVG) ----------
@@ -499,22 +531,25 @@
             if (it.type === 't4') return { w: 72, h: 72 };
             if (it.type === 't6') return { w: 120, h: 72 };
             if (it.type === 'bar') return { w: Math.max(1, it.seats || 6) * 34, h: 34 };
-            if (it.type === 'stage') return it.shape === 'square' ? { w: 240, h: 240 } : it.shape === 'wide' ? { w: 320, h: 110 } : { w: 440, h: 70 };
+            if (it.type === 'line') { const k = SM_LINES[it.kind] || SM_LINES.wall; return { w: it.w || k.len, h: it.h || k.thick }; }
+            if (it.type === 'zone') { const z = SM_ZONES[it.kind] || SM_ZONES.area; return { w: it.w || z.w, h: it.h || z.h }; }
+            if (it.type === 'stage') {
+                if (it.w && it.h) return { w: it.w, h: it.h };
+                return SM_STAGE_PRESETS[it.shape] || SM_STAGE_PRESETS.runway; // older saved stages only have a shape
+            }
             return { w: 60, h: 60 };
         }
-        // Half the on-canvas width/height once rotated, chairs included - used to keep an item inside the room.
+        // Half the on-canvas width/height of an item at any rotation, chairs included - keeps it inside the room.
         function smHalfExtent(it) {
-            const d = smDims(it), pad = smIsSeat(it) ? 22 : 0;
-            const w = (d.w + pad * 2) / 2, h = (d.h + pad * 2) / 2;
-            return (it.rot || 0) % 180 === 90 ? { hw: h, hh: w } : { hw: w, hh: h };
+            const d = smDims(it), pad = smIsSeat(it) ? 22 : 0, w = d.w + pad * 2, h = d.h + pad * 2;
+            const th = (it.rot || 0) * Math.PI / 180, c = Math.abs(Math.cos(th)), sn = Math.abs(Math.sin(th));
+            return { hw: (c * w + sn * h) / 2, hh: (sn * w + c * h) / 2 };
         }
-        function smClamp(it, x, y) {
-            const e = smHalfExtent(it);
-            return {
-                x: Math.min(SM_W - e.hw, Math.max(e.hw, Math.round(x / SM_GRID) * SM_GRID)),
-                y: Math.min(SM_H - e.hh, Math.max(e.hh, Math.round(y / SM_GRID) * SM_GRID))
-            };
+        function smClampTo(it, x, y, cw, ch) {
+            const e = smHalfExtent(it), hw = Math.min(e.hw, cw / 2), hh = Math.min(e.hh, ch / 2);
+            return { x: Math.min(cw - hw, Math.max(hw, Math.round(x / SM_GRID) * SM_GRID)), y: Math.min(ch - hh, Math.max(hh, Math.round(y / SM_GRID) * SM_GRID)) };
         }
+        function smClamp(it, x, y) { const cv = smCV(); return smClampTo(it, x, y, cv.w, cv.h); }
         function smChairs(it) {
             const d = smDims(it), out = [];
             if (it.type === 't2') { out.push({ x: 0, y: -(d.h / 2 + 10) }, { x: 0, y: d.h / 2 + 10 }); }
@@ -534,17 +569,64 @@
             });
             return { stats, unseated };
         }
+        // Amber handle on a stem: drag it around the piece to rotate to any angle (snaps to 5 degrees).
+        function smRotHandle(id, x, y, x0, y0, rot) {
+            if (smMode !== 'layout') return '';
+            const tip = smDrag && smDrag.rotate && smDrag.id === id ? `<text transform="rotate(${-rot} ${x} ${y})" x="${x}" y="${y - 20}" text-anchor="middle" fill="#ffb020" font-size="18" font-weight="800" pointer-events="none">${Math.round(rot)}°</text>` : '';
+            return `<g class="sm-rot"><line x1="${x0}" y1="${y0}" x2="${x}" y2="${y}" stroke="#ffb020" stroke-width="2"/><circle cx="${x}" cy="${y}" r="13" fill="#ffb020" stroke="#08080c" stroke-width="2"/><path d="M ${x - 4.5} ${y - 1} A 5 5 0 1 1 ${x - 1} ${y + 4.5}" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M ${x - 6.5} ${y - 2.5} L ${x - 4.5} ${y + 1.5} L ${x - 1.5} ${y - 1.5} Z" fill="#08080c"/></g>${tip}`;
+        }
+        // Walls, doorways, garage doors and curtains: a line of length d.w and thickness d.h, centred on the item.
+        function smLineSvg(it, d, tf, selected) {
+            const w = d.w, t = d.h, hw = w / 2, kind = it.kind;
+            const hitH = Math.max(t, 26);
+            let body = '', hit;
+            if (kind === 'door') {
+                hit = `<rect class="sm-hit" fill="none" pointer-events="all" x="${-hw}" y="${-w}" width="${w}" height="${w + hitH / 2}"/>`;
+                body = `<rect fill="#232334" x="${-hw}" y="${-t / 2 - 1}" width="${w}" height="${t + 2}"/>
+                    <rect fill="#d6d9e8" x="${-hw - 2}" y="${-t / 2}" width="4" height="${t}"/><rect fill="#d6d9e8" x="${hw - 2}" y="${-t / 2}" width="4" height="${t}"/>
+                    <path d="M ${-hw} 0 L ${-hw} ${-w}" stroke="#00f5d4" stroke-width="3" fill="none" stroke-linecap="round"/>
+                    <path d="M ${-hw} ${-w} A ${w} ${w} 0 0 1 ${hw} 0" stroke="#00f5d4" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/>`;
+            } else {
+                hit = `<rect class="sm-hit" fill="none" pointer-events="all" x="${-hw}" y="${-hitH / 2}" width="${w}" height="${hitH}"/>`;
+                if (kind === 'curtain') {
+                    const n = Math.max(1, Math.round(w / 16)), p = w / n;
+                    body = `<path d="M ${-hw} 0 q ${p / 4} ${-p * 0.45} ${p / 2} 0${' t ' + (p / 2) + ' 0'}${(' q ' + (p / 4) + ' ' + (-p * 0.45) + ' ' + (p / 2) + ' 0 t ' + (p / 2) + ' 0').repeat(n - 1)}" stroke="#ff2a85" stroke-width="${Math.max(3, t / 2)}" fill="none" stroke-linecap="round"/>`;
+                } else if (kind === 'garage') {
+                    let ticks = ''; for (let x = -hw + 20; x < hw - 1; x += 20) ticks += `M ${x} ${-t / 2} L ${x} ${t / 2} `;
+                    body = `<rect fill="rgba(255,176,32,0.28)" stroke="#ffb020" stroke-width="2" x="${-hw}" y="${-t / 2}" width="${w}" height="${t}"/><path d="${ticks}" stroke="#ffb020" stroke-width="1.5" fill="none"/>`;
+                } else {
+                    body = `<rect fill="#d6d9e8" stroke="#8b8fa6" stroke-width="1" x="${-hw}" y="${-t / 2}" width="${w}" height="${t}" rx="1.5"/>`;
+                }
+            }
+            const box = kind === 'door' ? { y: -w - 6, h: w + t / 2 + 12 } : { y: -hitH / 2 - 4, h: hitH + 8 };
+            const handle = selected && smMode === 'layout'
+                ? `<g class="sm-rh"><circle cx="${hw}" cy="0" r="13" fill="#00f5d4" stroke="#08080c" stroke-width="2"/><path d="M ${hw - 5} 0 L ${hw + 5} 0 M ${hw + 1} -4 L ${hw + 5} 0 L ${hw + 1} 4" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>` : '';
+            return `<g class="sm-it sm-line${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
+                <g transform="scale(1 ${it.flip ? -1 : 1})">${hit}${body}</g>
+                ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-hw - 6}" y="${it.flip && kind === 'door' ? -(box.y + box.h) : box.y}" width="${w + 12}" height="${box.h}" rx="10"/>` : ''}
+                ${handle}
+                ${selected ? smRotHandle(it.id, -hw - 34, 0, -hw - 6, 0, it.rot || 0) : ''}
+            </g>`;
+        }
         function smItemSvg(it, st, selected) {
             const d = smDims(it), rot = it.rot || 0;
             const tf = `translate(${it.x} ${it.y}) rotate(${rot})`;
-            if (it.type === 'stage') {
-                const label = it.shape === 'square' ? 'STAGE' : it.shape === 'wide' ? 'STAGE' : 'RUNWAY';
+            if (smIsZone(it)) {
+                const kind = smKind(it), z = SM_ZONES[kind] || SM_ZONES.area;
+                const label = String(it.label != null && it.label !== '' ? it.label : (kind === 'stage' && (it.shape === 'runway' || (!it.w && !it.shape)) ? 'RUNWAY' : z.label)).toUpperCase();
+                const avail = Math.abs(Math.cos(rot * Math.PI / 180)) >= 0.5 ? d.w : d.h;
+                const fs = Math.max(8, Math.min(20, Math.min(d.w, d.h) / 3.5, (avail - 14) / (label.length * 1.2)));
+                const handle = selected && smMode === 'layout'
+                    ? `<g class="sm-rh"><circle cx="${d.w / 2}" cy="${d.h / 2}" r="13" fill="#00f5d4" stroke="#08080c" stroke-width="2"/><path d="M ${d.w / 2 - 5} ${d.h / 2 + 5} L ${d.w / 2 + 5} ${d.h / 2 - 5} M ${d.w / 2 + 5} ${d.h / 2 - 1} L ${d.w / 2 + 5} ${d.h / 2 - 5} L ${d.w / 2 + 1} ${d.h / 2 - 5}" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>` : '';
                 return `<g class="sm-it sm-stage${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
-                    <rect class="sm-stage-body" fill="rgba(121,40,202,0.45)" stroke="#be78ff" stroke-width="2.5" x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="14"/>
-                    <text class="sm-stage-lbl" fill="#fff" font-size="20" font-weight="800" letter-spacing="6" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" dy=".35em">${label}</text>
+                    <rect ${kind === 'stage' ? 'class="sm-stage-body" ' : ''}fill="${z.fill}" stroke="${z.stroke}" stroke-width="2.5"${z.dash ? ` stroke-dasharray="${z.dash}"` : ''} x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="${Math.min(14, d.h / 3)}"/>
+                    <text class="sm-stage-lbl" fill="#fff" font-size="${fs}" font-weight="800" letter-spacing="${Math.round(fs * 0.2)}" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" dy=".35em">${escapeHtml(label)}</text>
                     ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - 6}" y="${-d.h / 2 - 6}" width="${d.w + 12}" height="${d.h + 12}" rx="18"/>` : ''}
+                    ${handle}
+                    ${selected ? smRotHandle(it.id, 0, -d.h / 2 - 32, 0, -d.h / 2 - 6, rot) : ''}
                 </g>`;
             }
+            if (smIsLine(it)) return smLineSvg(it, d, tf, selected);
             const cap = smCap(it);
             const status = st.total === 0 ? 'empty' : st.arrived >= st.total ? 'done' : st.arrived > 0 ? 'partial' : 'reserved';
             const over = st.total > cap;
@@ -568,15 +650,25 @@
                 <rect class="sm-hit" fill="none" pointer-events="all" x="${-d.w / 2 - ext}" y="${-d.h / 2 - ext}" width="${d.w + ext * 2}" height="${d.h + ext * 2}"/>
                 ${chairs}${body}${texts}
                 ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - ext - 4}" y="${-d.h / 2 - ext - 4}" width="${d.w + ext * 2 + 8}" height="${d.h + ext * 2 + 8}" rx="16"/>` : ''}
+                ${selected ? smRotHandle(it.id, 0, -d.h / 2 - ext - 30, 0, -d.h / 2 - ext - 4, rot) : ''}
             </g>`;
+        }
+        function smApplyCanvas(show) {
+            const svg = smEl('smSvg'); if (!svg) return;
+            const cv = smCV(show);
+            svg.setAttribute('viewBox', `0 0 ${cv.w} ${cv.h}`);
+            ['smFloor', 'smFloorGrid'].forEach(id => { const e = smEl(id); if (e) { e.setAttribute('width', cv.w); e.setAttribute('height', cv.h); } });
+            const b = smEl('smBorder'); if (b) { b.setAttribute('width', cv.w - 3); b.setAttribute('height', cv.h - 3); }
         }
         function smRenderMap(show) {
             const layer = smEl('smItems'); if (!layer) return;
-            const items = smItems(show), { stats } = smTableStats(show);
-            const ordered = [...items.filter(i => i.type === 'stage'), ...items.filter(smIsSeat)];
+            smApplyCanvas(show);
+            const items = smItems(show), cv = smCV(show), { stats } = smTableStats(show);
+            // Room areas at the back, then walls and openings, then tables and bar seats on top.
+            const ordered = [...items.filter(smIsZone), ...items.filter(smIsLine), ...items.filter(smIsSeat)];
             layer.innerHTML = ordered.map(i => smItemSvg(i, stats[i.id] || { total: 0, arrived: 0 }, i.id === smSelId)).join('')
-                || `<text x="${SM_W / 2}" y="${SM_H / 2 - 8}" text-anchor="middle" fill="#fff" font-size="26" font-weight="700">The room is empty</text>
-                    <text x="${SM_W / 2}" y="${SM_H / 2 + 28}" text-anchor="middle" fill="#c8c8d8" font-size="20">${smMode === 'layout' ? 'Use the Add buttons above to place tables, bar seats and the stage.' : 'Tap “Edit layout” to add tables, or load a saved floorplan.'}</text>`;
+                || `<text x="${cv.w / 2}" y="${cv.h / 2 - 8}" text-anchor="middle" fill="#fff" font-size="26" font-weight="700">The room is empty</text>
+                    <text x="${cv.w / 2}" y="${cv.h / 2 + 28}" text-anchor="middle" fill="#c8c8d8" font-size="20">${smMode === 'layout' ? 'Add walls, features and tables with the buttons above.' : 'Tap “Edit layout” to build the room, or load a saved floorplan.'}</text>`;
         }
 
         // Drag + tap handling, delegated on the <svg>. Pointer events cover mouse, touch and pen.
@@ -594,7 +686,10 @@
                 const it = smItems(show).find(i => i.id === g.dataset.id); if (!it) return;
                 if (smMode !== 'layout' && !smIsSeat(it)) return; // the stage is only selectable while editing the layout
                 const p = smSvgPoint(svg, ev);
-                smDrag = { id: it.id, g, rot: it.rot || 0, cx: ev.clientX, cy: ev.clientY, ox: p.x - it.x, oy: p.y - it.y, x: it.x, y: it.y, moved: false, canDrag: smMode === 'layout', item: it };
+                const dm0 = smDims(it);
+                smDrag = { id: it.id, g, rot: it.rot || 0, cx: ev.clientX, cy: ev.clientY, ox: p.x - it.x, oy: p.y - it.y, x: it.x, y: it.y, moved: false, canDrag: smMode === 'layout', item: it,
+                    rotate: smMode === 'layout' && !!ev.target.closest('.sm-rot'), rotOff: smIsLine(it) ? 180 : 90, ang: it.rot || 0,
+                    resize: smMode === 'layout' && (smIsZone(it) || smIsLine(it)) && !!ev.target.closest('.sm-rh') && !ev.target.closest('.sm-rot'), w: dm0.w, h: dm0.h };
                 try { svg.setPointerCapture(ev.pointerId); } catch (err) { /* ignore */ }
                 if (smDrag.canDrag) ev.preventDefault();
             });
@@ -603,6 +698,31 @@
                 if (!d.moved && Math.hypot(ev.clientX - d.cx, ev.clientY - d.cy) < 5) return;
                 d.moved = true;
                 const p = smSvgPoint(svg, ev);
+                if (d.rotate) {
+                    // The handle sits off one side of the piece; the angle is wherever the pointer is around the centre.
+                    const live = smItems(smCurShow()).find(i => i.id === d.id); if (!live) return;
+                    let ang = Math.atan2(p.y - live.y, p.x - live.x) * 180 / Math.PI + d.rotOff;
+                    ang = ((Math.round(ang / 5) * 5) % 360 + 360) % 360;
+                    d.ang = ang; live.rot = ang;
+                    smRenderMap(smCurShow());
+                    return;
+                }
+                if (d.resize) {
+                    // Pull the corner handle: the piece grows/shrinks around its centre, measured in its own (rotated) frame.
+                    const live = smItems(smCurShow()).find(i => i.id === d.id); if (!live) return;
+                    const th = (live.rot || 0) * Math.PI / 180, dx = p.x - live.x, dy = p.y - live.y;
+                    const lx = dx * Math.cos(th) + dy * Math.sin(th), ly = -dx * Math.sin(th) + dy * Math.cos(th);
+                    const cv = smCV();
+                    if (smIsLine(live)) {
+                        d.w = Math.min(Math.max(cv.w, cv.h), Math.max(20, Math.round(Math.abs(lx) * 2 / SM_GRID) * SM_GRID)); // a line only changes length
+                    } else {
+                        d.w = Math.min(cv.w, Math.max(SM_ZONE_MIN, Math.round(Math.abs(lx) * 2 / SM_GRID) * SM_GRID));
+                        d.h = Math.min(cv.h, Math.max(SM_ZONE_MIN, Math.round(Math.abs(ly) * 2 / SM_GRID) * SM_GRID));
+                    }
+                    live.w = d.w; live.h = d.h;
+                    smRenderMap(smCurShow());
+                    return;
+                }
                 const c = smClamp(d.item, p.x - d.ox, p.y - d.oy);
                 d.x = c.x; d.y = c.y;
                 d.g.setAttribute('transform', `translate(${c.x} ${c.y}) rotate(${d.rot})`);
@@ -613,6 +733,24 @@
                 try { svg.releasePointerCapture(ev.pointerId); } catch (err) { /* ignore */ }
                 if (ev.type === 'pointercancel') { smOnData(); return; }
                 const show = smCurShow(); if (!show) return;
+                if (d.rotate) {
+                    if (d.moved) {
+                        const items = smClone(smItems(show));
+                        const it = items.find(i => i.id === d.id);
+                        if (it) { it.rot = d.ang; const c = smClamp(it, it.x, it.y); it.x = c.x; it.y = c.y; smSelId = d.id; smSaveItems(items); }
+                    }
+                    smPanelSig = ''; smRenderPanel(show); smRenderMap(show);
+                    return;
+                }
+                if (d.resize) {
+                    if (d.moved) {
+                        const items = smClone(smItems(show));
+                        const it = items.find(i => i.id === d.id);
+                        if (it) { it.w = d.w; it.h = d.h; const c = smClamp(it, it.x, it.y); it.x = c.x; it.y = c.y; smSelId = d.id; smPanelSig = ''; smSaveItems(items); }
+                    }
+                    smPanelSig = ''; smRenderPanel(show); smRenderMap(show);
+                    return;
+                }
                 if (d.moved) {
                     const items = smClone(smItems(show));
                     const it = items.find(i => i.id === d.id);
@@ -650,43 +788,101 @@
             return String(n);
         }
         function smFreeSpot(items, it) {
+            const cv = smCV();
             for (let k = 0; k < 80; k++) {
-                const x = SM_W / 2 - 240 + (k % 9) * 60, y = SM_H / 2 - 60 + Math.floor(k / 9) * 70;
+                const x = cv.w / 2 - 240 + (k % 9) * 60, y = cv.h / 2 - 60 + Math.floor(k / 9) * 70;
                 if (!items.some(o => Math.hypot(o.x - x, o.y - y) < 70)) return smClamp(it, x, y);
             }
-            return smClamp(it, SM_W / 2, SM_H / 2);
+            return smClamp(it, cv.w / 2, cv.h / 2);
         }
-        function smAddItem(type) {
+        // type: t2 / t4 / t6 / bar / stage / zone / line;  kind: which zone or line (see SM_ZONES / SM_LINES)
+        function smAddItem(type, kind) {
             const show = smCurShow(); if (!show) return;
-            const items = smClone(smItems(show));
-            if (type === 'stage') {
-                const existing = items.find(i => i.type === 'stage');
-                if (existing) { smSelId = existing.id; smPanelSig = ''; smRenderPanel(show); smRenderMap(show); return; }
-            }
+            const items = smClone(smItems(show)), cv = smCV(show);
             const it = { id: smUid('i'), type, x: 0, y: 0, rot: 0 };
             if (type === 'bar') { it.seats = 6; it.num = smNextNum(items, 'bar'); }
-            else if (type === 'stage') { it.shape = 'runway'; }
+            else if (type === 'stage') { const pr = SM_STAGE_PRESETS.wide; it.w = pr.w; it.h = pr.h; it.label = pr.label; }
+            else if (type === 'zone') { const z = SM_ZONES[kind] || SM_ZONES.area; it.kind = SM_ZONES[kind] ? kind : 'area'; it.w = z.w; it.h = z.h; it.label = z.label; }
+            else if (type === 'line') { const k = SM_LINES[kind] || SM_LINES.wall; it.kind = SM_LINES[kind] ? kind : 'wall'; it.w = Math.min(k.len, Math.max(cv.w, cv.h)); it.h = k.thick; }
             else it.num = smNextNum(items, 'table');
-            const pos = type === 'stage' ? smClamp(it, SM_W / 2, 90) : smFreeSpot(items, it);
+            const firstStage = type === 'stage' && !items.some(i => i.type === 'stage');
+            const pos = firstStage ? smClamp(it, cv.w / 2, 90) : smFreeSpot(items, it);
             it.x = pos.x; it.y = pos.y;
             items.push(it);
             smSelId = it.id; smPanelSig = '';
             smSaveItems(items);
+        }
+        // The two "+ Room feature…" / "+ Wall / opening…" pickers: value is "type:kind".
+        function smAddKind(v) { if (!v) return; const [type, kind] = v.split(':'); smAddItem(type, kind); }
+        // Four walls around the whole room - the usual first step for a new venue.
+        function smAddOuterWalls() {
+            const show = smCurShow(); if (!show) return;
+            const items = smClone(smItems(show)), cv = smCV(show), t = 10, mk = (x, y, w, rot) => ({ id: smUid('i'), type: 'line', kind: 'wall', x, y, w, h: t, rot });
+            items.push(mk(cv.w / 2, t, cv.w - t * 2, 0), mk(cv.w / 2, cv.h - t, cv.w - t * 2, 0), mk(t, cv.h / 2, cv.h - t * 2, 90), mk(cv.w - t, cv.h / 2, cv.h - t * 2, 90));
+            smSelId = null; smPanelSig = '';
+            smSaveItems(items);
+        }
+        function smSetCanvas(w, h) {
+            const show = smCurShow(); if (!show) return;
+            const cv = smCV(show), snap = (v, cur) => Math.min(SM_CANVAS_MAX, Math.max(SM_CANVAS_MIN, Math.round((parseInt(v, 10) || cur) / SM_GRID) * SM_GRID));
+            const nw = snap(w, cv.w), nh = snap(h, cv.h);
+            const items = smClone(smItems(show));
+            let moved = 0;
+            items.forEach(it => {
+                let changed = false;
+                if (!smIsSeat(it)) {
+                    // A wall or area longer than the new room (e.g. an outer wall) shrinks with it instead of hanging over the edge.
+                    const e = smHalfExtent(it), f = Math.min(nw / (2 * e.hw), nh / (2 * e.hh));
+                    if (f < 1) {
+                        const d = smDims(it);
+                        it.w = Math.max(20, Math.floor(d.w * f / SM_GRID) * SM_GRID);
+                        it.h = smIsLine(it) ? d.h : Math.max(SM_ZONE_MIN, Math.floor(d.h * f / SM_GRID) * SM_GRID);
+                        changed = true;
+                    }
+                }
+                const c = smClampTo(it, it.x, it.y, nw, nh);
+                if (c.x !== it.x || c.y !== it.y) { changed = true; it.x = c.x; it.y = c.y; }
+                if (changed) moved++;
+            });
+            if ((nw < cv.w || nh < cv.h) && moved && !confirm(`${moved} piece${moved === 1 ? '' : 's'} won't fit the smaller room and will be pulled in or shrunk to fit. Continue?`)) { smPanelSig = ''; smRenderPanel(show); return; }
+            show.layout = show.layout || {}; show.layout.w = nw; show.layout.h = nh; show.layout.items = smClone(items); // optimistic
+            smPanelSig = '';
+            smWrite(smShowRef().update({ 'layout.w': nw, 'layout.h': nh, 'layout.items': cleanData(items) }));
+            smRenderPanel(show); smRenderMap(show);
         }
         function smPatchItem(id, patch) {
             const show = smCurShow(); if (!show) return;
             const items = smClone(smItems(show));
             const it = items.find(i => i.id === id); if (!it) return;
             Object.assign(it, patch);
-            const c = smClamp(it, it.x, it.y); it.x = c.x; it.y = c.y; // a rotation or bigger stage must not push it off the room
+            const c = smClamp(it, it.x, it.y); it.x = c.x; it.y = c.y; // a rotation or bigger piece must not push it off the room
             smPanelSig = '';
             smSaveItems(items);
         }
-        function smRotate(id) {
+        function smRotate(id, deg) {
             const it = smItems(smCurShow()).find(i => i.id === id); if (!it) return;
-            smPatchItem(id, { rot: ((it.rot || 0) + 90) % 360 });
+            smPatchItem(id, { rot: (((it.rot || 0) + (deg || 90)) % 360 + 360) % 360 });
         }
-        function smSetShape(id, shape) { smPatchItem(id, { shape }); }
+        function smSetAngle(id, val) {
+            const a = parseInt(val, 10); if (isNaN(a)) { smPanelSig = ''; smRenderPanel(smCurShow()); return; }
+            smPatchItem(id, { rot: ((a % 360) + 360) % 360 });
+        }
+        function smFlip(id) { const it = smItems(smCurShow()).find(i => i.id === id); if (it) smPatchItem(id, { flip: !it.flip }); }
+        function smSetPreset(id, key) {
+            const it = smItems(smCurShow()).find(i => i.id === id), pr = SM_STAGE_PRESETS[key]; if (!it || !pr) return;
+            const keepLabel = it.label && !Object.values(SM_STAGE_PRESETS).some(x => x.label === String(it.label).toUpperCase());
+            smPatchItem(id, { w: pr.w, h: pr.h, shape: key, label: keepLabel ? it.label : pr.label });
+        }
+        // Width / height of a room area, or length (w) / thickness (h) of a wall or opening.
+        function smSetDim(id, dim, val) {
+            const it = smItems(smCurShow()).find(i => i.id === id); if (!it) return;
+            const d = smDims(it), cv = smCV();
+            let v;
+            if (smIsLine(it)) v = dim === 'w' ? Math.min(Math.max(cv.w, cv.h), Math.max(20, Math.round((parseInt(val, 10) || d.w) / SM_GRID) * SM_GRID)) : Math.min(40, Math.max(4, Math.round((parseInt(val, 10) || d.h) / 2) * 2));
+            else v = Math.min(dim === 'w' ? cv.w : cv.h, Math.max(SM_ZONE_MIN, Math.round((parseInt(val, 10) || d[dim]) / SM_GRID) * SM_GRID));
+            smPatchItem(id, { w: d.w, h: d.h, [dim]: v });
+        }
+        function smSetZoneLabel(id, val) { smPatchItem(id, { label: String(val).trim().slice(0, 18) }); }
         function smSetSeats(id, n) { n = Math.max(1, Math.min(20, parseInt(n, 10) || 1)); smPatchItem(id, { seats: n }); }
         function smSetLabel(id, val) {
             const show = smCurShow(); if (!show) return;
@@ -700,8 +896,9 @@
         }
         function smDuplicate(id) {
             const show = smCurShow(); if (!show) return;
-            const items = smClone(smItems(show)), src = items.find(i => i.id === id); if (!src || !smIsSeat(src)) return;
-            const copy = { ...src, id: smUid('i'), num: smNextNum(items, src.type === 'bar' ? 'bar' : 'table') };
+            const items = smClone(smItems(show)), src = items.find(i => i.id === id); if (!src) return;
+            const copy = { ...src, id: smUid('i') };
+            if (smIsSeat(src)) copy.num = smNextNum(items, src.type === 'bar' ? 'bar' : 'table');
             const c = smClamp(copy, src.x + 40, src.y + 40); copy.x = c.x; copy.y = c.y;
             items.push(copy); smSelId = copy.id; smPanelSig = '';
             smSaveItems(items);
@@ -710,28 +907,50 @@
             const show = smCurShow(); if (!show) return;
             const it = smItems(show).find(i => i.id === id); if (!it) return;
             const n = smGuests(show).filter(g => g.tableId === id).length;
-            if (!confirm(`Remove ${it.type === 'stage' ? 'the stage' : smItemName(it)}?${n ? `\n\n${n} guest${n === 1 ? ' is' : 's are'} assigned here — they'll move to "Not seated" in the list so you can reseat them.` : ''}`)) return;
+            if (!confirm(`Remove ${smIsSeat(it) ? smItemName(it) : 'this ' + smPieceName(it).toLowerCase()}?${n ? `\n\n${n} guest${n === 1 ? ' is' : 's are'} assigned here — they'll move to "Not seated" in the list so you can reseat them.` : ''}`)) return;
             smSelId = null; smPanelSig = '';
             smSaveItems(smClone(smItems(show)).filter(i => i.id !== id));
         }
         function smRenderPanel(show) {
             const panel = smEl('smPanel'); if (!panel) return;
             if (smMode !== 'layout') { if (panel.innerHTML) panel.innerHTML = ''; smPanelSig = ''; return; }
-            const it = smItems(show).find(i => i.id === smSelId);
-            const hasStage = smItems(show).some(i => i.type === 'stage');
-            const sig = JSON.stringify([smMode, it, hasStage]);
+            const it = smItems(show).find(i => i.id === smSelId), cv = smCV(show);
+            const sig = JSON.stringify([smMode, it, cv]);
             if (sig === smPanelSig) return;
             smPanelSig = sig;
-            const sel = it ? `
-                <div class="sm-sel-row">
-                    <b>${it.type === 'stage' ? 'Stage' : escapeHtml(smItemName(it))}</b>
-                    ${smIsSeat(it) ? `<label>Label <input id="smLblInput" class="input-field" value="${escapeHtml(it.num || '')}" maxlength="8" onchange="smSetLabel('${it.id}', this.value)" data-1p-ignore></label>` : ''}
-                    ${it.type === 'bar' ? `<label>Seats <span class="sm-step"><button class="btn btn-outline btn-sm" onclick="smSetSeats('${it.id}', ${(it.seats || 6) - 1})">−</button><b>${it.seats || 6}</b><button class="btn btn-outline btn-sm" onclick="smSetSeats('${it.id}', ${(it.seats || 6) + 1})">+</button></span></label>` : ''}
-                    ${it.type === 'stage' ? `<span class="sm-shapes">${[['runway', 'Runway'], ['square', 'Large square'], ['wide', 'Standard']].map(([k, l]) => `<button class="ev-chip${(it.shape || 'runway') === k ? ' active' : ''}" onclick="smSetShape('${it.id}','${k}')">${l}</button>`).join('')}</span>` : ''}
-                    <button class="btn btn-outline btn-sm" onclick="smRotate('${it.id}')">⟳ Rotate</button>
-                    ${smIsSeat(it) ? `<button class="btn btn-outline btn-sm" onclick="smDuplicate('${it.id}')">⧉ Duplicate</button>` : ''}
+            const numIn = (v, min, max, step, fn) => `<input type="number" class="input-field" value="${v}" min="${min}" max="${max}" step="${step}" onchange="${fn}(this.value)">`;
+            let sel = `<div class="sm-hint">Drag any piece to move it. Tap one to rename, resize, rotate (any angle) or remove it.</div>`;
+            if (it) {
+                // Every piece rotates to any angle: drag the amber handle on the map, nudge in steps, or type an exact angle.
+                const rotBtns = `<span class="sm-step"><button class="btn btn-outline btn-sm" title="Rotate left 15°" onclick="smRotate('${it.id}', -15)">↺ 15°</button><button class="btn btn-outline btn-sm" title="Rotate right 15°" onclick="smRotate('${it.id}', 15)">↻ 15°</button><button class="btn btn-outline btn-sm" title="Rotate 45°" onclick="smRotate('${it.id}', 45)">⟳ 45°</button><button class="btn btn-outline btn-sm" title="Rotate 90°" onclick="smRotate('${it.id}', 90)">⟳ 90°</button></span>
+                    <label>Angle <input type="number" class="input-field" style="width:78px;" value="${Math.round(it.rot || 0)}" min="0" max="359" step="5" onchange="smSetAngle('${it.id}', this.value)">°</label>`;
+                let fields = '';
+                const d = smDims(it);
+                if (smIsSeat(it)) {
+                    fields = `<label>Label <input id="smLblInput" class="input-field" value="${escapeHtml(it.num || '')}" maxlength="8" onchange="smSetLabel('${it.id}', this.value)" data-1p-ignore></label>`
+                        + (it.type === 'bar' ? `<label>Seats <span class="sm-step"><button class="btn btn-outline btn-sm" onclick="smSetSeats('${it.id}', ${(it.seats || 6) - 1})">−</button><b>${it.seats || 6}</b><button class="btn btn-outline btn-sm" onclick="smSetSeats('${it.id}', ${(it.seats || 6) + 1})">+</button></span></label>` : '');
+                } else if (smIsZone(it)) {
+                    const kind = smKind(it), z = SM_ZONES[kind] || SM_ZONES.area;
+                    fields = `<label>Label <input id="smLblInput" class="input-field" style="width:120px;" value="${escapeHtml(it.label != null ? it.label : (kind === 'stage' && d.w > d.h * 3 ? 'RUNWAY' : z.label))}" maxlength="18" onchange="smSetZoneLabel('${it.id}', this.value)" data-1p-ignore></label>
+                        <label>Width ${numIn(d.w, SM_ZONE_MIN, cv.w, SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)}</label>
+                        <label>Height ${numIn(d.h, SM_ZONE_MIN, cv.h, SM_GRID, `smSetDim.bind(null,'${it.id}','h')`)}</label>`
+                        + (kind === 'stage' ? `<span class="sm-shapes">${[['runway', 'Runway'], ['square', 'Large square'], ['wide', 'Standard']].map(([k, l]) => `<button class="ev-chip${d.w === SM_STAGE_PRESETS[k].w && d.h === SM_STAGE_PRESETS[k].h ? ' active' : ''}" onclick="smSetPreset('${it.id}','${k}')">${l}</button>`).join('')}</span>` : '')
+                        + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag the teal corner handle to resize and the amber handle to rotate.</span>`;
+                } else {
+                    fields = `<label>Length ${numIn(d.w, 20, Math.max(cv.w, cv.h), SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)}</label>
+                        <label>Thickness ${numIn(d.h, 4, 40, 2, `smSetDim.bind(null,'${it.id}','h')`)}</label>`
+                        + (it.kind === 'door' ? `<button class="btn btn-outline btn-sm" title="Swing the door the other way" onclick="smFlip('${it.id}')">⇅ Flip swing</button>` : '')
+                        + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag the teal handle to change its length and the amber handle to rotate it.</span>`;
+                }
+                sel = `<div class="sm-sel-row">
+                    <b>${escapeHtml(smIsSeat(it) ? smItemName(it) : smPieceName(it))}</b>
+                    ${fields}
+                    ${rotBtns}
+                    <button class="btn btn-outline btn-sm" onclick="smDuplicate('${it.id}')">⧉ Duplicate</button>
                     <button class="btn btn-sm btn-magenta" onclick="smDeleteItem('${it.id}')">Remove</button>
-                </div>` : `<div class="sm-hint">Drag tables to move them. Tap one to rename, rotate or remove it.</div>`;
+                </div>`;
+            }
+            const opt = (v, l) => `<option value="${v}">${l}</option>`;
             panel.innerHTML = `
                 <div class="sm-addbar">
                     <span>Add</span>
@@ -739,7 +958,18 @@
                     <button class="btn btn-sm" onclick="smAddItem('t4')">4-top</button>
                     <button class="btn btn-sm" onclick="smAddItem('t6')">6-top</button>
                     <button class="btn btn-sm" onclick="smAddItem('bar')">Bar seats</button>
-                    <button class="btn btn-sm btn-outline" onclick="smAddItem('stage')">${hasStage ? 'Select stage' : 'Stage'}</button>
+                    <select class="sm-pick" aria-label="Add a room feature" onchange="smAddKind(this.value); this.selectedIndex = 0;">
+                        ${opt('', '+ Room feature…')}${opt('stage:', 'Stage')}${Object.keys(SM_ZONES).filter(k => k !== 'stage').map(k => opt('zone:' + k, SM_ZONES[k].label)).join('')}
+                    </select>
+                    <select class="sm-pick" aria-label="Add a wall or opening" onchange="smAddKind(this.value); this.selectedIndex = 0;">
+                        ${opt('', '+ Wall / opening…')}${Object.keys(SM_LINES).map(k => opt('line:' + k, SM_LINES[k].label)).join('')}
+                    </select>
+                </div>
+                <div class="sm-roomrow">
+                    <span>Room</span>
+                    <label>Width <input type="number" class="input-field" id="smCW" value="${cv.w}" min="${SM_CANVAS_MIN}" max="${SM_CANVAS_MAX}" step="${SM_GRID}" onchange="smSetCanvas(this.value, ${cv.h})"></label>
+                    <label>Depth <input type="number" class="input-field" id="smCH" value="${cv.h}" min="${SM_CANVAS_MIN}" max="${SM_CANVAS_MAX}" step="${SM_GRID}" onchange="smSetCanvas(${cv.w}, this.value)"></label>
+                    <button class="btn btn-outline btn-sm" title="Add a wall along each edge of the room" onclick="smAddOuterWalls()">▭ Outer walls</button>
                 </div>${sel}`;
         }
 
@@ -901,8 +1131,8 @@
                     </div>
                     <div class="sm-plans">${plans.map(p => {
                         const it = p.items || [], tables = it.filter(i => i.type === 't2' || i.type === 't4' || i.type === 't6'), barSeats = it.filter(i => i.type === 'bar').reduce((n, i) => n + (i.seats || 6), 0);
-                        const seats = tables.reduce((n, i) => n + smCap(i), 0) + barSeats, st = it.find(i => i.type === 'stage');
-                        return `<div class="sm-plan"><div style="min-width:0;"><b>${escapeHtml(p.name)}</b><span>${tables.length} tables${barSeats ? ' + ' + barSeats + ' bar seats' : ''} · ${seats} seats${st ? ' · ' + (st.shape === 'square' ? 'square stage' : st.shape === 'wide' ? 'standard stage' : 'runway') : ''}</span></div>
+                        const seats = tables.reduce((n, i) => n + smCap(i), 0) + barSeats, pieces = it.filter(i => !smIsSeat(i)).length;
+                        return `<div class="sm-plan"><div style="min-width:0;"><b>${escapeHtml(p.name)}</b><span>${tables.length} tables${barSeats ? ' + ' + barSeats + ' bar seats' : ''} · ${seats} seats${pieces ? ' · ' + pieces + ' room piece' + (pieces === 1 ? '' : 's') : ''} · ${p.w || SM_DEF_W}×${p.h || SM_DEF_H}</span></div>
                             <div class="sm-venue-btns"><button class="btn btn-outline btn-sm" onclick="smRenamePlan('${p.id}')">Rename</button><button class="btn btn-sm btn-magenta" onclick="smDeletePlan('${p.id}')">Delete</button></div></div>`;
                     }).join('') || `<div class="sm-plan-empty">No saved floorplans yet. Open a show at this venue, lay out the room, then tap “Save as new”.</div>`}</div>
                 </div>`;

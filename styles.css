@@ -569,6 +569,8 @@
         .sm-sub, .sm-sub-in { fill: rgba(255,255,255,0.8); font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 12px; pointer-events: none; }
         .sm-stage-body { fill: rgba(121, 40, 202, 0.32); stroke: rgba(190, 120, 255, 0.85); stroke-width: 2.5; }
         .sm-stage-lbl { fill: rgba(255,255,255,0.8); font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: 6px; pointer-events: none; }
+        .sm-rh { cursor: nwse-resize; }
+        .sm-rot { cursor: grab; }
         .sm-selbox { fill: none; stroke: var(--neon-teal); stroke-width: 2.5; stroke-dasharray: 8 6; pointer-events: none; }
         .sm-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 0.72rem; color: var(--text-muted); }
         .sm-legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -588,6 +590,11 @@
         .sm-shapes { display: inline-flex; gap: 6px; flex-wrap: wrap; }
         .sm-shapes .ev-chip { padding: 5px 12px; font-size: 0.72rem; }
         .sm-hint { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 8px; }
+        .sm-pick { width: auto; margin: 0; padding: 7px 10px; border-radius: 10px; font-size: 0.82rem; font-family: 'Outfit', sans-serif; font-weight: 600; }
+        .sm-roomrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.75rem; color: var(--text-muted); }
+        .sm-roomrow > span { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.72rem; letter-spacing: 1px; text-transform: uppercase; color: var(--neon-teal); }
+        .sm-roomrow label { display: inline-flex; align-items: center; gap: 6px; }
+        .sm-roomrow .input-field { margin: 0; width: 84px; padding: 6px 10px; }
 
         /* Guest list */
         .sm-sum-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
