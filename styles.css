@@ -538,6 +538,7 @@
         .sm-planbar label { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase; color: var(--neon-teal); }
         .sm-planbar select.input-field { margin: 0; width: auto; min-width: 190px; flex: 1 1 190px; max-width: 320px; padding: 8px 12px; }
         .sm-sync { margin-left: auto; font-size: 0.75rem; font-weight: 600; }
+        .sm-newweek { flex: 1 1 100%; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 4px; border-radius: 10px; background: rgba(255,176,32,0.12); border: 1px solid rgba(255,176,32,0.45); font-size: 0.82rem; color: var(--text-primary); }
 
         /* Map + list layout */
         .sm-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr); gap: 16px; align-items: start; }

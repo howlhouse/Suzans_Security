@@ -25,6 +25,14 @@
            increment()), so two phones checking people in at once never overwrite each other, and moving a table (which only
            writes 'layout.items') never touches them.
 
+           WEEKLY SHOWS: a show can repeat weekly (repeat: 'weekly'). Every week is its OWN show doc - own date, own layout, own
+           bookings - so nothing is ever reset or overwritten; last week's doc simply stays in the list as history (guests,
+           party sizes, arrivals) for analytics. All the weeks of one run share `seriesId` (the first week's id). The run is
+           alive while its NEWEST week says repeat: 'weekly'. `smRolloverSweep` runs whenever the shows load: once the newest
+           week's date has arrived, it creates the next week (same details, last week's layout, no guests, layoutPending: true
+           so the host is nudged to pick/keep a layout). The new doc's id is `<seriesId>_<date>` and it's written in a
+           transaction, so two phones opening the app together can't create it twice. Weeks nobody opened the app for are skipped.
+
            These three collections are deliberately NOT in allCollections (js/03): they are loaded by
            their own listeners the first time someone opens the module, so security-only users pay nothing. */
 
@@ -161,7 +169,62 @@
                 });
             });
         }
-        function smOnData() { if (window._module === 'shows' && !smDrag) smRender(); }
+        function smOnData() {
+            if (window._module === 'shows' && !smDrag) smRender();
+            if (smLoaded.shows) setTimeout(smRolloverSweep, 0);
+        }
+
+        // ---------- WEEKLY SHOWS (a fresh show doc each week; old weeks stay as history) ----------
+        const smSweepTried = {};   // new show id -> when we last tried to create it (don't hammer a failing write)
+        let smSweeping = false;
+        function smAddDays(dateStr, n) {
+            const [y, m, d] = String(dateStr).split('-').map(Number);
+            return dayKey(new Date(y, m - 1, d + n, 12)); // noon: a daylight-saving jump can't slip the date
+        }
+        // All the weeks of the run this show belongs to, oldest first.
+        const smSeriesOf = show => {
+            const sid = show.seriesId || show.id;
+            return smShows().filter(s => (s.seriesId || s.id) === sid).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        };
+        function smRolloverSweep() {
+            if (smSweeping || !smLoaded.shows || !currUser()) return;
+            const today = dayKey(new Date());
+            const newest = {};
+            smShows().forEach(s => {
+                if (!s.date || !(s.repeat || s.seriesId)) return;
+                const sid = s.seriesId || s.id;
+                if (!newest[sid] || s.date > newest[sid].date) newest[sid] = s;
+            });
+            const jobs = [];
+            Object.keys(newest).forEach(sid => {
+                const src = newest[sid];
+                if (src.repeat !== 'weekly' || src.date > today) return; // stopped, or next week already exists
+                let date = smAddDays(src.date, 7);
+                while (date < today) date = smAddDays(date, 7);          // skip weeks nobody opened the app for
+                const id = sid + '_' + date;
+                if (Date.now() - (smSweepTried[id] || 0) < 30000) return;
+                smSweepTried[id] = Date.now();
+                const next = {
+                    id, title: src.title, date, startTime: src.startTime || '', endTime: src.endTime || '',
+                    venueId: src.venueId || '', venueName: src.venueName || '', image: src.image || SM_DEFAULT_IMG,
+                    ticketLink: src.ticketLink || '', desc: src.desc || '', tags: [...(src.tags || [])],
+                    floorplanId: src.floorplanId || '', floorplanName: src.floorplanName || '',
+                    layout: { items: smClone(smItems(src)), w: smCV(src).w, h: smCV(src).h }, guests: {},
+                    repeat: 'weekly', seriesId: sid, layoutPending: true, createdAt: Date.now(), createdBy: 'Weekly auto-create'
+                };
+                const ref = db.collection('shows').doc(id);
+                jobs.push(withTimeout(db.runTransaction(async tx => {
+                    const snap = await tx.get(ref);
+                    if (snap.exists) return false; // another phone got there first
+                    tx.set(ref, cleanData(next));
+                    return true;
+                }), 15000, 'creating this week\'s show').then(made => { if (made) logAction('Auto-created weekly show: ' + next.title + ' (' + date + ')'); })
+                  .catch(err => console.warn('Weekly show not created yet:', err.message)));
+            });
+            if (!jobs.length) return;
+            smSweeping = true;
+            Promise.all(jobs).finally(() => { smSweeping = false; });
+        }
 
         // ---------- ROUTER ----------
         function smGoTab(t) {
@@ -249,7 +312,8 @@
                         <div class="ev2-body">
                             ${mode === 'poster' ? titleHtml : ''}
                             <div class="ev2-meta"><span>🕘 ${escapeHtml(shiftTimeLabel(s))}${hours ? ' &middot; ' + escapeHtml(hours) : ''}</span><span class="go">Seating ›</span></div>
-                            ${s.venueName ? `<div style="font-size:0.8rem; color:var(--text-secondary);">📍 ${escapeHtml(s.venueName)}</div>` : ''}
+                            ${s.venueName ? `<div style="font-size:0.8rem; color:var(--text-secondary);">📍 ${escapeHtml(s.venueName)}${s.repeat === 'weekly' ? ' &middot; 🔁 Weekly' : ''}</div>` : (s.repeat === 'weekly' ? `<div style="font-size:0.8rem; color:var(--text-secondary);">🔁 Weekly</div>` : '')}
+                            ${s.layoutPending && !isPast ? `<div style="font-size:0.78rem; color:#ffb020;">🗺️ Layout not chosen for this week yet</div>` : ''}
                             ${st.total > 0 ? `<div class="ev2-fill"><div class="ev2-bar"><i style="width:${Math.round(st.arrived / st.total * 100)}%"></i></div><span>${st.arrived} of ${st.total} arrived</span></div>` : ''}
                             ${(s.tags || []).length ? `<div class="tags-container" style="margin:0;">${s.tags.map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                         </div>
@@ -306,6 +370,7 @@
             smEl('smfErr').style.display = 'none';
             smEl('smfTitle').value = s ? s.title : '';
             smEl('smfDate').value = s ? s.date : dayKey(new Date());
+            smEl('smfRepeat').value = s && s.repeat === 'weekly' ? 'weekly' : '';
             smEl('smfStart').value = s ? (s.startTime || '') : '';
             smEl('smfEnd').value = s ? (s.endTime || '') : '';
             smEl('smfImage').value = s ? (s.image || '') : '';
@@ -335,14 +400,26 @@
             };
             const btn = smEl('smfSave'), label = btn.textContent;
             btn.disabled = true; btn.textContent = 'Saving…';
+            const repeat = smEl('smfRepeat').value; // '' or 'weekly'
             let job;
             if (smFormEditId) {
                 // Merge only the details so a check-in landing at the same moment isn't overwritten.
-                job = withTimeout(db.collection('shows').doc(smFormEditId).update(cleanData(fields)), 15000, 'saving the show');
+                const cur = smShows().find(x => x.id === smFormEditId);
+                const upd = { ...fields, repeat };
+                if (repeat === 'weekly' && cur && !cur.seriesId) upd.seriesId = cur.id;
+                const batch = db.batch();
+                batch.update(db.collection('shows').doc(smFormEditId), cleanData(upd));
+                // Repeating belongs to the whole run: it lives on the newest week, wherever you flip it.
+                if (cur && (cur.repeat || '') !== repeat) {
+                    const newest = smSeriesOf(cur).pop();
+                    if (newest && newest.id !== cur.id) batch.update(db.collection('shows').doc(newest.id), { repeat, seriesId: cur.seriesId || cur.id });
+                }
+                job = withTimeout(batch.commit(), 15000, 'saving the show');
             } else {
                 const plan = smPlans().find(p => p.id === smEl('smfPlan').value);
+                const newId = smUid('s');
                 const show = {
-                    id: smUid('s'), ...fields, createdAt: Date.now(), createdBy: (currUser() || {}).name || '',
+                    id: newId, ...fields, repeat, seriesId: repeat === 'weekly' ? newId : '', createdAt: Date.now(), createdBy: (currUser() || {}).name || '',
                     floorplanId: plan ? plan.id : '', floorplanName: plan ? plan.name : '',
                     layout: { items: plan ? smClone(plan.items || []) : [], w: plan ? (plan.w || SM_DEF_W) : SM_DEF_W, h: plan ? (plan.h || SM_DEF_H) : SM_DEF_H }, guests: {}
                 };
@@ -359,8 +436,16 @@
         function smDeleteShow() {
             const show = smCurShow(); if (!show) return;
             const n = smGuests(show).length;
-            if (!confirm(`Delete "${show.title}"${n ? ` and its ${n} guest${n === 1 ? '' : 's'}` : ''}? This can't be undone.`)) return;
-            deleteDoc('shows', show.id).then(() => { logAction('Deleted show: ' + show.title); smCloseShow(); }).catch(() => {});
+            const weeks = smSeriesOf(show), isNewest = weeks[weeks.length - 1].id === show.id;
+            const stopsRun = show.repeat === 'weekly' && isNewest;
+            if (!confirm(`Delete "${show.title}"${n ? ` and its ${n} guest${n === 1 ? '' : 's'}` : ''}? This can't be undone.` +
+                (stopsRun ? `\n\nThis is the newest week of a weekly show, so deleting it also stops the show repeating (earlier weeks and their guest history are kept). You can turn "Repeat" back on from Edit details on any week.` : '') +
+                (!stopsRun && weeks.length > 1 ? `\n\nThis removes this week's guest history from the show's record.` : ''))) return;
+            deleteDoc('shows', show.id).then(() => {
+                const prev = stopsRun ? weeks[weeks.length - 2] : null;
+                if (prev) db.collection('shows').doc(prev.id).update({ repeat: '' }).catch(() => {});
+                logAction('Deleted show: ' + show.title); smCloseShow();
+            }).catch(() => {});
         }
 
         // ---------- WRITES (small, field-level, with a visible sync status) ----------
@@ -493,7 +578,7 @@
         function smRenderHead(show) {
             const plans = smPlans().filter(p => p.venueId && p.venueId === show.venueId).sort((a, b) => smNatural(a.name, b.name));
             const based = plans.find(p => p.id === show.floorplanId);
-            const sig = JSON.stringify([show.title, show.date, show.startTime, show.endTime, show.venueName, show.image, show.desc, show.tags, show.floorplanId, plans.map(p => p.id + p.name)]);
+            const sig = JSON.stringify([show.title, show.date, show.startTime, show.endTime, show.venueName, show.image, show.desc, show.tags, show.floorplanId, show.repeat, !!show.layoutPending, plans.map(p => p.id + p.name)]);
             if (sig === smHeadSig) return;
             smHeadSig = sig;
             const dp = evDateParts(show), hours = shiftHoursLabel(show);
@@ -511,6 +596,11 @@
                     </div>
                 </div>
                 <div class="glass-card sm-planbar">
+                    ${show.layoutPending ? `
+                    <div class="sm-newweek">
+                        <span>🔁 <b>New week.</b> This room is copied from last week${show.floorplanName ? ` (“${escapeHtml(show.floorplanName)}” base)` : ''}. Pick this week's layout below, or keep it as is.</span>
+                        <button class="btn btn-outline btn-sm" onclick="smKeepLayout()">Keep this layout</button>
+                    </div>` : ''}
                     <label>Floorplan</label>
                     ${show.venueId ? `
                     <select id="smPlanSel" class="input-field">
@@ -533,7 +623,7 @@
             const n = smGuests(show).length;
             if (!confirm(`Replace this show's room with "${plan.name}"?${n ? `\n\nGuests are kept — anyone at a table number that exists in the new layout stays at that number; the rest show up as "Not seated" so you can move them.` : ''}`)) return;
             const items = smClone(plan.items || []);
-            const upd = { 'layout.items': cleanData(items), 'layout.w': plan.w || SM_DEF_W, 'layout.h': plan.h || SM_DEF_H, floorplanId: plan.id, floorplanName: plan.name };
+            const upd = { 'layout.items': cleanData(items), 'layout.w': plan.w || SM_DEF_W, 'layout.h': plan.h || SM_DEF_H, floorplanId: plan.id, floorplanName: plan.name, layoutPending: false };
             // Keep people at the same table NUMBER when the new room has it.
             const oldById = {}; smItems(show).forEach(i => { oldById[i.id] = i; });
             smGuests(show).forEach(g => {
@@ -545,6 +635,8 @@
             smSelId = null;
             smWrite(smShowRef().update(upd));
         }
+        // A new weekly show starts with last week's room; this dismisses the "pick this week's layout" nudge.
+        function smKeepLayout() { if (smShowId) smWrite(smShowRef().update({ layoutPending: false })); }
         function smSavePlanNew() {
             const show = smCurShow(); if (!show) return;
             if (!show.venueId) { alert('Pick a venue for this show first (Edit details).'); return; }
