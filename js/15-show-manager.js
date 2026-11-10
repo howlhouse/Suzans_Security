@@ -610,6 +610,7 @@
                         ${plans.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.id === show.floorplanId ? ' (current base)' : ''}</option>`).join('')}
                     </select>
                     <button class="btn btn-outline btn-sm" onclick="smLoadPlan()">Load</button>
+                    ${plans.length ? `<button class="btn btn-outline btn-sm" title="Delete the floorplan chosen in the list (shows keep their own copy)" onclick="smDeleteSelectedPlan()">🗑 Delete</button>` : ''}
                     <button class="btn btn-sm" onclick="smSavePlanNew()">💾 Save as new</button>
                     ${based ? `<button class="btn btn-outline btn-sm" onclick="smUpdatePlan()">↻ Update “${escapeHtml(based.name)}”</button>` : ''}`
                     : `<span style="font-size:0.85rem; color:var(--text-muted);">Pick a venue (Edit details) to save and reuse floorplans.</span>`}
@@ -1409,6 +1410,12 @@
             if (!name || !name.trim()) return;
             smWrite(db.collection('floorplans').doc(id).update({ name: name.trim() }));
             smShows().filter(s => s.floorplanId === id).forEach(s => smWrite(db.collection('shows').doc(s.id).update({ floorplanName: name.trim() })));
+        }
+        // Delete button in a show's floorplan bar: removes the saved layout picked in the list (never touches any show's own room).
+        function smDeleteSelectedPlan() {
+            const id = (smEl('smPlanSel') || {}).value;
+            if (!id) { alert('Choose the saved floorplan you want to delete from the list first.'); return; }
+            smDeletePlan(id);
         }
         function smDeletePlan(id) {
             const p = smPlans().find(x => x.id === id); if (!p) return;
