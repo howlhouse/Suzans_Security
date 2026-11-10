@@ -11,7 +11,7 @@
                                 desc, tags[], floorplanId, floorplanName,
                                 layout: { items[] },          <- this show's own copy of the room
                                 guests: { [bookingId]: { id, name (purchaser), tableId, size (people in the party), arrived (how many are here), arrivedAt } } }
-           Layout items: { id, type: 't2'|'t4'|'t6'|'bar'|'stage', x, y, rot, num (label), seats (bar), w/h/label (stage + zone), kind (zone/line), flip (door) }.
+           Layout items: { id, type: 't2'|'t4'|'t6'|'bar'|'stage', x, y, rot, num (label), seats (bar), w/h/label (stage + zone), kind (zone/line), flip (door swing in/out), flipH (door hinge side) }.
            Piece types: seating (t2/t4/t6/bar) holds guests; 'stage' and 'zone' are resizable room areas (bar counter, bathrooms,
            green room, bar storage, A/V booth, patio...); 'line' is a wall, doorway, garage door or curtain (w = length, h = thickness).
            Each layout also has its own room size: layout.w / layout.h (default 1000 x 640 units), saved with floorplans.
@@ -83,6 +83,8 @@
         let smSyncCount = 0, smSyncErr = '';
         let smHeadSig = '', smPanelSig = '';
         let smFormTags = [], smFormEditId = null;
+        let smPieceGrowX = 'both', smPieceGrowY = 'both'; // which side(s) of a selected room area / wall the typed Width / Height changes happen at
+        let smGrowX = 'right', smGrowY = 'bottom'; // which side(s) of the room Width / Depth changes happen at (remembered while the app is open)
 
         const smEl = id => document.getElementById(id);
         const smClone = o => JSON.parse(JSON.stringify(o));
@@ -675,9 +677,9 @@
             const th = (it.rot || 0) * Math.PI / 180, c = Math.abs(Math.cos(th)), sn = Math.abs(Math.sin(th));
             return { hw: (c * w + sn * h) / 2, hh: (sn * w + c * h) / 2 };
         }
-        function smClampTo(it, x, y, cw, ch) {
-            const e = smHalfExtent(it), hw = Math.min(e.hw, cw / 2), hh = Math.min(e.hh, ch / 2);
-            return { x: Math.min(cw - hw, Math.max(hw, Math.round(x / SM_GRID) * SM_GRID)), y: Math.min(ch - hh, Math.max(hh, Math.round(y / SM_GRID) * SM_GRID)) };
+        function smClampTo(it, x, y, cw, ch, noSnap) {
+            const e = smHalfExtent(it), hw = Math.min(e.hw, cw / 2), hh = Math.min(e.hh, ch / 2), sn = v => noSnap ? v : Math.round(v / SM_GRID) * SM_GRID;
+            return { x: Math.min(cw - hw, Math.max(hw, sn(x))), y: Math.min(ch - hh, Math.max(hh, sn(y))) };
         }
         function smClamp(it, x, y) { const cv = smCV(); return smClampTo(it, x, y, cv.w, cv.h); }
         function smChairs(it) {
@@ -705,6 +707,13 @@
             const tip = smDrag && smDrag.rotate && smDrag.id === id ? `<text transform="rotate(${-rot} ${x} ${y})" x="${x}" y="${y - 20}" text-anchor="middle" fill="#ffb020" font-size="18" font-weight="800" pointer-events="none">${Math.round(rot)}°</text>` : '';
             return `<g class="sm-rot"><line x1="${x0}" y1="${y0}" x2="${x}" y2="${y}" stroke="#ffb020" stroke-width="2"/><circle cx="${x}" cy="${y}" r="13" fill="#ffb020" stroke="#08080c" stroke-width="2"/><path d="M ${x - 4.5} ${y - 1} A 5 5 0 1 1 ${x - 1} ${y + 4.5}" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M ${x - 6.5} ${y - 2.5} L ${x - 4.5} ${y + 1.5} L ${x - 1.5} ${y - 1.5} Z" fill="#08080c"/></g>${tip}`;
         }
+        // Teal handle on an edge ('l' | 'r' | 't' | 'b') of a room area, or on an end ('l' | 'r') of a wall / opening.
+        function smEdgeHandle(edge, x, y) {
+            const h = edge === 'l' || edge === 'r';
+            const a = h ? `M ${x - 5} ${y} L ${x + 5} ${y} M ${x - 2} ${y - 3.5} L ${x - 5} ${y} L ${x - 2} ${y + 3.5} M ${x + 2} ${y - 3.5} L ${x + 5} ${y} L ${x + 2} ${y + 3.5}`
+                : `M ${x} ${y - 5} L ${x} ${y + 5} M ${x - 3.5} ${y - 2} L ${x} ${y - 5} L ${x + 3.5} ${y - 2} M ${x - 3.5} ${y + 2} L ${x} ${y + 5} L ${x + 3.5} ${y + 2}`;
+            return `<g class="sm-rh" data-edge="${edge}" style="cursor:${h ? 'ew-resize' : 'ns-resize'}"><circle cx="${x}" cy="${y}" r="12" fill="#00f5d4" stroke="#08080c" stroke-width="2"/><path d="${a}" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+        }
         // Walls, doorways, garage doors and curtains: a line of length d.w and thickness d.h, centred on the item.
         function smLineSvg(it, d, tf, selected) {
             const w = d.w, t = d.h, hw = w / 2, kind = it.kind;
@@ -729,10 +738,11 @@
                 }
             }
             const box = kind === 'door' ? { y: -w - 6, h: w + t / 2 + 12 } : { y: -hitH / 2 - 4, h: hitH + 8 };
-            const handle = selected && smMode === 'layout'
-                ? `<g class="sm-rh"><circle cx="${hw}" cy="0" r="13" fill="#00f5d4" stroke="#08080c" stroke-width="2"/><path d="M ${hw - 5} 0 L ${hw + 5} 0 M ${hw + 1} -4 L ${hw + 5} 0 L ${hw + 1} 4" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>` : '';
+            // One handle on each end: pulling an end moves only that end, the other stays put.
+            const handle = selected && smMode === 'layout' ? smEdgeHandle('l', -hw, 0) + smEdgeHandle('r', hw, 0) : '';
+            // flip = swing the other way (in/out); flipH = hinge on the other side (mirror left/right).
             return `<g class="sm-it sm-line${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
-                <g transform="scale(1 ${it.flip ? -1 : 1})">${hit}${body}</g>
+                <g transform="scale(${it.flipH ? -1 : 1} ${it.flip ? -1 : 1})">${hit}${body}</g>
                 ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-hw - 6}" y="${it.flip && kind === 'door' ? -(box.y + box.h) : box.y}" width="${w + 12}" height="${box.h}" rx="10"/>` : ''}
                 ${handle}
                 ${selected ? smRotHandle(it.id, -hw - 34, 0, -hw - 6, 0, it.rot || 0) : ''}
@@ -761,8 +771,9 @@
                 const textEl = lines.length === 1
                     ? `<text class="sm-stage-lbl" fill="#fff" font-size="${fs}" font-weight="800" letter-spacing="${Math.round(fs * 0.2)}" pointer-events="none" transform="rotate(${lblRot})" text-anchor="middle" dy=".35em">${escapeHtml(lines[0])}</text>`
                     : `<text class="sm-stage-lbl" fill="#fff" font-size="${fs}" font-weight="800" letter-spacing="${Math.round(fs * 0.2)}" pointer-events="none" transform="rotate(${lblRot})" text-anchor="middle"><tspan x="0" dy="-0.25em">${escapeHtml(lines[0])}</tspan><tspan x="0" dy="1.2em">${escapeHtml(lines[1])}</tspan></text>`;
+                // A handle on each of the four edges: pulling one moves only that edge, the opposite edge stays where it is.
                 const handle = selected && smMode === 'layout'
-                    ? `<g class="sm-rh"><circle cx="${d.w / 2}" cy="${d.h / 2}" r="13" fill="#00f5d4" stroke="#08080c" stroke-width="2"/><path d="M ${d.w / 2 - 5} ${d.h / 2 + 5} L ${d.w / 2 + 5} ${d.h / 2 - 5} M ${d.w / 2 + 5} ${d.h / 2 - 1} L ${d.w / 2 + 5} ${d.h / 2 - 5} L ${d.w / 2 + 1} ${d.h / 2 - 5}" stroke="#08080c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>` : '';
+                    ? smEdgeHandle('l', -d.w / 2, 0) + smEdgeHandle('r', d.w / 2, 0) + smEdgeHandle('t', 0, -d.h / 2) + smEdgeHandle('b', 0, d.h / 2) : '';
                 return `<g class="sm-it sm-stage${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
                     <rect ${kind === 'stage' ? 'class="sm-stage-body" ' : ''}fill="${z.fill}" stroke="${z.stroke}" stroke-width="2.5"${z.dash ? ` stroke-dasharray="${z.dash}"` : ''} x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="${Math.min(14, d.h / 3)}"/>
                     ${textEl}
@@ -836,7 +847,8 @@
                 const dm0 = smDims(it);
                 smDrag = { id: it.id, g, rot: it.rot || 0, cx: ev.clientX, cy: ev.clientY, ox: p.x - it.x, oy: p.y - it.y, x: it.x, y: it.y, moved: false, canDrag: smMode === 'layout', item: it,
                     rotate: smMode === 'layout' && !!ev.target.closest('.sm-rot'), rotOff: smIsLine(it) ? 180 : 90, ang: it.rot || 0,
-                    resize: smMode === 'layout' && (smIsZone(it) || smIsLine(it)) && !!ev.target.closest('.sm-rh') && !ev.target.closest('.sm-rot'), w: dm0.w, h: dm0.h };
+                    resize: smMode === 'layout' && (smIsZone(it) || smIsLine(it)) && !!ev.target.closest('.sm-rh') && !ev.target.closest('.sm-rot'), w: dm0.w, h: dm0.h,
+                    w0: dm0.w, h0: dm0.h, x0: it.x, y0: it.y, edge: ((ev.target.closest('.sm-rh') || document.body).getAttribute('data-edge')) || 'r' };
                 try { svg.setPointerCapture(ev.pointerId); } catch (err) { /* ignore */ }
                 if (smDrag.canDrag) ev.preventDefault();
             });
@@ -855,18 +867,33 @@
                     return;
                 }
                 if (d.resize) {
-                    // Pull the corner handle: the piece grows/shrinks around its centre, measured in its own (rotated) frame.
+                    // Pull an edge handle: only that edge moves; the opposite edge stays where it was when the drag began.
+                    // Measured in the piece's own (rotated) frame, relative to where its centre started.
                     const live = smItems(smCurShow()).find(i => i.id === d.id); if (!live) return;
-                    const th = (live.rot || 0) * Math.PI / 180, dx = p.x - live.x, dy = p.y - live.y;
-                    const lx = dx * Math.cos(th) + dy * Math.sin(th), ly = -dx * Math.sin(th) + dy * Math.cos(th);
-                    const cv = smCV();
-                    if (smIsLine(live)) {
-                        d.w = Math.min(Math.max(cv.w, cv.h), Math.max(20, Math.round(Math.abs(lx) * 2 / SM_GRID) * SM_GRID)); // a line only changes length
-                    } else {
-                        d.w = Math.min(cv.w, Math.max(SM_ZONE_MIN, Math.round(Math.abs(lx) * 2 / SM_GRID) * SM_GRID));
-                        d.h = Math.min(cv.h, Math.max(SM_ZONE_MIN, Math.round(Math.abs(ly) * 2 / SM_GRID) * SM_GRID));
-                    }
-                    live.w = d.w; live.h = d.h;
+                    const th = (live.rot || 0) * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th);
+                    const dx = p.x - d.x0, dy = p.y - d.y0;
+                    const lx = dx * cs + dy * sn, ly = -dx * sn + dy * cs;
+                    const cv = smCV(), line = smIsLine(live), snap = v => Math.round(v / SM_GRID) * SM_GRID;
+                    const minL = line ? 20 : SM_ZONE_MIN, maxW = line ? Math.max(cv.w, cv.h) : cv.w, maxH = cv.h;
+                    // Where the piece ends up if the pulled edge sits at size `want` (the other edge never moves).
+                    const place = want => {
+                        let w = d.w0, h = d.h0, lox = 0, loy = 0;      // lox/loy: how far the centre slides in the piece's own frame
+                        if (d.edge === 'r' || d.edge === 'l') { w = want; lox = (d.edge === 'r' ? 1 : -1) * (w - d.w0) / 2; }
+                        else { h = want; loy = (d.edge === 'b' ? 1 : -1) * (h - d.h0) / 2; }
+                        const x = d.x0 + lox * cs - loy * sn, y = d.y0 + lox * sn + loy * cs, e = smHalfExtent({ ...live, w, h, x, y });
+                        return { w, h, x, y, fits: x - e.hw >= -0.5 && x + e.hw <= cv.w + 0.5 && y - e.hh >= -0.5 && y + e.hh <= cv.h + 0.5 };
+                    };
+                    const horiz = d.edge === 'r' || d.edge === 'l';
+                    if (!horiz && (line || (d.edge !== 'b' && d.edge !== 't'))) return;
+                    const raw = horiz ? (d.edge === 'r' ? lx + d.w0 / 2 : d.w0 / 2 - lx) : (d.edge === 'b' ? ly + d.h0 / 2 : d.h0 / 2 - ly);
+                    let want = Math.min(horiz ? maxW : maxH, Math.max(horiz ? minL : SM_ZONE_MIN, snap(raw)));
+                    let r = place(want);
+                    // Pulled past a wall of the room: stop where the piece meets it instead of refusing the move.
+                    for (let guard = 0; !r.fits && guard < 400 && want > (horiz ? d.w0 : d.h0); guard++) { want -= SM_GRID; r = place(want); }
+                    if (!r.fits) r = place(horiz ? d.w0 : d.h0);
+                    const w = r.w, h = r.h, nx = r.x, ny = r.y;
+                    d.w = w; d.h = h; d.x = nx; d.y = ny;
+                    live.w = w; live.h = h; live.x = nx; live.y = ny;
                     smRenderMap(smCurShow());
                     return;
                 }
@@ -893,7 +920,7 @@
                     if (d.moved) {
                         const items = smClone(smItems(show));
                         const it = items.find(i => i.id === d.id);
-                        if (it) { it.w = d.w; it.h = d.h; const c = smClamp(it, it.x, it.y); it.x = c.x; it.y = c.y; smSelId = d.id; smPanelSig = ''; smSaveItems(items); }
+                        if (it) { it.w = d.w; it.h = d.h; it.x = d.x; it.y = d.y; smSelId = d.id; smPanelSig = ''; smSaveItems(items); } // already kept inside the room by the drag, so no re-snapping (that would nudge the fixed edge)
                     }
                     smPanelSig = ''; smRenderPanel(show); smRenderMap(show);
                     return;
@@ -963,14 +990,21 @@
             smSelId = null; smPanelSig = '';
             smSaveItems(items);
         }
+        function smSetGrow(axis, v) { if (axis === 'x') smGrowX = v; else smGrowY = v; }
         function smSetCanvas(w, h) {
             const show = smCurShow(); if (!show) return;
             const cv = smCV(show), snap = (v, cur) => Math.min(SM_CANVAS_MAX, Math.max(SM_CANVAS_MIN, Math.round((parseInt(v, 10) || cur) / SM_GRID) * SM_GRID));
             const nw = snap(w, cv.w), nh = snap(h, cv.h);
+            // Which edge(s) the change happens at. Growing the left/top (or both) slides everything over so the pieces keep
+            // their place relative to the opposite wall; shrinking from there takes the room off that side instead.
+            const dw = nw - cv.w, dh = nh - cv.h;
+            const sx = smGrowX === 'left' ? dw : smGrowX === 'both' ? dw / 2 : 0;
+            const sy = smGrowY === 'top' ? dh : smGrowY === 'both' ? dh / 2 : 0;
             const items = smClone(smItems(show));
             let moved = 0;
             items.forEach(it => {
                 let changed = false;
+                it.x += sx; it.y += sy; // a plain slide - only counts as "moved" below if the new room can't hold it there
                 if (!smIsSeat(it)) {
                     // A wall or area longer than the new room (e.g. an outer wall) shrinks with it instead of hanging over the edge.
                     const e = smHalfExtent(it), f = Math.min(nw / (2 * e.hw), nh / (2 * e.hh));
@@ -991,12 +1025,12 @@
             smWrite(smShowRef().update({ 'layout.w': nw, 'layout.h': nh, 'layout.items': cleanData(items) }));
             smRenderPanel(show); smRenderMap(show);
         }
-        function smPatchItem(id, patch) {
+        function smPatchItem(id, patch, noSnap) {
             const show = smCurShow(); if (!show) return;
             const items = smClone(smItems(show));
             const it = items.find(i => i.id === id); if (!it) return;
             Object.assign(it, patch);
-            const c = smClamp(it, it.x, it.y); it.x = c.x; it.y = c.y; // a rotation or bigger piece must not push it off the room
+            const cv = smCV(show), c = smClampTo(it, it.x, it.y, cv.w, cv.h, noSnap); it.x = c.x; it.y = c.y; // a rotation or bigger piece must not push it off the room
             smPanelSig = '';
             smSaveItems(items);
         }
@@ -1008,6 +1042,7 @@
             const a = parseInt(val, 10); if (isNaN(a)) { smPanelSig = ''; smRenderPanel(smCurShow()); return; }
             smPatchItem(id, { rot: ((a % 360) + 360) % 360 });
         }
+        function smFlipH(id) { const it = smItems(smCurShow()).find(i => i.id === id); if (it) smPatchItem(id, { flipH: !it.flipH }); }
         function smFlip(id) { const it = smItems(smCurShow()).find(i => i.id === id); if (it) smPatchItem(id, { flip: !it.flip }); }
         function smSetPreset(id, key) {
             const it = smItems(smCurShow()).find(i => i.id === id), pr = SM_STAGE_PRESETS[key]; if (!it || !pr) return;
@@ -1021,8 +1056,16 @@
             let v;
             if (smIsLine(it)) v = dim === 'w' ? Math.min(Math.max(cv.w, cv.h), Math.max(20, Math.round((parseInt(val, 10) || d.w) / SM_GRID) * SM_GRID)) : Math.min(40, Math.max(4, Math.round((parseInt(val, 10) || d.h) / 2) * 2));
             else v = Math.min(dim === 'w' ? cv.w : cv.h, Math.max(SM_ZONE_MIN, Math.round((parseInt(val, 10) || d[dim]) / SM_GRID) * SM_GRID));
-            smPatchItem(id, { w: d.w, h: d.h, [dim]: v });
+            // Which side takes the change: 'both' grows around the centre; 'left'/'top' or 'right'/'bottom' keep the opposite edge fixed.
+            // The slide is along the piece's OWN axes, so it holds for rotated pieces too.
+            const a = dim === 'w' ? smPieceGrowX : (smIsLine(it) ? 'both' : smPieceGrowY), delta = v - d[dim];
+            const s = (a === 'right' || a === 'bottom') ? delta / 2 : (a === 'left' || a === 'top') ? -delta / 2 : 0;
+            const th = (it.rot || 0) * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th);
+            const patch = { w: d.w, h: d.h, [dim]: v };
+            if (s) { patch.x = it.x + (dim === 'w' ? s * cs : -s * sn); patch.y = it.y + (dim === 'w' ? s * sn : s * cs); }
+            smPatchItem(id, patch, true);
         }
+        function smSetPieceGrow(axis, v) { if (axis === 'x') smPieceGrowX = v; else smPieceGrowY = v; }
         function smSetZoneLabel(id, val) { smPatchItem(id, { label: String(val).trim().slice(0, 18) }); }
         function smSetSeats(id, n) { n = Math.max(1, Math.min(20, parseInt(n, 10) || 1)); smPatchItem(id, { seats: n }); }
         function smSetLabel(id, val) {
@@ -1056,7 +1099,8 @@
             const panel = smEl('smPanel'); if (!panel) return;
             if (smMode !== 'layout') { if (panel.innerHTML) panel.innerHTML = ''; smPanelSig = ''; return; }
             const it = smItems(show).find(i => i.id === smSelId), cv = smCV(show);
-            const sig = JSON.stringify([smMode, it, cv]);
+            const sig = JSON.stringify([smMode, it, cv, smGrowX, smGrowY, smPieceGrowX, smPieceGrowY]);
+            const sideSel = (axis, cur, opts) => `<select class="sm-pick" aria-label="Which side changes" title="Which side of the piece gets the change (the opposite side stays put)" onchange="smSetPieceGrow('${axis}', this.value)">${opts.map(([v, l]) => `<option value="${v}"${cur === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
             if (sig === smPanelSig) return;
             smPanelSig = sig;
             const numIn = (v, min, max, step, fn) => `<input type="number" class="input-field" value="${v}" min="${min}" max="${max}" step="${step}" onchange="${fn}(this.value)">`;
@@ -1073,15 +1117,15 @@
                 } else if (smIsZone(it)) {
                     const kind = smKind(it), z = SM_ZONES[kind] || SM_ZONES.area;
                     fields = `<label>Label <input id="smLblInput" class="input-field" style="width:120px;" value="${escapeHtml(it.label != null ? it.label : (kind === 'stage' && d.w > d.h * 3 ? 'RUNWAY' : z.label))}" maxlength="18" onchange="smSetZoneLabel('${it.id}', this.value)" data-1p-ignore></label>
-                        <label>Width ${numIn(d.w, SM_ZONE_MIN, cv.w, SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)}</label>
-                        <label>Height ${numIn(d.h, SM_ZONE_MIN, cv.h, SM_GRID, `smSetDim.bind(null,'${it.id}','h')`)}</label>`
+                        <label>Width ${numIn(d.w, SM_ZONE_MIN, cv.w, SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)} ${sideSel('x', smPieceGrowX, [['both', 'both sides'], ['left', 'left edge'], ['right', 'right edge']])}</label>
+                        <label>Height ${numIn(d.h, SM_ZONE_MIN, cv.h, SM_GRID, `smSetDim.bind(null,'${it.id}','h')`)} ${sideSel('y', smPieceGrowY, [['both', 'top & bottom'], ['top', 'top edge'], ['bottom', 'bottom edge']])}</label>`
                         + (kind === 'stage' ? `<span class="sm-shapes">${[['runway', 'Runway'], ['square', 'Large square'], ['wide', 'Standard']].map(([k, l]) => `<button class="ev-chip${d.w === SM_STAGE_PRESETS[k].w && d.h === SM_STAGE_PRESETS[k].h ? ' active' : ''}" onclick="smSetPreset('${it.id}','${k}')">${l}</button>`).join('')}</span>` : '')
-                        + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag the teal corner handle to resize and the amber handle to rotate.</span>`;
+                        + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag a teal handle on any edge to move just that edge (the opposite edge stays put); the amber handle rotates. Left / right / top / bottom refer to the piece itself.</span>`;
                 } else {
-                    fields = `<label>Length ${numIn(d.w, 20, Math.max(cv.w, cv.h), SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)}</label>
+                    fields = `<label>Length ${numIn(d.w, 20, Math.max(cv.w, cv.h), SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)} ${sideSel('x', smPieceGrowX, [['both', 'both ends'], ['left', 'left end'], ['right', 'right end']])}</label>
                         <label>Thickness ${numIn(d.h, 4, 40, 2, `smSetDim.bind(null,'${it.id}','h')`)}</label>`
-                        + (it.kind === 'door' ? `<button class="btn btn-outline btn-sm" title="Swing the door the other way" onclick="smFlip('${it.id}')">⇅ Flip swing</button>` : '')
-                        + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag the teal handle to change its length and the amber handle to rotate it.</span>`;
+                        + (it.kind === 'door' ? `<button class="btn btn-outline btn-sm" title="Swing the door the other way (in / out)" onclick="smFlip('${it.id}')">⇅ Swing other way</button><button class="btn btn-outline btn-sm" title="Mirror the door: hinge on the other side" onclick="smFlipH('${it.id}')">⇄ Mirror hinge</button>` : '')
+                        + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag a teal handle on either end to move just that end, and the amber handle to rotate it.</span>`;
                 }
                 sel = `<div class="sm-sel-row">
                     <b>${escapeHtml(smIsSeat(it) ? smItemName(it) : smPieceName(it))}</b>
@@ -1108,8 +1152,10 @@
                 </div>
                 <div class="sm-roomrow">
                     <span>Room</span>
-                    <label>Width <input type="number" class="input-field" id="smCW" value="${cv.w}" min="${SM_CANVAS_MIN}" max="${SM_CANVAS_MAX}" step="${SM_GRID}" onchange="smSetCanvas(this.value, ${cv.h})"></label>
-                    <label>Depth <input type="number" class="input-field" id="smCH" value="${cv.h}" min="${SM_CANVAS_MIN}" max="${SM_CANVAS_MAX}" step="${SM_GRID}" onchange="smSetCanvas(${cv.w}, this.value)"></label>
+                    <label>Width <input type="number" class="input-field" id="smCW" value="${cv.w}" min="${SM_CANVAS_MIN}" max="${SM_CANVAS_MAX}" step="${SM_GRID}" onchange="smSetCanvas(this.value, ${cv.h})">
+                        <select class="sm-pick" aria-label="Which side the width changes on" title="Which side of the room gets the extra (or loses) width" onchange="smSetGrow('x', this.value)">${[['right', 'at right edge'], ['left', 'at left edge'], ['both', 'both sides']].map(([v, l]) => `<option value="${v}"${smGrowX === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+                    <label>Depth <input type="number" class="input-field" id="smCH" value="${cv.h}" min="${SM_CANVAS_MIN}" max="${SM_CANVAS_MAX}" step="${SM_GRID}" onchange="smSetCanvas(${cv.w}, this.value)">
+                        <select class="sm-pick" aria-label="Which side the depth changes on" title="Which side of the room gets the extra (or loses) depth" onchange="smSetGrow('y', this.value)">${[['bottom', 'at bottom edge'], ['top', 'at top edge'], ['both', 'top & bottom']].map(([v, l]) => `<option value="${v}"${smGrowY === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
                     <button class="btn btn-outline btn-sm" title="Add a wall along each edge of the room" onclick="smAddOuterWalls()">▭ Outer walls</button>
                 </div>${sel}`;
         }
