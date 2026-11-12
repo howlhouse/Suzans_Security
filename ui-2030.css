@@ -278,9 +278,9 @@ html:not([data-theme]) .ev-title, html[data-theme="default"] .ev-title { letter-
 .sm-mapcard > .sm-legend { margin-top: 12px; }
 
 .sm-sel-row { position: relative; z-index: 5; display: block; margin: 10px 0 0; padding: 10px 12px 12px; border-radius: 18px; border-color: rgba(var(--teal-rgb), 0.45); background: color-mix(in srgb, var(--glass-sheet) 92%, transparent); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset; }
-.sm-sel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.sm-sel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 8px; }
 .sm-sel-head b { font-size: 1.02rem; color: var(--neon-teal); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sm-sel-actions { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.sm-sel-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .sm-sel-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .sm-sel-fields .btn, .sm-sel-actions .btn { white-space: nowrap; }
 .sm-sel-fields label { white-space: nowrap; }
