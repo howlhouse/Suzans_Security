@@ -1,0 +1,394 @@
+/* ============================================================================
+   UI 2030 LAYER  (loads after styles.css, pairs with js/16-ui-2030.js)
+
+   A presentation-only layer over the existing app. It changes no markup ids,
+   no behavior and no data. Everything is driven by the same theme variables
+   styles.css already defines (--neon-teal, --bg-obsidian, --teal-rgb, ...),
+   so the seasonal themes (html[data-theme="..."]) keep working: their
+   higher-specificity overrides still win wherever they set something.
+
+   index.html itself is unchanged apart from the two tags that load this layer
+   (the dock / header icons are swapped in by the script). Remove those two
+   tags and the app is exactly what it was.
+   ============================================================================ */
+
+:root {
+    color-scheme: dark;
+    --r-sm: 12px; --r-md: 18px; --r-lg: 26px; --r-pill: 999px;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    /* A real spring (slight overshoot, then settle) for anything that "lands". */
+    --ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 18.4%, 1.077 20.4%, 1.121 22.8%, 1.149 25.7%, 1.159 29.6%, 1.14 34.9%, 1.079 43%, 1.04 48.3%, 1.016 53.4%, 0.999 61.6%, 0.995 71.2%, 1);
+    --surface-0: color-mix(in srgb, var(--bg-obsidian) 78%, transparent);
+    --surface-1: color-mix(in srgb, var(--bg-obsidian) 55%, rgba(255, 255, 255, 0.07));
+    --hair: color-mix(in srgb, var(--border-glass) 100%, transparent);
+    --hair-strong: rgba(255, 255, 255, 0.2);
+    --lift-1: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 12px 32px -14px rgba(0, 0, 0, 0.7);
+    --lift-2: 0 1px 0 rgba(255, 255, 255, 0.09) inset, 0 28px 70px -24px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(0, 0, 0, 0.35);
+    --ring: 0 0 0 2px var(--bg-obsidian), 0 0 0 4px var(--neon-teal);
+    --rail-w: 0px;
+}
+
+/* ---------- Base: type, selection, scrollbars, focus ---------- */
+html { -webkit-text-size-adjust: 100%; }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-feature-settings: 'cv11', 'ss01'; }
+h1, h2, h3, h4 { text-wrap: balance; letter-spacing: -0.01em; }
+p { text-wrap: pretty; }
+::selection { background: rgba(var(--teal-rgb), 0.35); color: #fff; }
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--teal-rgb), 0.5); }
+::-webkit-scrollbar-track { background: transparent; }
+
+:where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible { outline: none; box-shadow: var(--ring); }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--neon-teal); }
+
+/* ---------- Atmosphere: slow-drifting aurora + film grain ---------- */
+body { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-attachment: fixed; }
+body::before { animation: uiAuroraA 26s ease-in-out infinite alternate; will-change: translate; }
+body::after { animation: uiAuroraB 32s ease-in-out infinite alternate; will-change: translate; }
+@keyframes uiAuroraA { from { translate: -6vw 0; scale: 1; } to { translate: 8vw 5vh; scale: 1.18; } }
+@keyframes uiAuroraB { from { translate: 0 0; scale: 1; } to { translate: -10vw -8vh; scale: 1.22; } }
+
+/* ---------- Header ---------- */
+header { padding: 12px 20px; background: var(--surface-0); backdrop-filter: blur(28px) saturate(190%); -webkit-backdrop-filter: blur(28px) saturate(190%); border-bottom-color: transparent; transition: background 0.3s ease, box-shadow 0.3s ease; }
+header::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(var(--teal-rgb), 0.55) 22%, rgba(var(--pink-rgb), 0.55) 78%, transparent); opacity: 0.55; transition: opacity 0.3s ease; }
+body.ui-scrolled header { box-shadow: 0 14px 40px -18px rgba(0, 0, 0, 0.9); }
+body.ui-scrolled header::after { opacity: 1; }
+.brand-container { min-width: 0; flex: 1 1 auto; }
+.brand-container > div { min-width: 0; }
+header > div:last-child { flex-shrink: 0; }
+.brand-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.02em; }
+img.brand-icon { height: 38px; width: 38px; border-radius: 11px; }
+
+.user-pill { padding: 5px 12px 5px 5px; gap: 8px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.06); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset; transition: background 0.2s ease, border-color 0.2s ease, transform 0.25s var(--ease-out); max-width: 46vw; }
+.user-pill:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(var(--teal-rgb), 0.5); }
+.user-pill:active { transform: scale(0.97); }
+.user-pill #userGreeting { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The shield emoji becomes an initial avatar once the script has a name to show. */
+.ui-avatar { display: inline-grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 800; color: #08080c; background: linear-gradient(135deg, var(--neon-teal), var(--neon-pink)); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset, 0 0 14px rgba(var(--teal-rgb), 0.35); }
+
+.ui-icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; cursor: pointer; color: var(--text-secondary); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-glass); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset; transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.25s var(--ease-out); }
+.ui-icon-btn:hover { color: var(--neon-teal); background: rgba(255, 255, 255, 0.1); border-color: rgba(var(--teal-rgb), 0.5); }
+.ui-icon-btn:active { transform: scale(0.92); }
+.ui-icon-btn svg { width: 18px; height: 18px; }
+#uiFindBtn { display: none; }
+body.ui-signed-in #uiFindBtn { display: inline-grid; }
+
+.user-menu-dropdown { border-radius: 20px; padding: 8px; min-width: 232px; background: color-mix(in srgb, var(--glass-sheet) 88%, transparent); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); box-shadow: var(--lift-2); }
+.user-menu-item { border-radius: 12px; padding: 11px 12px; transition: background 0.15s ease, transform 0.2s var(--ease-out); }
+.user-menu-item:active { transform: scale(0.98); }
+.user-menu-item kbd { margin-left: auto; font: 600 0.68rem 'Inter', sans-serif; color: var(--text-muted); border: 1px solid var(--border-glass); border-radius: 6px; padding: 2px 6px; }
+@keyframes uiPop { from { opacity: 0; transform: translateY(-8px) scale(0.92); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 560px) {
+    header { padding: 10px 12px; gap: 8px; }
+    .brand-container { gap: 8px; }
+    img.brand-icon { height: 34px; width: 34px; }
+    .brand-text { font-size: clamp(0.78rem, 3.65vw, 1.05rem); }
+    #brandTagline { font-size: 0.5rem !important; letter-spacing: 0.4px !important; line-height: 1.25; max-width: 21ch; }
+    .user-pill { max-width: 29vw; padding-right: 10px; }
+    body.ui-signed-in #uiFindBtn { display: none; }   /* on phones Quick Find lives in the name menu */
+    /* Developers also get the PROD | DEV switch up here: the pill drops to just the avatar and the brand takes two lines, so nothing is cut off. */
+    header:has(#envSwitch[style*="flex"]) #userGreeting { display: none; }
+    header:has(#envSwitch[style*="flex"]) .user-pill { padding-right: 8px; gap: 4px; }
+    header:has(#envSwitch[style*="flex"]) .brand-text { white-space: normal; line-height: 1.02; }
+    header:has(#envSwitch[style*="flex"]) #brandTagline { display: none; }
+    body.module-shows header:has(#envSwitch[style*="flex"]) #brandTagline { display: block; }
+    .env-switch button { padding: 5px 7px; }
+}
+
+/* ---------- App themes: keep the header consistent ----------
+   Each seasonal theme swaps the wordmark's font and size (styles.css). Those sizes were set for a wide header;
+   on a phone they overflowed the new compact one and changed its height from theme to theme. Here the wordmark
+   is fitted to the space that is actually free beside the name pill (71vw - 118px), per font, so every theme
+   shows the full name on one line and the header stays the same height. A new theme with no entry here
+   gets the safe default. */
+html[data-theme] { --brand-k: 0.1; --brand-max: 1.18rem; }
+html[data-theme="halloween"] { --brand-k: 0.132; --brand-max: 1.35rem; }
+html[data-theme="christmas"] { --brand-k: 0.122; --brand-max: 1.4rem; }
+html[data-theme="thanksgiving"] { --brand-k: 0.108; --brand-max: 1.3rem; }
+html[data-theme="treasuretrail"] { --brand-k: 0.09; --brand-max: 1.12rem; }
+/* Christmas lights, the Thanksgiving garland and the Treasure Trail path hang just under the header: give the page's first line room to clear them. */
+html[data-theme="christmas"] .container, html[data-theme="thanksgiving"] .container, html[data-theme="treasuretrail"] .container { padding-top: 40px; }
+@media (max-width: 560px) {
+    html[data-theme]:not([data-theme="default"]) .brand-text { font-size: min(var(--brand-max), calc((71vw - 118px) * var(--brand-k))); line-height: 1.12; letter-spacing: 0.3px; }
+    /* Developers (PROD | DEV switch showing): two short lines, same height in every theme. */
+    html[data-theme]:not([data-theme="default"]) header:has(#envSwitch[style*="flex"]) .brand-text { font-size: min(var(--brand-max), 1.02rem); line-height: 1.02; }
+}
+
+/* ---------- Screens ease in whenever they are shown ---------- */
+/* 'backwards' only: once it has played, the section carries no transform/filter, so sticky and fixed children behave exactly as before. */
+.container > section { animation: uiViewIn 0.5s var(--ease-out) backwards; }
+/* Opacity + blur only (no movement), so anything that measures positions right after a screen change - the guided tour - still gets true coordinates. */
+@keyframes uiViewIn { from { opacity: 0; filter: blur(8px); } to { opacity: 1; filter: none; } }
+
+/* ---------- Surfaces ---------- */
+.glass-card { border-radius: var(--r-lg); box-shadow: var(--lift-1); backdrop-filter: blur(26px) saturate(170%); -webkit-backdrop-filter: blur(26px) saturate(170%);
+    /* A soft light that follows the pointer (js/16 sets --mx / --my on hover). */
+    background-image: radial-gradient(420px circle at var(--mx, 50%) var(--my, -40%), rgba(var(--teal-rgb), var(--spot, 0)), transparent 62%), linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 38%);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+@media (hover: hover) { .glass-card:hover { --spot: 0.09; border-color: rgba(255, 255, 255, 0.18); } }
+
+/* ---------- Buttons ---------- */
+.btn { font-weight: 700; letter-spacing: 0.01em; border-radius: 14px; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 8px 22px -10px rgba(var(--teal-rgb), 0.7); transition: transform 0.3s var(--ease-out), filter 0.2s ease, box-shadow 0.25s ease, background-color 0.2s ease, border-color 0.2s ease; }
+.btn:active { transform: scale(0.96); transition-duration: 0.08s; }
+.btn:disabled { box-shadow: none; }
+.btn-magenta { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.28) inset, 0 8px 22px -10px rgba(var(--pink-rgb), 0.75); }
+.btn-outline { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07) inset; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.btn-sm { border-radius: 11px; }
+@media (hover: hover) {
+    .btn:not(:disabled):hover { filter: brightness(1.1) saturate(1.08); transform: translateY(-1px); }
+    .btn-outline:not(:disabled):hover { background: rgba(255, 255, 255, 0.09); border-color: var(--hair-strong); filter: none; }
+}
+
+/* ---------- Fields ---------- */
+.input-field, select, textarea { border-radius: 14px; background: color-mix(in srgb, var(--bg-obsidian) 70%, rgba(255, 255, 255, 0.04)); transition: border-color 0.2s ease, box-shadow 0.25s ease, background 0.2s ease; }
+.input-field:hover, select:hover, textarea:hover { border-color: var(--hair-strong); }
+.input-field:focus, select:focus, textarea:focus { border-color: var(--neon-teal); box-shadow: 0 0 0 4px rgba(var(--teal-rgb), 0.16), 0 0 24px -6px rgba(var(--teal-rgb), 0.5); }
+.input-field::placeholder, textarea::placeholder { color: var(--text-muted); }
+
+/* ---------- Chips, tags, segmented controls ---------- */
+.ev-chip { transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.3s var(--ease-out), box-shadow 0.3s ease; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset; }
+.ev-chip:active { transform: scale(0.94); }
+.ev-chip.active { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 6px 22px -6px rgba(var(--teal-rgb), 0.7); }
+@media (hover: hover) { .ev-chip:not(.active):hover { color: var(--text-primary); border-color: var(--hair-strong); background: rgba(255, 255, 255, 0.09); } }
+.neon-tag { letter-spacing: 0.04em; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.segmented-control { border-radius: 16px; padding: 5px; scrollbar-width: none; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset; }
+.segmented-control::-webkit-scrollbar { display: none; }
+.segment-btn { border-radius: 11px; transition: background 0.25s ease, color 0.2s ease, transform 0.3s var(--ease-out); }
+.segment-btn:active { transform: scale(0.95); }
+.segment-btn.active { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 6px 18px -8px rgba(var(--teal-rgb), 0.8); }
+@media (hover: hover) { .segment-btn:not(.active):hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.06); } }
+.sm-seg button { transition: background 0.25s ease, color 0.2s ease; }
+
+/* ---------- Events feed ---------- */
+.ev-title { font-size: clamp(1.75rem, 5.4vw, 2.5rem); }
+/* Tight tracking suits the default Outfit title only; each seasonal theme's display font keeps its own spacing. */
+html:not([data-theme]) .ev-title, html[data-theme="default"] .ev-title { letter-spacing: -0.03em; }
+.ev-title::after { width: 64px; height: 3px; margin-top: 12px; box-shadow: 0 0 18px rgba(var(--teal-rgb), 0.7); }
+.ev-eyebrow { letter-spacing: 0.32em; }
+.ev-summary strong { font-variant-numeric: tabular-nums; }
+.ev2-date, .cal-day, .sm-sum-big, .sm-cn b, .load-progress-label { font-variant-numeric: tabular-nums; }
+.ev2-in { background-image: radial-gradient(380px circle at var(--mx, 50%) var(--my, -60%), rgba(var(--teal-rgb), var(--spot, 0)), transparent 60%); }
+@media (hover: hover) { .ev2:hover { --spot: 0.14; transform: translateY(-4px); } .ev2:hover .ev2-meta .go { letter-spacing: 1.6px; } }
+.ev2-meta .go { transition: letter-spacing 0.3s var(--ease-out); }
+.ev2-date { border-radius: 14px; backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset; }
+.ev2-status { backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
+.ev2-bar { height: 6px; }
+.ev2-bar i { box-shadow: 0 0 12px rgba(var(--teal-rgb), 0.7); transform-origin: left; animation: uiBarGrow 0.9s var(--ease-out) both 0.15s; }
+@keyframes uiBarGrow { from { transform: scaleX(0); } to { transform: none; } }
+
+/* ---------- Calendar ---------- */
+.cal-day { border-radius: 14px; transition: border-color 0.2s ease, background 0.2s ease, transform 0.3s var(--ease-out); }
+.cal-day:active { transform: scale(0.96); }
+@media (hover: hover) { .cal-day:hover { border-color: rgba(var(--teal-rgb), 0.55); transform: translateY(-2px); } }
+.cal-badge { border-radius: 7px; }
+
+/* ---------- Chat ---------- */
+.chat-container { border-radius: 22px; }
+.chat-bubble { border-radius: 20px 20px 20px 6px; animation: uiBubble 0.4s var(--ease-spring) both; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset; }
+.chat-bubble.mine { border-radius: 20px 20px 6px 20px; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 10px 24px -14px rgba(0, 0, 0, 0.8); }
+@keyframes uiBubble { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- Tables ---------- */
+.data-table th { font-family: 'Outfit', sans-serif; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; }
+.data-table tbody tr { transition: background 0.15s ease; }
+@media (hover: hover) { .data-table tbody tr:hover { background: rgba(255, 255, 255, 0.035); } }
+
+/* ---------- Modals: backdrop fades, sheet springs up ---------- */
+.modal { background: color-mix(in srgb, var(--bg-obsidian) 72%, transparent); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); animation: uiFade 0.25s ease both; }
+.modal-sheet { border-radius: 28px; box-shadow: var(--lift-2); animation: uiSheet 0.55s var(--ease-spring) both; }
+@keyframes uiFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes uiSheet { from { opacity: 0; transform: translateY(26px) scale(0.95); } to { opacity: 1; transform: none; } }
+
+/* ---------- Dock: liquid-glass capsule with a sliding indicator ---------- */
+.dock-nav { padding: 7px; gap: 2px; border-radius: 30px; background: color-mix(in srgb, var(--bg-obsidian) 62%, rgba(255, 255, 255, 0.07)); backdrop-filter: blur(32px) saturate(200%); -webkit-backdrop-filter: blur(32px) saturate(200%); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 -1px 0 rgba(0, 0, 0, 0.4) inset, 0 24px 60px -18px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(0, 0, 0, 0.4); }
+.dock-item { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; padding: 8px 6px 7px; border-radius: 23px; font-size: 0.66rem; letter-spacing: 0.02em; white-space: nowrap; transition: color 0.25s ease, transform 0.3s var(--ease-out); }
+.dock-item:active { transform: scale(0.9); }
+.dock-item span:first-child { display: inline-grid; place-items: center; height: 24px; transition: transform 0.45s var(--ease-spring); }
+.dock-item .ic { width: 22px; height: 22px; display: block; }
+.dock-item.active span:first-child { transform: translateY(-1px) scale(1.08); filter: drop-shadow(0 0 10px rgba(var(--teal-rgb), 0.75)); }
+@media (hover: hover) { .dock-item:not(.active):hover { color: var(--text-primary); } }
+/* While the script is driving the indicator, the active item's own fill steps aside for it. */
+.dock-nav.ui-ind .dock-item.active { background: transparent; }
+.ui-dock-ind { position: absolute; z-index: 0; left: 0; top: 0; border-radius: 23px; pointer-events: none; opacity: 0; background: linear-gradient(180deg, rgba(var(--teal-rgb), 0.24), rgba(var(--teal-rgb), 0.1)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 0 0 1px rgba(var(--teal-rgb), 0.28) inset, 0 8px 26px -8px rgba(var(--teal-rgb), 0.6); transition: transform 0.55s var(--ease-spring), width 0.55s var(--ease-spring), height 0.55s var(--ease-spring), opacity 0.25s ease; }
+.ui-dock-ind.on { opacity: 1; }
+.dock-badge { top: -5px; right: -11px; border: 2px solid var(--bg-obsidian); min-width: 18px; height: 18px; border-radius: 9px; animation: uiBadge 0.5s var(--ease-spring) both; }
+@keyframes uiBadge { from { transform: scale(0); } to { transform: none; } }
+@media (max-width: 460px) { .dock-nav { padding: 6px; width: 94%; } .dock-item { padding: 8px 2px 7px; font-size: 0.62rem; } }
+
+/* Wide screens: the dock becomes a side rail, like a desktop app. */
+@media (min-width: 1100px) {
+    :root { --rail-w: 104px; }
+    body { padding-bottom: 40px; }
+    /* The 820px security column already clears the rail; the wider Show Manager column is kept clear of it. */
+    body.module-shows .container { max-width: min(1360px, calc(100vw - 2 * var(--rail-w))); }
+    .dock-nav { left: 16px; top: 50%; bottom: auto; transform: translateY(-50%); flex-direction: column; justify-content: flex-start; width: 76px; max-width: none; padding: 8px; gap: 4px; border-radius: 28px; }
+    .dock-item { flex: 0 0 auto; width: 100%; padding: 11px 2px 9px; border-radius: 20px; }
+    .ui-dock-ind { border-radius: 20px; }
+}
+
+/* ---------- Loading screen ---------- */
+#loadingOverlay { background: radial-gradient(60% 50% at 50% 38%, rgba(var(--teal-rgb), 0.1), transparent 70%), radial-gradient(50% 40% at 50% 70%, rgba(var(--pink-rgb), 0.1), transparent 70%), var(--bg-obsidian); }
+.loading-logo { animation: uiBreathe 2.8s ease-in-out infinite; }
+@keyframes uiBreathe { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px rgba(var(--teal-rgb), 0.25)); } 50% { transform: scale(1.035); filter: drop-shadow(0 0 30px rgba(var(--teal-rgb), 0.55)); } }
+.load-progress-track { height: 6px; border: none; background: rgba(255, 255, 255, 0.09); }
+.load-progress-fill { position: relative; overflow: hidden; }
+.load-progress-fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.75) 50%, transparent 70%); animation: uiSheen 1.5s linear infinite; }
+@keyframes uiSheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* ---------- Guided tour ---------- */
+#tourBubble { border-radius: 22px; backdrop-filter: blur(24px) saturate(170%); -webkit-backdrop-filter: blur(24px) saturate(170%); box-shadow: var(--lift-2); }
+#tourSpot { border-radius: 20px; transition-timing-function: var(--ease-out); transition-duration: 0.45s; }
+
+/* ---------- Show Manager ---------- */
+.sm-tcard { border-radius: 16px; transition: border-color 0.2s ease, box-shadow 0.25s ease; }
+.sm-topbar { border-radius: 20px; background: var(--surface-0); backdrop-filter: blur(28px) saturate(190%); -webkit-backdrop-filter: blur(28px) saturate(190%); box-shadow: var(--lift-1); }
+.sm-results { border-radius: 20px; box-shadow: var(--lift-2); animation: uiPop 0.35s var(--ease-out); }
+.sm-cb { transition: transform 0.25s var(--ease-out), filter 0.2s ease; }
+.sm-cb:not(:disabled):active { transform: scale(0.9); }
+.sm-mapwrap { border-radius: 18px; }
+.theme-option, .theme-chip, .sm-plan { transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease; }
+
+/* ---------- Floorplan builder ----------
+   The map card is a column whose pieces are re-ordered so the map stays put:
+   mode / zoom, the Add strip, THE MAP, then the selected piece's settings docked
+   underneath, then
+   the room size. Selecting a piece no longer pushes the map down the page. */
+.sm-mapcard { display: flex; flex-direction: column; }
+.sm-mapcard > #smPanel { display: contents; }
+.sm-mapcard > .sm-maptop { order: 1; }
+.sm-mapcard .sm-addbar { order: 2; }
+.sm-mapcard > .sm-mapwrap { order: 3; }
+.sm-mapcard .sm-sel-row, .sm-mapcard #smPanel > .sm-hint { order: 4; }
+.sm-mapcard .sm-roomrow { order: 5; }
+.sm-mapcard > .sm-legend { order: 6; }
+
+.sm-addbar { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px 10px; padding: 2px 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.sm-addbar::-webkit-scrollbar { display: none; }
+.sm-addbar > * { flex: 0 0 auto; }
+.sm-addbar .btn { background: rgba(var(--teal-rgb), 0.12); color: var(--neon-teal); border: 1px solid rgba(var(--teal-rgb), 0.35); box-shadow: none; white-space: nowrap; }
+.sm-addbar .btn::before { content: '+ '; opacity: 0.7; }
+@media (hover: hover) { .sm-addbar .btn:hover { background: rgba(var(--teal-rgb), 0.22); filter: none; } }
+.sm-pick { border-radius: 11px; }
+
+.sm-mapcard #smPanel > .sm-hint { margin: 10px 2px 0; }
+.sm-mapcard .sm-roomrow { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--border-glass); }
+.sm-mapcard > .sm-legend { margin-top: 12px; }
+
+.sm-sel-row { position: relative; z-index: 5; display: block; margin: 10px 0 0; padding: 10px 12px 12px; border-radius: 18px; border-color: rgba(var(--teal-rgb), 0.45); background: color-mix(in srgb, var(--glass-sheet) 92%, transparent); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset; }
+.sm-sel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.sm-sel-head b { font-size: 1.02rem; color: var(--neon-teal); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-sel-actions { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.sm-sel-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.sm-sel-fields .btn, .sm-sel-actions .btn { white-space: nowrap; }
+.sm-sel-fields label { white-space: nowrap; }
+/* Phones: the settings become one swipeable strip, so the docked panel stays two lines tall and the map stays visible above it. */
+@media (max-width: 720px) {
+    .sm-sel-fields { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px; padding: 2px 12px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .sm-sel-fields::-webkit-scrollbar { display: none; }
+    .sm-sel-fields > * { flex: 0 0 auto; }
+    .sm-sel-fields > .sm-hint { display: none; }
+}
+
+/* The room itself takes its colours from the theme instead of a fixed blue-grey. */
+.sm-floor { fill: color-mix(in srgb, var(--bg-obsidian) 78%, #8a8aa6); }
+.sm-tb { fill: color-mix(in srgb, var(--bg-obsidian) 66%, #9a9ab8); transition: stroke 0.15s ease, fill 0.2s ease; }
+.sm-ch { fill: color-mix(in srgb, var(--bg-obsidian) 45%, #a0a0b8); }
+.sm-mapwrap { background: color-mix(in srgb, var(--bg-obsidian) 80%, transparent); box-shadow: 0 0 0 1px var(--border-glass) inset; }
+.sm-svg.layout .sm-it:active { cursor: grabbing; }
+@media (hover: hover) { .sm-svg:not(.layout) .sm-tbl:hover .sm-tb { stroke: var(--neon-teal); stroke-width: 3.5; } }
+.sm-selbox { stroke-linecap: round; }
+.sm-tcard, #smTmBody .sm-g { background: color-mix(in srgb, var(--bg-card) 70%, transparent); }
+.sm-seg { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset; }
+.sm-seg button.active { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 6px 18px -8px rgba(var(--teal-rgb), 0.8); }
+
+/* ---------- ID scanner ----------
+   Once there is something to read (a verdict, an error, or the type-it-in form) it moves up to sit
+   directly under the camera / scanner box, and the how-to text steps aside, so PASS / DO NOT ADMIT
+   is on screen without scrolling. With nothing scanned yet the order is unchanged. */
+#idsScanModal { padding: 12px; }
+#idsScanModal > .modal-sheet { padding: 20px 16px; }
+#idsScanBody[style*="display: block"] { display: flex !important; flex-direction: column; }
+#idsScanBody > * { order: 3; }
+#idsScanBody > :first-child { order: 0; }
+#idsScanBody > #idsModeBtns { order: 1; }
+#idsScanBody > #idsCamWrap, #idsScanBody > #idsWedgeWrap { order: 2; }
+#idsScanBody > #idsResult { order: 4; }
+#idsScanBody > #idsStats { order: 5; }
+#idsScanBody:has(#idsResult > div) > #idsResult { order: 2; margin-bottom: 12px; }
+#idsScanBody:has(#idsResult > div) > #idsModeBtns { order: 3; }
+#idsScanBody:has(#idsResult > div) #idsWedgeWrap > p, #idsScanBody:has(#idsResult > div) #idsCamHint { display: none; }
+#idsVideo { border-radius: 18px !important; }
+/* Aiming guide: corner brackets and a sweeping line instead of a dashed box. */
+#idsCamWrap [aria-hidden="true"] { border: none !important; border-radius: 14px !important; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.28) !important; overflow: hidden;
+    background:
+        linear-gradient(var(--neon-teal), var(--neon-teal)) left top / 26px 3px no-repeat, linear-gradient(var(--neon-teal), var(--neon-teal)) left top / 3px 26px no-repeat,
+        linear-gradient(var(--neon-teal), var(--neon-teal)) right top / 26px 3px no-repeat, linear-gradient(var(--neon-teal), var(--neon-teal)) right top / 3px 26px no-repeat,
+        linear-gradient(var(--neon-teal), var(--neon-teal)) left bottom / 26px 3px no-repeat, linear-gradient(var(--neon-teal), var(--neon-teal)) left bottom / 3px 26px no-repeat,
+        linear-gradient(var(--neon-teal), var(--neon-teal)) right bottom / 26px 3px no-repeat, linear-gradient(var(--neon-teal), var(--neon-teal)) right bottom / 3px 26px no-repeat; }
+#idsCamWrap [aria-hidden="true"]::after { content: ''; position: absolute; left: 6%; right: 6%; top: 0; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--neon-teal), transparent); box-shadow: 0 0 14px 2px rgba(var(--teal-rgb), 0.7); animation: uiScanLine 2.4s ease-in-out infinite alternate; }
+@keyframes uiScanLine { from { top: 6%; } to { top: 92%; } }
+#idsCamWrap [aria-hidden="true"] { clip-path: none; }
+#idsCamWrap > div:first-child { border-radius: 18px; overflow: hidden; }
+#idsZoomBtn, #idsTorchBtn { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: none; border-radius: 999px; }
+#idsToast { border-radius: 14px !important; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+#idsPickList > .glass-card { border-radius: 18px; }
+
+/* ---------- Command Center ---------- */
+/* The tab strip stays under the header while a long pane scrolls, fades at whichever edge has more tabs, and keeps the open tab in view (js/16). */
+#adminConsoleView > .segmented-control { position: sticky; top: calc(var(--hdr-h, 62px) + 12px); z-index: 60; background: color-mix(in srgb, var(--bg-obsidian) 78%, rgba(255, 255, 255, 0.05)); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 14px 30px -18px rgba(0, 0, 0, 0.9); }
+.segmented-control.ui-more-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
+.segmented-control.ui-more-l { -webkit-mask-image: linear-gradient(270deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(270deg, #000 calc(100% - 44px), transparent); }
+.segmented-control.ui-more-l.ui-more-r { -webkit-mask-image: linear-gradient(90deg, transparent, #000 44px, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, transparent, #000 44px, #000 calc(100% - 44px), transparent); }
+.admin-pane .btn-sm { white-space: nowrap; flex-shrink: 0; }
+.admin-pane h4 { margin-bottom: 8px; }
+#adminChanList > .glass-card { align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px 10px 16px !important; border-radius: 16px; font-family: 'Outfit', sans-serif; font-weight: 600; }
+#adminChanList:empty::before, #adminMsgList:empty::before, #adminAttachList:empty::before, #adminArchiveList:empty::before, #adminEventsList:empty::before { display: block; padding: 14px 4px; color: var(--text-muted); font-size: 0.85rem; }
+#adminChanList:empty::before { content: 'No channels yet.'; }
+#adminMsgList:empty::before { content: 'No recent messages.'; padding: 14px 16px; }
+#adminAttachList:empty::before { content: 'No attachments.'; padding: 2px 4px; }
+#adminArchiveList:empty::before { content: 'Nothing archived yet.'; }
+#adminEventsList:empty::before { content: 'No shift postings yet.'; }
+/* Phones: each person becomes a card (name + rank, contact, then the buttons) instead of a table that scrolls sideways and hides the buttons. */
+@media (max-width: 640px) {
+    #adminUsers .data-table thead { display: none; }
+    #adminUsers .data-table, #usersBody { display: block; }
+    #usersBody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; padding: 12px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+    #usersBody tr:last-child { border-bottom: none; }
+    #usersBody td { padding: 0; border: none; }
+    #usersBody td:nth-child(1) { font-size: 0.98rem; }
+    #usersBody td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; color: var(--text-secondary); overflow-wrap: anywhere; }
+    #usersBody td:nth-child(3) { grid-column: 2; grid-row: 1; text-align: right; }
+    #usersBody td:nth-child(4) { grid-column: 1 / -1; grid-row: 3; margin-top: 8px; white-space: normal !important; display: flex; gap: 6px; flex-wrap: wrap; }
+    #usersBody td:nth-child(4) .btn { flex: 1 1 auto; }
+}
+
+/* ---------- Quick Find (command palette) ---------- */
+#uiPalette { position: fixed; inset: 0; z-index: 3200; display: none; align-items: flex-start; justify-content: center; padding: min(14vh, 120px) 14px 14px; background: color-mix(in srgb, var(--bg-obsidian) 66%, transparent); backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); animation: uiFade 0.2s ease both; }
+#uiPalette.open { display: flex; }
+.ui-pal { width: 100%; max-width: 580px; max-height: min(70vh, 560px); display: flex; flex-direction: column; overflow: hidden; border-radius: 24px; border: 1px solid var(--border-glass); background: color-mix(in srgb, var(--glass-sheet) 90%, transparent); backdrop-filter: blur(34px) saturate(190%); -webkit-backdrop-filter: blur(34px) saturate(190%); box-shadow: var(--lift-2), 0 0 80px -30px rgba(var(--teal-rgb), 0.55); animation: uiSheet 0.5s var(--ease-spring) both; }
+.ui-pal-top { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border-glass); color: var(--text-muted); }
+.ui-pal-top svg { width: 20px; height: 20px; flex-shrink: 0; }
+#uiPalInput { flex: 1; min-width: 0; margin: 0; padding: 0; border: none; background: none; box-shadow: none; outline: none; color: var(--text-primary); font: 500 1.05rem 'Inter', sans-serif; }
+.ui-pal-top kbd, .ui-pal-foot kbd { font: 600 0.66rem 'Inter', sans-serif; color: var(--text-muted); border: 1px solid var(--border-glass); border-radius: 6px; padding: 2px 6px; }
+#uiPalList { overflow-y: auto; padding: 8px; overscroll-behavior: contain; }
+.ui-pal-group { font: 800 0.62rem 'Outfit', sans-serif; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted); padding: 10px 12px 5px; }
+.ui-pal-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; border: none; border-radius: 14px; background: none; color: var(--text-primary); font: 600 0.92rem 'Outfit', sans-serif; text-align: left; cursor: pointer; }
+.ui-pal-item .ui-pal-ic { display: inline-grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-glass); font-size: 1rem; color: var(--text-secondary); }
+.ui-pal-item .ui-pal-ic svg { width: 17px; height: 17px; }
+.ui-pal-item .ui-pal-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-pal-item small { font: 500 0.74rem 'Inter', sans-serif; color: var(--text-muted); white-space: nowrap; }
+.ui-pal-item.sel { background: rgba(var(--teal-rgb), 0.14); box-shadow: 0 0 0 1px rgba(var(--teal-rgb), 0.35) inset; }
+.ui-pal-item.sel .ui-pal-ic { color: var(--neon-teal); border-color: rgba(var(--teal-rgb), 0.5); }
+.ui-pal-empty { text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 28px 10px; }
+.ui-pal-foot { display: flex; gap: 14px; justify-content: flex-end; padding: 9px 16px; border-top: 1px solid var(--border-glass); font-size: 0.7rem; color: var(--text-muted); }
+@media (hover: none) { .ui-pal-foot, .ui-pal-top kbd { display: none; } }
+
+/* ---------- Motion preferences ---------- */
+@media (prefers-reduced-motion: reduce) {
+    body::before, body::after, .loading-logo, .load-progress-fill::after, .ev2-bar i, #idsCamWrap [aria-hidden="true"]::after { animation: none !important; }
+    .container > section, .modal, .modal-sheet, .chat-bubble, .user-menu-dropdown, .ui-pal, #uiPalette, .dock-badge, .sm-results { animation: none !important; }
+    .ui-dock-ind, .btn, .dock-item, .dock-item span:first-child { transition: none !important; }
+}

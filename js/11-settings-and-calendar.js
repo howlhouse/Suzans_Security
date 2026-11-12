@@ -189,7 +189,7 @@
         function renderMyShifts() {
             const mine = myUpcomingShifts();
             document.getElementById('mySettingsShiftsBody').innerHTML = mine.length ? mine.map(e =>
-                `<tr><td>${e.date}</td><td>${shiftTimeLabel(e)}</td><td>${e.title}</td></tr>`
+                `<tr><td>${escapeHtml(e.date)}</td><td>${escapeHtml(shiftTimeLabel(e))}</td><td>${escapeHtml(e.title)}</td></tr>`
             ).join('') : '<tr><td colspan="3" style="color:var(--text-muted);">No upcoming shifts.</td></tr>';
         }
         // Full-detail card view for the "My Shifts & Notes" screen: event info,
@@ -208,23 +208,23 @@
                 const myNote = u && e.guardNotes && e.guardNotes[u.name];
                 const mapsUrl = e.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.address)}` : null;
                 return `
-                <div class="glass-card" style="padding:20px; cursor:pointer;" onclick="if(event.target.tagName !== 'A' && event.target.tagName !== 'BUTTON') openEventDetail('${e.id}')">
+                <div class="glass-card" style="padding:20px; cursor:pointer;" onclick="if(event.target.tagName !== 'A' && event.target.tagName !== 'BUTTON') openEventDetail('${escapeHtml(jsStr(e.id))}')">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
                         <div>
-                            <h3 style="font-family:'Outfit'; font-size:1.2rem; font-weight:700; margin-bottom:4px;">${e.title}</h3>
-                            <p style="font-size:0.85rem; color:var(--text-muted);">🗓️ ${e.date} &nbsp;•&nbsp; ⏰ ${shiftTimeLabel(e)}${shiftHoursLabel(e) ? ` &nbsp;•&nbsp; ⏱️ ${shiftHoursLabel(e)}` : ''}</p>
+                            <h3 style="font-family:'Outfit'; font-size:1.2rem; font-weight:700; margin-bottom:4px;">${escapeHtml(e.title)}</h3>
+                            <p style="font-size:0.85rem; color:var(--text-muted);">🗓️ ${escapeHtml(e.date)} &nbsp;•&nbsp; ⏰ ${escapeHtml(shiftTimeLabel(e))}${shiftHoursLabel(e) ? ` &nbsp;•&nbsp; ⏱️ ${escapeHtml(shiftHoursLabel(e))}` : ''}</p>
                         </div>
-                        <span class="neon-tag tag-active" style="white-space:nowrap;">${myPost}</span>
+                        <span class="neon-tag tag-active" style="white-space:nowrap;">${escapeHtml(myPost)}</span>
                     </div>
-                    ${e.address ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:10px;">📍 ${e.address}</p>` : ''}
+                    ${e.address ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:10px;">📍 ${escapeHtml(e.address)}</p>` : ''}
                     ${myNote ? `
                     <div style="background:rgba(var(--pink-rgb),0.1); border:1px solid rgba(var(--pink-rgb),0.4); border-radius:12px; padding:12px; margin-top:12px;">
                         <h4 style="color:var(--neon-pink); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">📝 Note for you from Command</h4>
-                        <p style="font-size:0.85rem; color:var(--text-primary);">${myNote}</p>
+                        <p style="font-size:0.85rem; color:var(--text-primary);">${escapeHtml(myNote)}</p>
                     </div>` : ''}
                     <div style="display:flex; gap:8px; margin-top:14px;">
-                        ${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none; flex:1; text-align:center;">🧭 Directions</a>` : ''}
-                        <button class="btn btn-sm" style="flex:1;" onclick="event.stopPropagation(); openEventDetail('${e.id}')">View Shift</button>
+                        ${mapsUrl ? `<a href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none; flex:1; text-align:center;">🧭 Directions</a>` : ''}
+                        <button class="btn btn-sm" style="flex:1;" onclick="event.stopPropagation(); openEventDetail('${escapeHtml(jsStr(e.id))}')">View Shift</button>
                     </div>
                 </div>`;
             }).join('');
@@ -302,29 +302,29 @@
                     .filter(e => getEventPromoterIds(e).includes(p.id) && !e.hidden)
                     .sort((a, b) => new Date(b.date) - new Date(a.date));
                 const linkRow = [
-                    p.instagram ? `<a href="${p.instagram}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">📸 Instagram</a>` : '',
-                    p.website ? `<a href="${p.website}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">🌐 Website</a>` : '',
-                    p.venueLink ? `<a href="${p.venueLink}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">📍 Venue</a>` : ''
+                    p.instagram ? `<a href="${safeUrl(p.instagram)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">📸 Instagram</a>` : '',
+                    p.website ? `<a href="${safeUrl(p.website)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">🌐 Website</a>` : '',
+                    p.venueLink ? `<a href="${safeUrl(p.venueLink)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">📍 Venue</a>` : ''
                 ].filter(Boolean).join('');
                 return `<div class="glass-card" style="padding:16px;">
-                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4>
-                    <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">${p.phone ? '📞 ' + p.phone : ''}${p.phone && p.email ? ' • ' : ''}${p.email ? '✉️ ' + p.email : ''}</p>
-                    ${(p.tags || []).length ? `<div class="tags-container" style="margin-top:8px;">${p.tags.map(t => `<span class="neon-tag tag-active">${t}</span>`).join('')}</div>` : ''}
+                    <h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${escapeHtml(p.name)}</h4>
+                    <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">${p.phone ? '📞 ' + escapeHtml(p.phone) : ''}${p.phone && p.email ? ' • ' : ''}${p.email ? '✉️ ' + escapeHtml(p.email) : ''}</p>
+                    ${(p.tags || []).length ? `<div class="tags-container" style="margin-top:8px;">${p.tags.map(t => `<span class="neon-tag tag-active">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                     ${linkRow ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">${linkRow}</div>` : ''}
                     <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-glass);">
                         <h5 style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Events (${events.length})</h5>
-                        ${events.length ? events.map(e => `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;" onclick="openEventDetail('${e.id}')">
-                            <span style="font-size:0.88rem;">${e.title}${e.archived ? ' <span style="color:var(--text-muted); font-weight:400;">(past)</span>' : ''}</span>
-                            <span style="font-size:0.78rem; color:var(--neon-teal); white-space:nowrap;">🗓️ ${e.date}</span>
+                        ${events.length ? events.map(e => `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;" onclick="openEventDetail('${escapeHtml(jsStr(e.id))}')">
+                            <span style="font-size:0.88rem;">${escapeHtml(e.title)}${e.archived ? ' <span style="color:var(--text-muted); font-weight:400;">(past)</span>' : ''}</span>
+                            <span style="font-size:0.78rem; color:var(--neon-teal); white-space:nowrap;">🗓️ ${escapeHtml(e.date)}</span>
                         </div>`).join('') : `<p style="color:var(--text-muted); font-size:0.8rem;">No events linked to this contact yet.</p>`}
                     </div>
                 </div>`;
             }).join('');
         }
 
-        function renderContacts() { document.getElementById('promoterList').innerHTML = getDB('promoters').map(p => `<div class="glass-card" style="padding:16px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;"><div style="cursor:pointer; flex:1;" onclick="openP('${p.id}')"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${p.name}</h4><div class="tags-container" style="margin-top:8px;">${(p.tags || []).map(t => `<span class="neon-tag tag-active">${t}</span>`).join('')}</div></div><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); flex-shrink:0;" onclick="delPromoter('${p.id}')">Delete</button></div></div>`).join(''); }
-        function addPromoter() { const id = 'p' + Date.now(); const name = prompt('Name:'); if (!name) return; saveDoc('promoters', id, { id, name, phone: prompt('Phone:') || '', email: prompt('Email:') || '', instagram: '', website: '', venueLink: '', tags: [], notes: [] }); }
-        function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').value = p.name || ''; document.getElementById('pPhone').value = p.phone || ''; document.getElementById('pEmail').value = p.email || ''; document.getElementById('pInstagram').value = p.instagram || ''; document.getElementById('pWebsite').value = p.website || ''; document.getElementById('pVenueLink').value = p.venueLink || ''; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${t} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${n.date}</span><p style="font-size:0.85rem;">${n.text}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
+        function renderContacts() { document.getElementById('promoterList').innerHTML = getDB('promoters').map(p => `<div class="glass-card" style="padding:16px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;"><div style="cursor:pointer; flex:1;" onclick="openP('${escapeHtml(jsStr(p.id))}')"><h4 style="color:var(--neon-teal); font-family:'Outfit'; font-size:1.15rem;">${escapeHtml(p.name)}</h4><div class="tags-container" style="margin-top:8px;">${(p.tags || []).map(t => `<span class="neon-tag tag-active">${escapeHtml(t)}</span>`).join('')}</div></div><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); flex-shrink:0;" onclick="delPromoter('${escapeHtml(jsStr(p.id))}')">Delete</button></div></div>`).join(''); }
+        async function addPromoter() { const id = 'p' + Date.now(); const name = await askText({ title: 'New promoter', message: 'Name:', okText: 'Next' }); if (!name) return; const phone = await askText({ title: 'New promoter', message: 'Phone (optional):', inputmode: 'tel', okText: 'Next' }) || '', email = await askText({ title: 'New promoter', message: 'Email (optional):', inputmode: 'email', okText: 'Add promoter' }) || ''; saveDoc('promoters', id, { id, name, phone, email, instagram: '', website: '', venueLink: '', tags: [], notes: [] }); }
+        function openP(id) { selP = id; let p = getDB('promoters').find(x => x.id === id); document.getElementById('pName').value = p.name || ''; document.getElementById('pPhone').value = p.phone || ''; document.getElementById('pEmail').value = p.email || ''; document.getElementById('pInstagram').value = p.instagram || ''; document.getElementById('pWebsite').value = p.website || ''; document.getElementById('pVenueLink').value = p.venueLink || ''; document.getElementById('pTags').innerHTML = (p.tags || []).map((t, i) => `<span class="neon-tag tag-active">${escapeHtml(t)} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="rmPTag(${i})">×</b></span>`).join(''); document.getElementById('pNotes').innerHTML = (p.notes || []).map(n => `<div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;"><span style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${escapeHtml(n.date)}</span><p style="font-size:0.85rem;">${escapeHtml(n.text)}</p></div>`).join(''); document.getElementById('promoterModal').style.display = 'flex'; }
         function updatePromoterField(field, value) {
             const pr = getDB('promoters').find(x => x.id === selP);
             if (!pr) return;

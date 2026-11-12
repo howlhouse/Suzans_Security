@@ -13,7 +13,7 @@
                 const dayEvs = evs.filter(e => e.date === dateStr);
                 grid.innerHTML += `<div class="cal-day">
                     <span>${i}</span>
-                    <div>${dayEvs.map(e => `<div class="cal-badge" style="${e.cancelled ? 'opacity:0.55; text-decoration:line-through;' : e.archived ? 'opacity:0.55;' : ''}" onclick="event.stopPropagation(); openEventDetail('${e.id}')">${e.title}</div>`).join('')}</div>
+                    <div>${dayEvs.map(e => `<div class="cal-badge" style="${e.cancelled ? 'opacity:0.55; text-decoration:line-through;' : e.archived ? 'opacity:0.55;' : ''}" onclick="event.stopPropagation(); openEventDetail('${escapeHtml(jsStr(e.id))}')">${escapeHtml(e.title)}</div>`).join('')}</div>
                 </div>`;
             }
         }

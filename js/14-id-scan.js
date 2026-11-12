@@ -400,7 +400,7 @@
         function idsRenderRegistry() {
             const rows = idsFilteredRows();
             document.getElementById('idsRegBody').innerHTML = rows.map(r => `
-                <tr style="cursor:pointer;" onclick="idsOpenDetail('${jsStr(r.id)}')">
+                <tr style="cursor:pointer;" onclick="idsOpenDetail('${escapeHtml(jsStr(r.id))}')">
                     <td>${escapeHtml(r.lastName)}, ${escapeHtml(r.firstName)}${r.env === 'dev' ? ' <span style="font-size:0.65rem; color:var(--neon-pink);">TEST</span>' : ''}</td>
                     <td>${escapeHtml(idsFmtDate(r.dob))}${r.ageAtScan != null ? ' <span style="color:var(--text-muted);">(' + r.ageAtScan + ')</span>' : ''}</td>
                     <td>${r.state ? idsStateHtml(r.state, r.outOfState) : '—'}</td>
@@ -440,8 +440,8 @@
                 ${(r.reasons || []).length ? '<p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:4px;">Notes from the check</p><ul style="font-size:0.84rem; padding-left:18px; margin-bottom:12px;">' + r.reasons.map(t => '<li>' + escapeHtml(t) + '</li>').join('') + '</ul>' : ''}
                 <div id="idsDetailFull" style="margin-bottom:12px;"></div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button class="btn btn-sm" onclick="idsBanFromRecord('${jsStr(id)}')">🚫 Add to Ban List…</button>
-                    <button class="btn btn-magenta btn-sm" onclick="idsDeleteRecord('${jsStr(id)}')">🗑️ Delete this record</button>
+                    <button class="btn btn-sm" onclick="idsBanFromRecord('${escapeHtml(jsStr(id))}')">🚫 Add to Ban List…</button>
+                    <button class="btn btn-magenta btn-sm" onclick="idsDeleteRecord('${escapeHtml(jsStr(id))}')">🗑️ Delete this record</button>
                 </div>`;
             idsShowFullData(r);
             document.getElementById('idsDetailModal').style.display = 'flex';
@@ -476,9 +476,9 @@
         async function idsBanFromRecord(id) {
             const r = idsRegRows.find(x => x.id === id);
             if (!r) return;
-            const name = prompt('Add to the Ban List as:', r.firstName + ' ' + r.lastName);
+            const name = await askText({ title: '🚫 Add to Ban List', message: 'Add to the Ban List as:', value: r.firstName + ' ' + r.lastName, okText: 'Next' });
             if (!name || !name.trim()) return;
-            const why = prompt('Note for the Ban List entry (what happened):', '');
+            const why = await askText({ title: '🚫 Add to Ban List', message: 'Note for the Ban List entry (what happened):', okText: 'Add to Ban List' });
             if (why === null) return;
             try {
                 await idsAddToBanList(name, 'Added from an ID scan at ' + (r.eventTitle || 'an event') + ' (' + (r.eventDate || '') + ').' + (why.trim() ? ' ' + why.trim() : ''));
@@ -515,18 +515,18 @@
                         <div style="font-size:0.74rem; color:var(--text-muted); margin:2px 0 6px;">${escapeHtml(f.eventTitle || '')} · flagged by ${escapeHtml((f.createdBy && f.createdBy.name) || '?')} · ${escapeHtml(new Date(f.createdAt).toLocaleString())}</div>
                         <p style="font-size:0.85rem; margin-bottom:8px; white-space:pre-wrap;">${escapeHtml(f.note)}</p>
                         ${f.status === 'pending' ? `<div style="display:flex; gap:8px; flex-wrap:wrap;">
-                            <button class="btn btn-sm" onclick="idsApproveFlag('${jsStr(f.id)}')">🚫 Add to Ban List</button>
-                            <button class="btn btn-outline btn-sm" onclick="idsDismissFlag('${jsStr(f.id)}')">Dismiss</button>
-                            <button class="btn btn-outline btn-sm" onclick="idsViewFlagScan('${jsStr(f.id)}')">View scan</button></div>`
+                            <button class="btn btn-sm" onclick="idsApproveFlag('${escapeHtml(jsStr(f.id))}')">🚫 Add to Ban List</button>
+                            <button class="btn btn-outline btn-sm" onclick="idsDismissFlag('${escapeHtml(jsStr(f.id))}')">Dismiss</button>
+                            <button class="btn btn-outline btn-sm" onclick="idsViewFlagScan('${escapeHtml(jsStr(f.id))}')">View scan</button></div>`
                         : `<p style="font-size:0.76rem; color:var(--text-muted);">${f.status === 'approved' ? '🚫 Added to the Ban List' + (f.banName ? ' as ' + escapeHtml(f.banName) : '') : 'Dismissed'} by ${escapeHtml((f.reviewedBy && f.reviewedBy.name) || '?')}${f.reviewNote ? ' - ' + escapeHtml(f.reviewNote) : ''}</p>
-                           <button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="idsViewFlagScan('${jsStr(f.id)}')">View scan</button>`}
+                           <button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="idsViewFlagScan('${escapeHtml(jsStr(f.id))}')">View scan</button>`}
                     </div>`).join('') || `<p style="font-size:0.82rem; color:var(--text-muted); padding-top:8px;">${status === 'pending' ? 'Nothing waiting for review.' : 'None.'}</p>`;
             } catch (err) { list.innerHTML = '<p style="font-size:0.8rem; color:var(--danger-glow);">Could not load flags: ' + escapeHtml(err.message) + '</p>'; }
         }
         async function idsApproveFlag(id) {
             const f = idsFlags.find(x => x.id === id);
             if (!f) return;
-            const name = prompt('Add to the Ban List as:', f.firstName + ' ' + f.lastName);
+            const name = await askText({ title: '🚫 Add to Ban List', message: 'Add to the Ban List as:', value: f.firstName + ' ' + f.lastName, okText: 'Add to Ban List' });
             if (!name || !name.trim()) return;
             try {
                 const banId = await idsAddToBanList(name, 'Flagged by ' + ((f.createdBy && f.createdBy.name) || 'staff') + ' at ' + (f.eventTitle || 'an event') + ' (' + (f.eventDate || '') + '): ' + f.note);
@@ -538,7 +538,7 @@
         async function idsDismissFlag(id) {
             const f = idsFlags.find(x => x.id === id);
             if (!f) return;
-            const why = prompt('Reason for dismissing this flag (optional):', '');
+            const why = await askText({ title: 'Dismiss flag', message: 'Reason for dismissing this flag (optional):', okText: 'Dismiss flag' });
             if (why === null) return;
             try {
                 await db.collection('idscan_flags').doc(id).update({ status: 'dismissed', reviewNote: why.trim(), reviewedAt: Date.now(), reviewedBy: { uid: logActor().uid, name: currUser()?.name || '' } });
@@ -609,6 +609,9 @@
         }
         // kind: 'pass' = ding; anything else = buzz.
         function idsBeep(kind) {
+            // A buzz in the hand as well (Android; iPhones don't offer it): one short tap for a pass, a double for "check this ID", two long ones for a fail.
+            // It works with the sound switched off, since a loud room is exactly where the beep can't be heard.
+            try { if (navigator.vibrate) navigator.vibrate(kind === 'pass' ? 60 : kind === 'review' ? [80, 70, 80] : kind === 'fail' ? [260, 90, 260] : 120); } catch (err) { /* no vibration is fine */ }
             if (!idsSound || !idsAudio) return;
             try {
                 if (idsAudio.state === 'suspended') idsAudio.resume();
@@ -677,7 +680,7 @@
             document.getElementById('idsPickList').innerHTML = !enabled.length ? '<p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">ID scanning is not turned on for any event yet. An admin can turn it on in Command Center → ID Scan. You can still try the test scanner below.</p>' : enabled.map(e => {
                 const tag = e.date === today ? 'Tonight' : e.date === tomorrow ? 'Tomorrow' : '';
                 const sum = idsRuleSummary(idsCfgs[e.id]);
-                return `<button class="glass-card" style="display:block; width:100%; text-align:left; cursor:pointer; padding:14px 16px; margin-bottom:10px; color:inherit; font:inherit; ${tag === 'Tonight' ? 'border-color:var(--neon-teal);' : ''}" onclick="idsStartScanning('${jsStr(e.id)}')">
+                return `<button class="glass-card" style="display:block; width:100%; text-align:left; cursor:pointer; padding:14px 16px; margin-bottom:10px; color:inherit; font:inherit; ${tag === 'Tonight' ? 'border-color:var(--neon-teal);' : ''}" onclick="idsStartScanning('${escapeHtml(jsStr(e.id))}')">
                     <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;"><span style="font-family:'Outfit'; font-weight:700; font-size:1rem;">${escapeHtml(e.title)}</span>${tag ? `<span style="font-size:0.68rem; font-weight:700; color:#08080c; background:var(--neon-teal); border-radius:8px; padding:2px 8px; flex-shrink:0;">${tag}</span>` : ''}</div>
                     <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(e.date || '')}${e.address ? ' · ' + escapeHtml(e.address) : ''}</div>
                     ${sum ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:4px;">${escapeHtml(sum)}</div>` : ''}</button>`;
