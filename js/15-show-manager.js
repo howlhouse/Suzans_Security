@@ -1070,15 +1070,41 @@
         function smSetPieceGrow(axis, v) { if (axis === 'x') smPieceGrowX = v; else smPieceGrowY = v; }
         function smSetZoneLabel(id, val) { smPatchItem(id, { label: String(val).trim().slice(0, 18) }); }
         function smSetSeats(id, n) { n = Math.max(1, Math.min(20, parseInt(n, 10) || 1)); smPatchItem(id, { seats: n }); }
+        // Renumber a table or bar section. A number that another table already has is not refused any more: the two trade
+        // numbers (after a confirm), so tables can be re-assigned when the room changes at the last minute. Bookings are tied
+        // to the table itself, not its number, so each party stays at its own table and simply shows under the new number.
         function smSetLabel(id, val) {
             const show = smCurShow(); if (!show) return;
-            val = String(val).trim();
-            const items = smItems(show), it = items.find(i => i.id === id); if (!it || !val) { smPanelSig = ''; smRenderPanel(show); return; }
-            if (items.some(o => o.id !== id && smIsSeat(o) && (o.type === 'bar') === (it.type === 'bar') && String(o.num).toLowerCase() === val.toLowerCase())) {
-                alert(`There's already a ${it.type === 'bar' ? 'bar section' : 'table'} labelled "${val}".`);
-                smPanelSig = ''; smRenderPanel(show); return;
-            }
-            smPatchItem(id, { num: val });
+            val = String(val).trim().slice(0, 8);
+            const items = smItems(show), it = items.find(i => i.id === id);
+            const redraw = () => { smPanelSig = ''; smRenderPanel(show); };
+            if (!it || !smIsSeat(it) || !val) { redraw(); return; }
+            if (String(it.num == null ? '' : it.num) === val) { redraw(); return; }
+            const bar = it.type === 'bar', kind = bar ? 'Bar' : 'Table';
+            const other = items.find(o => o.id !== id && smIsSeat(o) && (o.type === 'bar') === bar && String(o.num).toLowerCase() === val.toLowerCase());
+            if (!other) { smPatchItem(id, { num: val }); return; }
+            const mine = it.num || smNextNum(items, bar ? 'bar' : 'table'); // an old piece with no number gives the other one the next free number
+            if (!confirm(`${kind} ${other.num} already exists. Swap the two numbers?\n\nThis one becomes ${kind} ${other.num}, and the other becomes ${kind} ${mine}. Bookings stay with their own table.`)) { redraw(); return; }
+            const next = smClone(items);
+            next.find(i => i.id === id).num = other.num;
+            next.find(i => i.id === other.id).num = mine;
+            smPanelSig = '';
+            smSaveItems(next);
+        }
+        // The "Edit table" button in the layout editor: ask for the new number in a dialog, then renumber (or swap) as above.
+        async function smEditTable(id) {
+            let show = smCurShow(); if (!show) return;
+            let it = smItems(show).find(i => i.id === id); if (!it || !smIsSeat(it)) return;
+            const n = smGuests(show).filter(g => g.tableId === id).length;
+            const v = await askText({
+                title: it.type === 'bar' ? '✎ Edit bar section' : '✎ Edit table',
+                message: `New number for ${smItemName(it)}.` + (n ? ` Its ${n} booking${n === 1 ? ' stays' : 's stay'} with it and will show under the new number.` : '') + ' If another one already has that number, you can swap the two.',
+                value: it.num || '', okText: 'Save',
+                validate: x => !String(x).trim() ? 'Enter a number or a short label.' : String(x).trim().length > 8 ? 'Keep it to 8 characters or fewer.' : ''
+            });
+            if (v === null) return;
+            show = smCurShow(); if (!show || !smItems(show).some(i => i.id === id)) return; // the table was removed while the box was open
+            smSetLabel(id, v);
         }
         function smDuplicate(id) {
             const show = smCurShow(); if (!show) return;
@@ -1134,6 +1160,7 @@
                     <div class="sm-sel-head">
                         <b>${escapeHtml(smIsSeat(it) ? smItemName(it) : smPieceName(it))}</b>
                         <span class="sm-sel-actions">
+                            ${smIsSeat(it) ? `<button class="btn btn-sm" title="Change this ${it.type === 'bar' ? "bar section's" : "table's"} number" onclick="smEditTable('${escapeHtml(jsStr(it.id))}')">✎ Edit ${it.type === 'bar' ? 'bar' : 'table'}</button>` : ''}
                             <button class="btn btn-outline btn-sm" onclick="smDuplicate('${escapeHtml(jsStr(it.id))}')">⧉ Duplicate</button>
                             <button class="btn btn-sm btn-magenta" onclick="smDeleteItem('${escapeHtml(jsStr(it.id))}')">Remove</button>
                         </span>
