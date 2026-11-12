@@ -102,7 +102,7 @@
                 const titleHtml = `<h3 class="ev2-name">${escapeHtml(e.title)}</h3>`;
                 const cls = ['ev2', 'event-tile', mode === 'poster' ? 'is-poster' : '', isIn ? 'is-in' : '', !isIn && open === 0 ? 'is-full' : '', e.communityOnly ? 'is-community' : '', group === 'TONIGHT' ? 'is-tonight' : ''].filter(Boolean).join(' ');
                 html += `
-                <div class="${cls}" style="animation-delay:${Math.min(i, 8) * 45}ms" role="button" tabindex="0" onclick="openEventDetail('${e.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEventDetail('${e.id}');}">
+                <div class="${cls}" style="animation-delay:${Math.min(i, 8) * 45}ms" role="button" tabindex="0" onclick="openEventDetail('${escapeHtml(jsStr(e.id))}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEventDetail('${escapeHtml(jsStr(e.id))}');}">
                     <div class="ev2-in">
                         <div class="ev2-media">
                             <div class="ev2-bg" style="background-image:url(&quot;${escapeHtml(evCssUrl(e.image))}&quot;)"></div>
@@ -200,13 +200,13 @@
                 const isMe = g === u?.name;
                 const posLabel = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
                 const positionCell = (!hasPositions && isMe)
-                    ? `<select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:600;" onchange="updateGuardPost('${e.id}', '${g}', this.value)">
+                    ? `<select class="input-field" style="width:auto; margin:0; padding:6px 12px; font-weight:600;" onchange="updateGuardPost('${escapeHtml(jsStr(e.id))}', '${escapeHtml(jsStr(g))}', this.value)">
                             ${LEGACY_POST_OPTIONS.map(p => `<option value="${p}" ${posLabel === p ? 'selected' : ''}>${p}</option>`).join('')}
                        </select>`
-                    : `<span style="color:var(--neon-teal); font-weight:600; font-size:0.85rem;">${posLabel}</span>`;
+                    : `<span style="color:var(--neon-teal); font-weight:600; font-size:0.85rem;">${escapeHtml(posLabel)}</span>`;
                 return `
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                    <td style="padding:10px 6px;">🛡️ ${g}${isMe ? ' <span style="color:var(--neon-pink); font-size:0.75rem;">(You)</span>' : ''}</td>
+                    <td style="padding:10px 6px;">🛡️ ${escapeHtml(g)}${isMe ? ' <span style="color:var(--neon-pink); font-size:0.75rem;">(You)</span>' : ''}</td>
                     <td style="padding:10px 6px; text-align:right;">${positionCell}</td>
                 </tr>`;
             }).join('') || '';
@@ -234,10 +234,10 @@
                             let btnLabel = onThis ? 'Cancel' : (e.archived ? 'Closed' : full ? 'Full' : (eligible ? 'Claim' : 'Ineligible'));
                             return `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 16px;">
                                 <div>
-                                    <strong>${p.name}</strong>
-                                    <span style="color:var(--text-muted); font-size:0.82rem; margin-left:8px;">${filled}/${p.slots} filled</span>
+                                    <strong>${escapeHtml(p.name)}</strong>
+                                    <span style="color:var(--text-muted); font-size:0.82rem; margin-left:8px;">${filled}/${escapeHtml(p.slots)} filled</span>
                                 </div>
-                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''} ${!eligible && !onThis ? 'btn-outline' : ''}" onclick="claimPosition('${e.id}','${p.name}')" ${(full || !eligible || e.archived) && !onThis ? 'disabled' : ''}>
+                                <button class="btn btn-sm ${onThis ? 'btn-magenta' : ''} ${!eligible && !onThis ? 'btn-outline' : ''}" onclick="claimPosition('${escapeHtml(jsStr(e.id))}','${escapeHtml(jsStr(p.name))}')" ${(full || !eligible || e.archived) && !onThis ? 'disabled' : ''}>
                                     ${btnLabel}
                                 </button>
                             </div>`;
@@ -252,40 +252,40 @@
                     ${e.archived ? `<div class="community-banner" style="border-radius:16px 16px 0 0;">${e.cancelled ? '🚫 This shift was cancelled' : '📦 This shift has ended'} — signups are closed</div>` : ''}
                     ${e.communityOnly ? `<div class="community-banner" style="border-radius:16px 16px 0 0;">📋 Community Listing Only — Not a Contracted Event</div>` : ''}
                     <div class="event-img-wrap event-detail-img-wrap">
-                        <img src="${e.image}" class="event-img event-detail-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
-                        <div class="date-badge">🗓️ ${e.date}</div>
+                        <img src="${escapeHtml(e.image)}" class="event-img event-detail-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                        <div class="date-badge">🗓️ ${escapeHtml(e.date)}</div>
                     </div>
                     <div class="event-body">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
-                            <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700; margin:0;">${e.title}</h2>
+                            <h2 style="font-family:'Outfit'; font-size:1.6rem; font-weight:700; margin:0;">${escapeHtml(e.title)}</h2>
                             <div class="cal-menu-wrap" id="calMenuWrap" style="position:relative; flex-shrink:0;">
                                 <button class="btn btn-outline btn-sm" style="white-space:nowrap;" onclick="toggleCalMenu(event)">📅 Add to Calendar</button>
                                 <div class="user-menu-dropdown" id="calMenuDropdown" style="display:none; right:0;">
-                                    <button class="user-menu-item" onclick="closeCalMenu(); addToGoogleCalendar('${e.id}')"><span>🟢</span><span>Google Calendar</span></button>
-                                    <button class="user-menu-item" onclick="closeCalMenu(); addToAppleOutlookCalendar('${e.id}')"><span>🍎</span><span>Apple / Outlook (.ics)</span></button>
+                                    <button class="user-menu-item" onclick="closeCalMenu(); addToGoogleCalendar('${escapeHtml(jsStr(e.id))}')"><span>🟢</span><span>Google Calendar</span></button>
+                                    <button class="user-menu-item" onclick="closeCalMenu(); addToAppleOutlookCalendar('${escapeHtml(jsStr(e.id))}')"><span>🍎</span><span>Apple / Outlook (.ics)</span></button>
                                 </div>
                             </div>
                         </div>
                         <div class="tags-container">
-                            ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${t}</span>`).join('')}
+                            ${(e.tags || []).map(t => `<span class="neon-tag ${t === 'NSFW' || t === 'Kink' ? 'tag-nsfw' : 'tag-active'}">${escapeHtml(t)}</span>`).join('')}
                         </div>
-                        ${e.ticketLink ? `<a href="${e.ticketLink}" target="_blank" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
+                        ${e.ticketLink ? `<a href="${safeUrl(e.ticketLink)}" target="_blank" rel="noopener" class="btn btn-outline" style="width:100%; text-decoration:none; margin:10px 0 16px;">🎟️ Event Tickets / Portal</a>` : ''}
 
                         ${myNote ? `
                         <div style="background:rgba(var(--pink-rgb),0.1); border:1px solid rgba(var(--pink-rgb),0.4); border-radius:12px; padding:14px; margin: 16px 0;">
                             <h4 style="color:var(--neon-pink); font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">📝 Note for you from Command</h4>
-                            <p style="font-size:0.9rem; color:var(--text-primary);">${myNote}</p>
+                            <p style="font-size:0.9rem; color:var(--text-primary);">${escapeHtml(myNote)}</p>
                         </div>` : ''}
 
                         <div style="margin: 16px 0;">
                             <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">Operational Brief</h4>
-                            <p style="font-size:0.95rem; line-height:1.5; color:var(--text-secondary);">${e.desc || 'No brief provided.'}</p>
+                            <p style="font-size:0.95rem; line-height:1.5; color:var(--text-secondary);">${escapeHtml(e.desc || 'No brief provided.')}</p>
                         </div>
 
                         ${e.address ? `
                         <div style="margin: 16px 0;">
                             <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">Location</h4>
-                            <p style="font-size:0.95rem; color:var(--text-secondary);">${e.address}</p>
+                            <p style="font-size:0.95rem; color:var(--text-secondary);">${escapeHtml(e.address)}</p>
                             <a href="https://maps.google.com/?q=${encodeURIComponent(e.address)}" target="_blank" class="btn btn-outline btn-sm" style="margin-top:8px; text-decoration:none; display:inline-block;">📍 Get Directions</a>
                         </div>` : ''}
 
@@ -293,7 +293,7 @@
                         <div style="margin: 16px 0;">
                             <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">Shift Timeline</h4>
                             <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:6px 16px;">
-                                ${timelineSorted.map(t => `<div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><strong style="color:var(--neon-teal); min-width:64px;">${t.time || '--:--'}</strong><span style="font-size:0.9rem;">${t.label || ''}</span></div>`).join('')}
+                                ${timelineSorted.map(t => `<div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><strong style="color:var(--neon-teal); min-width:64px;">${escapeHtml(t.time || '--:--')}</strong><span style="font-size:0.9rem;">${escapeHtml(t.label || '')}</span></div>`).join('')}
                             </div>
                         </div>` : ''}
 
@@ -302,8 +302,8 @@
                             <h4 style="color:var(--neon-teal); font-size:0.8rem; font-weight:600; text-transform:uppercase; margin-bottom:8px;">Client / Producer Detail</h4>
                             ${linkedPromoters.map((promoter, i) => `
                             <div style="${i > 0 ? 'margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);' : ''}">
-                                <p style="font-weight:600;">${promoter.name}</p>
-                                <p style="font-size:0.85rem; color:var(--text-muted);">📞 ${promoter.phone} • ✉️ ${promoter.email}</p>
+                                <p style="font-weight:600;">${escapeHtml(promoter.name)}</p>
+                                <p style="font-size:0.85rem; color:var(--text-muted);">📞 ${escapeHtml(promoter.phone)} • ✉️ ${escapeHtml(promoter.email)}</p>
                             </div>`).join('')}
                         </div>` : ''}
 
@@ -312,7 +312,7 @@
                         <div style="margin: 20px 0;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                                 <h4 style="color:var(--neon-teal); font-size:0.85rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px;">Signed-Up Team (${eventOpenSlots(e)} Slots Open)</h4>
-                                ${!hasPositions ? `<button class="btn btn-sm ${isSignedUp ? 'btn-magenta' : ''}" onclick="toggleSignUp('${e.id}')" ${(eventOpenSlots(e) === 0 || e.archived) && !isSignedUp ? 'disabled' : ''}>
+                                ${!hasPositions ? `<button class="btn btn-sm ${isSignedUp ? 'btn-magenta' : ''}" onclick="toggleSignUp('${escapeHtml(jsStr(e.id))}')" ${(eventOpenSlots(e) === 0 || e.archived) && !isSignedUp ? 'disabled' : ''}>
                                     ${isSignedUp ? 'Cancel Shift' : (e.archived ? 'Closed' : eventOpenSlots(e) === 0 ? 'Full' : 'Claim Shift')}
                                 </button>` : ''}
                             </div>
@@ -327,7 +327,7 @@
                             <div id="detailChatBox" style="height:220px; overflow-y:auto; background:rgba(12,12,18,0.6); border:1px solid var(--border-glass); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
                             <div style="display:flex; gap:8px;">
                                 <input type="text" id="detailChatInput" class="input-field" placeholder="Transmit shift update..." style="margin:0;" data-1p-ignore>
-                                <button class="btn btn-sm" onclick="sendDetailChat('${e.id}')">Send</button>
+                                <button class="btn btn-sm" onclick="sendDetailChat('${escapeHtml(jsStr(e.id))}')">Send</button>
                             </div>
                         </div>` : ''}
                     </div>
@@ -353,8 +353,8 @@
             if (!box) return;
             box.innerHTML = msgs.map(c => `
                 <div style="background:rgba(255,255,255,0.06); padding:8px 12px; border-radius:10px; font-size:0.85rem;">
-                    <div style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${c.user}</div>
-                    <div>${c.text}</div>
+                    <div style="color:var(--neon-teal); font-size:0.75rem; font-weight:600;">${escapeHtml(c.user)}</div>
+                    <div>${escapeHtml(c.text)}</div>
                 </div>
             `).join('') || '<p style="color:var(--text-muted); font-size:0.8rem; text-align:center; margin:auto;">No shift messages logged yet.</p>';
             box.scrollTop = box.scrollHeight;

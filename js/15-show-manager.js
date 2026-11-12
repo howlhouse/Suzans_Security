@@ -302,11 +302,11 @@
                 const hours = shiftHoursLabel(s);
                 const cls = ['ev2', 'event-tile', mode === 'poster' ? 'is-poster' : '', isPast ? 'is-full' : '', group === 'TONIGHT' ? 'is-tonight' : ''].filter(Boolean).join(' ');
                 html += `
-                <div class="${cls}" style="animation-delay:${Math.min(idx++, 8) * 45}ms" role="button" tabindex="0" onclick="smOpenShow('${s.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();smOpenShow('${s.id}');}">
+                <div class="${cls}" style="animation-delay:${Math.min(idx++, 8) * 45}ms" role="button" tabindex="0" onclick="smOpenShow('${escapeHtml(jsStr(s.id))}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();smOpenShow('${escapeHtml(jsStr(s.id))}');}">
                     <div class="ev2-in">
                         <div class="ev2-media">
                             <div class="ev2-bg" style="background-image:url(&quot;${escapeHtml(evCssUrl(s.image || SM_DEFAULT_IMG))}&quot;)"></div>
-                            <img src="${escapeHtml(s.image || SM_DEFAULT_IMG)}" alt="" loading="lazy" onload="smImgLoaded(this)" onerror="this.onerror=null;this.src='${SM_DEFAULT_IMG}'">
+                            <img src="${escapeHtml(s.image || SM_DEFAULT_IMG)}" alt="" loading="lazy" onload="smImgLoaded(this)" onerror="this.onerror=null;this.src='${escapeHtml(jsStr(SM_DEFAULT_IMG))}'">
                             ${dp ? `<div class="ev2-date"><span class="w">${dp.wk}</span><span class="d">${dp.day}</span><span class="m">${dp.mon}</span></div>` : ''}
                             <div class="ev2-status ${status[0]}"><i></i>${status[1]}</div>
                             ${mode === 'poster' ? '' : titleHtml}
@@ -342,10 +342,10 @@
             sel.innerHTML = `<option value="">Blank — I'll add tables myself</option>` + plans.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
             sel.disabled = !vid;
         }
-        function smVenueChanged() {
+        async function smVenueChanged() {
             const sel = smEl('smfVenue');
             if (sel.value === '__new') {
-                const name = prompt('Name of the new venue:');
+                const name = await askText({ title: '📍 New venue', message: 'Name of the new venue:', okText: 'Add venue' });
                 if (!name || !name.trim()) { sel.value = ''; smFillPlanSelect(); return; }
                 const v = { id: smUid('v'), name: name.trim(), address: '' };
                 saveDoc('venues', v.id, v).catch(() => {});
@@ -357,7 +357,7 @@
             smFillPlanSelect();
         }
         function smRenderFormTags() {
-            smEl('smfTags').innerHTML = getTagCatalog().map(t => `<span class="neon-tag ${smFormTags.includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="smToggleFormTag('${jsStr(t)}')">${smFormTags.includes(t) ? '✓ ' : ''}${escapeHtml(t)}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>';
+            smEl('smfTags').innerHTML = getTagCatalog().map(t => `<span class="neon-tag ${smFormTags.includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="smToggleFormTag('${escapeHtml(jsStr(t))}')">${smFormTags.includes(t) ? '✓ ' : ''}${escapeHtml(t)}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>';
         }
         function smToggleFormTag(t) {
             smFormTags = smFormTags.includes(t) ? smFormTags.filter(x => x !== t) : [...smFormTags, t];
@@ -593,7 +593,7 @@
                         ${show.desc ? `<div class="sm-head-desc">${escapeHtml(show.desc)}</div>` : ''}
                     </div>
                     <div class="sm-head-actions">
-                        <button class="btn btn-outline btn-sm" onclick="smOpenShowModal('${show.id}')">✎ Edit details</button>
+                        <button class="btn btn-outline btn-sm" onclick="smOpenShowModal('${escapeHtml(jsStr(show.id))}')">✎ Edit details</button>
                         <button class="btn btn-sm btn-magenta" onclick="smDeleteShow()">Delete</button>
                     </div>
                 </div>
@@ -640,11 +640,11 @@
         }
         // A new weekly show starts with last week's room; this dismisses the "pick this week's layout" nudge.
         function smKeepLayout() { if (smShowId) smWrite(smShowRef().update({ layoutPending: false })); }
-        function smSavePlanNew() {
+        async function smSavePlanNew() {
             const show = smCurShow(); if (!show) return;
             if (!show.venueId) { alert('Pick a venue for this show first (Edit details).'); return; }
             const existing = smPlans().filter(p => p.venueId === show.venueId).length;
-            const name = prompt('Name this floorplan (e.g. "Runway night", "Square stage"):', 'Layout ' + (existing + 1));
+            const name = await askText({ title: '💾 Save floorplan', message: 'Name this floorplan (e.g. "Runway night", "Square stage"):', value: 'Layout ' + (existing + 1), okText: 'Save' });
             if (!name || !name.trim()) return;
             const plan = { id: smUid('f'), venueId: show.venueId, name: name.trim(), items: smClone(smItems(show)), w: smCV(show).w, h: smCV(show).h, updatedAt: Date.now() };
             smSyncCount++; smSyncUi();
@@ -663,11 +663,11 @@
             if (it.type === 't2') return { w: 56, h: 56 };
             if (it.type === 't4') return { w: 72, h: 72 };
             if (it.type === 't6') return { w: 120, h: 72 };
-            if (it.type === 'bar') return { w: Math.max(1, it.seats || 6) * 34, h: 34 };
-            if (it.type === 'line') { const k = SM_LINES[it.kind] || SM_LINES.wall; return { w: it.w || k.len, h: it.h || k.thick }; }
-            if (it.type === 'zone') { const z = SM_ZONES[it.kind] || SM_ZONES.area; return { w: it.w || z.w, h: it.h || z.h }; }
+            if (it.type === 'bar') return { w: Math.max(1, +it.seats || 6) * 34, h: 34 };
+            if (it.type === 'line') { const k = SM_LINES[it.kind] || SM_LINES.wall; return { w: +it.w || k.len, h: +it.h || k.thick }; }
+            if (it.type === 'zone') { const z = SM_ZONES[it.kind] || SM_ZONES.area; return { w: +it.w || z.w, h: +it.h || z.h }; }
             if (it.type === 'stage') {
-                if (it.w && it.h) return { w: it.w, h: it.h };
+                if (+it.w && +it.h) return { w: +it.w, h: +it.h };
                 return SM_STAGE_PRESETS[it.shape] || SM_STAGE_PRESETS.runway; // older saved stages only have a shape
             }
             return { w: 60, h: 60 };
@@ -742,16 +742,17 @@
             // One handle on each end: pulling an end moves only that end, the other stays put.
             const handle = selected && smMode === 'layout' ? smEdgeHandle('l', -hw, 0) + smEdgeHandle('r', hw, 0) : '';
             // flip = swing the other way (in/out); flipH = hinge on the other side (mirror left/right).
-            return `<g class="sm-it sm-line${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
+            return `<g class="sm-it sm-line${selected ? ' sel' : ''}" data-id="${escapeHtml(it.id)}" transform="${tf}">
                 <g transform="scale(${it.flipH ? -1 : 1} ${it.flip ? -1 : 1})">${hit}${body}</g>
                 ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-hw - 6}" y="${it.flip && kind === 'door' ? -(box.y + box.h) : box.y}" width="${w + 12}" height="${box.h}" rx="10"/>` : ''}
                 ${handle}
-                ${selected ? smRotHandle(it.id, -hw - 34, 0, -hw - 6, 0, it.rot || 0) : ''}
+                ${selected ? smRotHandle(it.id, -hw - 34, 0, -hw - 6, 0, +it.rot || 0) : ''}
             </g>`;
         }
         function smItemSvg(it, st, selected) {
-            const d = smDims(it), rot = it.rot || 0;
-            const tf = `translate(${it.x} ${it.y}) rotate(${rot})`;
+            // Position and angle are forced to plain numbers before they go into the SVG, whatever was saved in the layout.
+            const d = smDims(it), rot = +it.rot || 0;
+            const tf = `translate(${+it.x || 0} ${+it.y || 0}) rotate(${rot})`;
             if (smIsZone(it)) {
                 const kind = smKind(it), z = SM_ZONES[kind] || SM_ZONES.area;
                 const label = String(it.label != null && it.label !== '' ? it.label : (kind === 'stage' && (it.shape === 'runway' || (!it.w && !it.shape)) ? 'RUNWAY' : z.label)).toUpperCase();
@@ -775,7 +776,7 @@
                 // A handle on each of the four edges: pulling one moves only that edge, the opposite edge stays where it is.
                 const handle = selected && smMode === 'layout'
                     ? smEdgeHandle('l', -d.w / 2, 0) + smEdgeHandle('r', d.w / 2, 0) + smEdgeHandle('t', 0, -d.h / 2) + smEdgeHandle('b', 0, d.h / 2) : '';
-                return `<g class="sm-it sm-stage${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
+                return `<g class="sm-it sm-stage${selected ? ' sel' : ''}" data-id="${escapeHtml(it.id)}" transform="${tf}">
                     <rect ${kind === 'stage' ? 'class="sm-stage-body" ' : ''}fill="${z.fill}" stroke="${z.stroke}" stroke-width="2.5"${z.dash ? ` stroke-dasharray="${z.dash}"` : ''} x="${-d.w / 2}" y="${-d.h / 2}" width="${d.w}" height="${d.h}" rx="${Math.min(14, d.h / 3)}"/>
                     ${textEl}
                     ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - 6}" y="${-d.h / 2 - 6}" width="${d.w + 12}" height="${d.h + 12}" rx="18"/>` : ''}
@@ -803,7 +804,7 @@
                 : `<text class="sm-num" fill="#fff" font-size="22" font-weight="800" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" y="${subTxt ? -5 : 0}" dy=".35em">${escapeHtml(label)}</text>`
                   + (subTxt ? `<text class="sm-sub" fill="#ddd" font-size="12" font-weight="700" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" y="14">${subTxt}</text>` : '');
             const ext = smIsSeat(it) ? 22 : 0;
-            return `<g class="sm-it sm-tbl${selected ? ' sel' : ''}" data-id="${it.id}" transform="${tf}">
+            return `<g class="sm-it sm-tbl${selected ? ' sel' : ''}" data-id="${escapeHtml(it.id)}" transform="${tf}">
                 <rect class="sm-hit" fill="none" pointer-events="all" x="${-d.w / 2 - ext}" y="${-d.h / 2 - ext}" width="${d.w + ext * 2}" height="${d.h + ext * 2}"/>
                 ${chairs}${body}${texts}
                 ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - ext - 4}" y="${-d.h / 2 - ext - 4}" width="${d.w + ext * 2 + 8}" height="${d.h + ext * 2 + 8}" rx="16"/>` : ''}
@@ -1101,39 +1102,46 @@
             if (smMode !== 'layout') { if (panel.innerHTML) panel.innerHTML = ''; smPanelSig = ''; return; }
             const it = smItems(show).find(i => i.id === smSelId), cv = smCV(show);
             const sig = JSON.stringify([smMode, it, cv, smGrowX, smGrowY, smPieceGrowX, smPieceGrowY]);
-            const sideSel = (axis, cur, opts) => `<select class="sm-pick" aria-label="Which side changes" title="Which side of the piece gets the change (the opposite side stays put)" onchange="smSetPieceGrow('${axis}', this.value)">${opts.map(([v, l]) => `<option value="${v}"${cur === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+            const sideSel = (axis, cur, opts) => `<select class="sm-pick" aria-label="Which side changes" title="Which side of the piece gets the change (the opposite side stays put)" onchange="smSetPieceGrow('${escapeHtml(jsStr(axis))}', this.value)">${opts.map(([v, l]) => `<option value="${v}"${cur === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
             if (sig === smPanelSig) return;
             smPanelSig = sig;
             const numIn = (v, min, max, step, fn) => `<input type="number" class="input-field" value="${v}" min="${min}" max="${max}" step="${step}" onchange="${fn}(this.value)">`;
             let sel = `<div class="sm-hint">Drag any piece to move it. Tap one to rename, resize, rotate (any angle) or remove it.</div>`;
             if (it) {
                 // Every piece rotates to any angle: drag the amber handle on the map, nudge in steps, or type an exact angle.
-                const rotBtns = `<span class="sm-step"><button class="btn btn-outline btn-sm" title="Rotate left 15°" onclick="smRotate('${it.id}', -15)">↺ 15°</button><button class="btn btn-outline btn-sm" title="Rotate right 15°" onclick="smRotate('${it.id}', 15)">↻ 15°</button><button class="btn btn-outline btn-sm" title="Rotate 45°" onclick="smRotate('${it.id}', 45)">⟳ 45°</button><button class="btn btn-outline btn-sm" title="Rotate 90°" onclick="smRotate('${it.id}', 90)">⟳ 90°</button></span>
-                    <label>Angle <input type="number" class="input-field" style="width:78px;" value="${Math.round(it.rot || 0)}" min="0" max="359" step="5" onchange="smSetAngle('${it.id}', this.value)">°</label>`;
+                const rotBtns = `<span class="sm-step"><button class="btn btn-outline btn-sm" title="Rotate left 15°" onclick="smRotate('${escapeHtml(jsStr(it.id))}', -15)">↺ 15°</button><button class="btn btn-outline btn-sm" title="Rotate right 15°" onclick="smRotate('${escapeHtml(jsStr(it.id))}', 15)">↻ 15°</button><button class="btn btn-outline btn-sm" title="Rotate 45°" onclick="smRotate('${escapeHtml(jsStr(it.id))}', 45)">⟳ 45°</button><button class="btn btn-outline btn-sm" title="Rotate 90°" onclick="smRotate('${escapeHtml(jsStr(it.id))}', 90)">⟳ 90°</button></span>
+                    <label>Angle <input type="number" class="input-field" style="width:78px;" value="${Math.round(it.rot || 0)}" min="0" max="359" step="5" onchange="smSetAngle('${escapeHtml(jsStr(it.id))}', this.value)">°</label>`;
                 let fields = '';
                 const d = smDims(it);
                 if (smIsSeat(it)) {
-                    fields = `<label>Label <input id="smLblInput" class="input-field" value="${escapeHtml(it.num || '')}" maxlength="8" onchange="smSetLabel('${it.id}', this.value)" data-1p-ignore></label>`
-                        + (it.type === 'bar' ? `<label>Seats <span class="sm-step"><button class="btn btn-outline btn-sm" onclick="smSetSeats('${it.id}', ${(it.seats || 6) - 1})">−</button><b>${it.seats || 6}</b><button class="btn btn-outline btn-sm" onclick="smSetSeats('${it.id}', ${(it.seats || 6) + 1})">+</button></span></label>` : '');
+                    fields = `<label>Label <input id="smLblInput" class="input-field" value="${escapeHtml(it.num || '')}" maxlength="8" onchange="smSetLabel('${escapeHtml(jsStr(it.id))}', this.value)" data-1p-ignore></label>`
+                        + (it.type === 'bar' ? `<label>Seats <span class="sm-step"><button class="btn btn-outline btn-sm" onclick="smSetSeats('${escapeHtml(jsStr(it.id))}', ${(it.seats || 6) - 1})">−</button><b>${it.seats || 6}</b><button class="btn btn-outline btn-sm" onclick="smSetSeats('${escapeHtml(jsStr(it.id))}', ${(it.seats || 6) + 1})">+</button></span></label>` : '');
                 } else if (smIsZone(it)) {
                     const kind = smKind(it), z = SM_ZONES[kind] || SM_ZONES.area;
-                    fields = `<label>Label <input id="smLblInput" class="input-field" style="width:120px;" value="${escapeHtml(it.label != null ? it.label : (kind === 'stage' && d.w > d.h * 3 ? 'RUNWAY' : z.label))}" maxlength="18" onchange="smSetZoneLabel('${it.id}', this.value)" data-1p-ignore></label>
+                    fields = `<label>Label <input id="smLblInput" class="input-field" style="width:120px;" value="${escapeHtml(it.label != null ? it.label : (kind === 'stage' && d.w > d.h * 3 ? 'RUNWAY' : z.label))}" maxlength="18" onchange="smSetZoneLabel('${escapeHtml(jsStr(it.id))}', this.value)" data-1p-ignore></label>
                         <label>Width ${numIn(d.w, SM_ZONE_MIN, cv.w, SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)} ${sideSel('x', smPieceGrowX, [['both', 'both sides'], ['left', 'left edge'], ['right', 'right edge']])}</label>
                         <label>Height ${numIn(d.h, SM_ZONE_MIN, cv.h, SM_GRID, `smSetDim.bind(null,'${it.id}','h')`)} ${sideSel('y', smPieceGrowY, [['both', 'top & bottom'], ['top', 'top edge'], ['bottom', 'bottom edge']])}</label>`
-                        + (kind === 'stage' ? `<span class="sm-shapes">${[['runway', 'Runway'], ['square', 'Large square'], ['wide', 'Standard']].map(([k, l]) => `<button class="ev-chip${d.w === SM_STAGE_PRESETS[k].w && d.h === SM_STAGE_PRESETS[k].h ? ' active' : ''}" onclick="smSetPreset('${it.id}','${k}')">${l}</button>`).join('')}</span>` : '')
+                        + (kind === 'stage' ? `<span class="sm-shapes">${[['runway', 'Runway'], ['square', 'Large square'], ['wide', 'Standard']].map(([k, l]) => `<button class="ev-chip${d.w === SM_STAGE_PRESETS[k].w && d.h === SM_STAGE_PRESETS[k].h ? ' active' : ''}" onclick="smSetPreset('${escapeHtml(jsStr(it.id))}','${escapeHtml(jsStr(k))}')">${l}</button>`).join('')}</span>` : '')
                         + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag a teal handle on any edge to move just that edge (the opposite edge stays put); the amber handle rotates. Left / right / top / bottom refer to the piece itself.</span>`;
                 } else {
                     fields = `<label>Length ${numIn(d.w, 20, Math.max(cv.w, cv.h), SM_GRID, `smSetDim.bind(null,'${it.id}','w')`)} ${sideSel('x', smPieceGrowX, [['both', 'both ends'], ['left', 'left end'], ['right', 'right end']])}</label>
                         <label>Thickness ${numIn(d.h, 4, 40, 2, `smSetDim.bind(null,'${it.id}','h')`)}</label>`
-                        + (it.kind === 'door' ? `<button class="btn btn-outline btn-sm" title="Swing the door the other way (in / out)" onclick="smFlip('${it.id}')">⇅ Swing other way</button><button class="btn btn-outline btn-sm" title="Mirror the door: hinge on the other side" onclick="smFlipH('${it.id}')">⇄ Mirror hinge</button>` : '')
+                        + (it.kind === 'door' ? `<button class="btn btn-outline btn-sm" title="Swing the door the other way (in / out)" onclick="smFlip('${escapeHtml(jsStr(it.id))}')">⇅ Swing other way</button><button class="btn btn-outline btn-sm" title="Mirror the door: hinge on the other side" onclick="smFlipH('${escapeHtml(jsStr(it.id))}')">⇄ Mirror hinge</button>` : '')
                         + `<span class="sm-hint" style="flex-basis:100%; margin:0;">Drag a teal handle on either end to move just that end, and the amber handle to rotate it.</span>`;
                 }
+                // Name + Duplicate / Remove on a header line, the piece's settings underneath (ui-2030.css docks this under the map so selecting a piece never moves the map).
                 sel = `<div class="sm-sel-row">
-                    <b>${escapeHtml(smIsSeat(it) ? smItemName(it) : smPieceName(it))}</b>
-                    ${fields}
-                    ${rotBtns}
-                    <button class="btn btn-outline btn-sm" onclick="smDuplicate('${it.id}')">⧉ Duplicate</button>
-                    <button class="btn btn-sm btn-magenta" onclick="smDeleteItem('${it.id}')">Remove</button>
+                    <div class="sm-sel-head">
+                        <b>${escapeHtml(smIsSeat(it) ? smItemName(it) : smPieceName(it))}</b>
+                        <span class="sm-sel-actions">
+                            <button class="btn btn-outline btn-sm" onclick="smDuplicate('${escapeHtml(jsStr(it.id))}')">⧉ Duplicate</button>
+                            <button class="btn btn-sm btn-magenta" onclick="smDeleteItem('${escapeHtml(jsStr(it.id))}')">Remove</button>
+                        </span>
+                    </div>
+                    <div class="sm-sel-fields">
+                        ${fields}
+                        ${rotBtns}
+                    </div>
                 </div>`;
             }
             const opt = (v, l) => `<option value="${v}">${l}</option>`;
@@ -1186,17 +1194,17 @@
             const full = g.arrived >= g.size;
             const when = g.arrived > 0 && g.arrivedAt ? new Date(g.arrivedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
             return `<div class="sm-g${full ? ' here' : g.arrived > 0 ? ' some' : ''}">
-                <div class="sm-g-main"><span class="nm">${escapeHtml(g.name)}</span><button class="sm-size" title="Change the party size" onclick="smEditSize('${g.id}')">party of ${g.size}</button>${when ? `<span class="tm">${when}</span>` : ''}</div>
+                <div class="sm-g-main"><span class="nm">${escapeHtml(g.name)}</span><button class="sm-size" title="Change the party size" onclick="smEditSize('${escapeHtml(jsStr(g.id))}')">party of ${g.size}</button>${when ? `<span class="tm">${when}</span>` : ''}</div>
                 <div class="sm-count">
-                    <button class="sm-cb" aria-label="One fewer here" ${g.arrived <= 0 ? 'disabled' : ''} onclick="smArrive('${g.id}', -1)">−</button>
+                    <button class="sm-cb" aria-label="One fewer here" ${g.arrived <= 0 ? 'disabled' : ''} onclick="smArrive('${escapeHtml(jsStr(g.id))}', -1)">−</button>
                     <span class="sm-cn"><b>${g.arrived}</b> of ${g.size} here</span>
-                    <button class="sm-cb plus" aria-label="One more here" onclick="smArrive('${g.id}', 1)">+</button>
-                    <button class="sm-cb all" title="Everyone in this party is here" ${full ? 'disabled' : ''} onclick="smArriveAll('${g.id}')">✓ all</button>
+                    <button class="sm-cb plus" aria-label="One more here" onclick="smArrive('${escapeHtml(jsStr(g.id))}', 1)">+</button>
+                    <button class="sm-cb all" title="Everyone in this party is here" ${full ? 'disabled' : ''} onclick="smArriveAll('${escapeHtml(jsStr(g.id))}')">✓ all</button>
                 </div>
                 <div class="sm-g-tools">
-                    <button class="sm-ib" title="Rename" onclick="smRenameGuest('${g.id}')">✎</button>
-                    <button class="sm-ib" title="Move to another table" onclick="smMoveGuest('${g.id}')">⇄</button>
-                    <button class="sm-ib danger" title="Remove" onclick="smRemoveGuest('${g.id}')">✕</button>
+                    <button class="sm-ib" title="Rename" onclick="smRenameGuest('${escapeHtml(jsStr(g.id))}')">✎</button>
+                    <button class="sm-ib" title="Move to another table" onclick="smMoveGuest('${escapeHtml(jsStr(g.id))}')">⇄</button>
+                    <button class="sm-ib danger" title="Remove" onclick="smRemoveGuest('${escapeHtml(jsStr(g.id))}')">✕</button>
                 </div>
             </div>`;
         }
@@ -1221,14 +1229,14 @@
                 if (!q && opts.hideEmpty && !all.length && it.id !== smSelId) return;
                 const cap = smCap(it), extra = Math.max(0, st.arrived - cap), overbooked = Math.max(0, st.total - cap);
                 const done = st.total > 0 && st.arrived >= st.total;
-                html += `<div class="sm-tcard${it.id === smSelId ? ' sel' : ''}${done ? ' done' : ''}${extra || overbooked ? ' over' : ''}" id="smT_${it.id}">
-                    <div class="sm-tc-head" onclick="smOpenTable('${it.id}')" title="Open this table">
+                html += `<div class="sm-tcard${it.id === smSelId ? ' sel' : ''}${done ? ' done' : ''}${extra || overbooked ? ' over' : ''}" id="smT_${escapeHtml(it.id)}">
+                    <div class="sm-tc-head" onclick="smOpenTable('${escapeHtml(jsStr(it.id))}')" title="Open this table">
                         <b>${escapeHtml(smItemName(it))}</b><span class="sm-tc-type">${it.type === 'bar' ? cap + ' bar seats' : SM_TYPES[it.type].label}</span>
                         <span class="sm-tc-count">${st.total || st.arrived ? `${st.arrived} of ${cap} seats filled` : 'empty'}</span>
                         ${extra ? `<span class="sm-tc-over">${extra} extra — charge</span>` : overbooked ? `<span class="sm-tc-over soft">${overbooked} over seats</span>` : ''}
                     </div>
                     ${vg.map(smBookingRow).join('')}
-                    <button class="sm-addbtn" onclick="smOpenTable('${it.id}')">+ Add purchaser</button>
+                    <button class="sm-addbtn" onclick="smOpenTable('${escapeHtml(jsStr(it.id))}')">+ Add purchaser</button>
                 </div>`;
             });
             return html;
@@ -1279,9 +1287,9 @@
                 // The add form comes first so it stays in view above the phone keyboard.
                 smEl('smTmBody').innerHTML = `
                     <div class="sm-tm-add">
-                        <label class="sm-tm-f1"><span>Purchaser</span><input id="smAdd_${id}" class="input-field" placeholder="Who bought it?" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${id}');}" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" name="sm_buyer" data-1p-ignore></label>
-                        <label class="sm-tm-f2"><span>People</span><input id="smSz_${id}" class="input-field sm-sz" type="number" inputmode="numeric" min="1" max="99" value="${Math.max(1, cap - st.total)}" aria-label="People in the party" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${id}');}"></label>
-                        <button class="btn" onclick="smAddBooking('${id}')">Add</button>
+                        <label class="sm-tm-f1"><span>Purchaser</span><input id="smAdd_${escapeHtml(id)}" class="input-field" placeholder="Who bought it?" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${escapeHtml(jsStr(id))}');}" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" name="sm_buyer" data-1p-ignore></label>
+                        <label class="sm-tm-f2"><span>People</span><input id="smSz_${escapeHtml(id)}" class="input-field sm-sz" type="number" inputmode="numeric" min="1" max="99" value="${Math.max(1, cap - st.total)}" aria-label="People in the party" onkeydown="if(event.key==='Enter'){event.preventDefault();smAddBooking('${escapeHtml(jsStr(id))}');}"></label>
+                        <button class="btn" onclick="smAddBooking('${escapeHtml(jsStr(id))}')">Add</button>
                     </div>
                     <div class="sm-tm-label">${rows.length ? `Bookings at this table (${rows.length})` : 'No one booked at this table yet'}</div>
                     ${rows.map(smBookingRow).join('')}`;
@@ -1324,10 +1332,11 @@
             smWrite(smShowRef().update(upd));
             if (alertInfo) smShowOverCapacity(alertInfo);
         }
-        function smEditSize(gid) {
-            const g = smGuests(smCurShow()).find(x => x.id === gid); if (!g) return;
-            const v = prompt(`How many people are in ${g.name}'s party?`, String(g.size));
+        async function smEditSize(gid) {
+            let g = smGuests(smCurShow()).find(x => x.id === gid); if (!g) return;
+            const v = await askText({ title: 'Party size', message: `How many people are in ${g.name}'s party?`, value: String(g.size), inputmode: 'numeric', okText: 'Save' });
             if (v === null) return;
+            g = smGuests(smCurShow()).find(x => x.id === gid); if (!g) return; // the booking may have changed (or gone) while the box was open
             const n = Math.max(1, Math.min(99, parseInt(v, 10) || g.size));
             const upd = { ['guests.' + gid + '.size']: n };
             if (g.arrived > n) upd['guests.' + gid + '.arrived'] = n;
@@ -1350,17 +1359,18 @@
             const g = smGuests(smCurShow()).find(x => x.id === c.gid); if (!g) return;
             smWrite(smShowRef().update({ ['guests.' + c.gid + '.arrived']: c.prevArrived, ['guests.' + c.gid + '.size']: c.prevSize }));
         }
-        function smRenameGuest(gid) {
+        async function smRenameGuest(gid) {
             const g = smGuests(smCurShow()).find(x => x.id === gid); if (!g) return;
-            const name = prompt('Purchaser name:', g.name);
+            const name = await askText({ title: 'Rename booking', message: 'Purchaser name:', value: g.name, okText: 'Save' });
             if (name === null || !name.trim()) return;
             smWrite(smShowRef().update({ ['guests.' + gid + '.name']: name.trim().slice(0, 80) }));
         }
-        function smMoveGuest(gid) {
-            const show = smCurShow(); if (!show) return;
+        async function smMoveGuest(gid) {
+            let show = smCurShow(); if (!show) return;
             const g = smGuests(show).find(x => x.id === gid); if (!g) return;
-            const label = prompt(`Move ${g.name}'s booking to which table? Type the table number (for a bar section, type "bar 1").`);
+            const label = await askText({ title: 'Move booking', message: `Move ${g.name}'s booking to which table? Type the table number (for a bar section, type "bar 1").`, okText: 'Move' });
             if (label === null || !label.trim()) return;
+            show = smCurShow(); if (!show) return; // use the layout as it is now, not as it was when the box opened
             const t = label.trim().toLowerCase();
             const seats = smItems(show).filter(smIsSeat);
             const target = seats.find(i => smItemName(i).toLowerCase() === t) || seats.find(i => i.type !== 'bar' && String(i.num).toLowerCase() === t.replace(/^table\s*/, ''));
@@ -1374,24 +1384,24 @@
         }
 
         // ---------- VENUES TAB ----------
-        function smAddVenue() {
+        async function smAddVenue() {
             smEnsureListeners();
-            const name = prompt('Venue name:');
+            const name = await askText({ title: '📍 New venue', message: 'Venue name:', okText: 'Add venue' });
             if (!name || !name.trim()) return;
             const v = { id: smUid('v'), name: name.trim(), address: '' };
             saveDoc('venues', v.id, v).catch(() => {});
         }
-        function smRenameVenue(id) {
+        async function smRenameVenue(id) {
             const v = smVenues().find(x => x.id === id); if (!v) return;
-            const name = prompt('Venue name:', v.name);
+            const name = await askText({ title: 'Rename venue', message: 'Venue name:', value: v.name, okText: 'Rename' });
             if (!name || !name.trim()) return;
             smWrite(db.collection('venues').doc(id).update({ name: name.trim() }));
             // Shows keep a copy of the name for the tiles - keep those in step.
             smShows().filter(s => s.venueId === id).forEach(s => smWrite(db.collection('shows').doc(s.id).update({ venueName: name.trim() })));
         }
-        function smVenueAddress(id) {
+        async function smVenueAddress(id) {
             const v = smVenues().find(x => x.id === id); if (!v) return;
-            const a = prompt('Venue address:', v.address || '');
+            const a = await askText({ title: 'Venue address', message: v.name, value: v.address || '', okText: 'Save' });
             if (a === null) return;
             smWrite(db.collection('venues').doc(id).update({ address: a.trim() }));
         }
@@ -1404,9 +1414,9 @@
             batch.delete(db.collection('venues').doc(id));
             smWrite(batch.commit());
         }
-        function smRenamePlan(id) {
+        async function smRenamePlan(id) {
             const p = smPlans().find(x => x.id === id); if (!p) return;
-            const name = prompt('Floorplan name:', p.name);
+            const name = await askText({ title: 'Rename floorplan', message: 'Floorplan name:', value: p.name, okText: 'Rename' });
             if (!name || !name.trim()) return;
             smWrite(db.collection('floorplans').doc(id).update({ name: name.trim() }));
             smShows().filter(s => s.floorplanId === id).forEach(s => smWrite(db.collection('shows').doc(s.id).update({ floorplanName: name.trim() })));
@@ -1434,13 +1444,13 @@
                     <div class="sm-venue-head">
                         <div style="min-width:0;"><div class="sm-venue-name">${escapeHtml(v.name)}</div>
                         <div class="sm-venue-sub">${v.address ? '📍 ' + escapeHtml(v.address) + ' · ' : ''}${nShows} show${nShows === 1 ? '' : 's'}</div></div>
-                        <div class="sm-venue-btns"><button class="btn btn-outline btn-sm" onclick="smRenameVenue('${v.id}')">Rename</button><button class="btn btn-outline btn-sm" onclick="smVenueAddress('${v.id}')">Address</button><button class="btn btn-sm btn-magenta" onclick="smDeleteVenue('${v.id}')">Delete</button></div>
+                        <div class="sm-venue-btns"><button class="btn btn-outline btn-sm" onclick="smRenameVenue('${escapeHtml(jsStr(v.id))}')">Rename</button><button class="btn btn-outline btn-sm" onclick="smVenueAddress('${escapeHtml(jsStr(v.id))}')">Address</button><button class="btn btn-sm btn-magenta" onclick="smDeleteVenue('${escapeHtml(jsStr(v.id))}')">Delete</button></div>
                     </div>
                     <div class="sm-plans">${plans.map(p => {
                         const it = p.items || [], tables = it.filter(i => i.type === 't2' || i.type === 't4' || i.type === 't6'), barSeats = it.filter(i => i.type === 'bar').reduce((n, i) => n + (i.seats || 6), 0);
                         const seats = tables.reduce((n, i) => n + smCap(i), 0) + barSeats, pieces = it.filter(i => !smIsSeat(i)).length;
                         return `<div class="sm-plan"><div style="min-width:0;"><b>${escapeHtml(p.name)}</b><span>${tables.length} tables${barSeats ? ' + ' + barSeats + ' bar seats' : ''} · ${seats} seats${pieces ? ' · ' + pieces + ' room piece' + (pieces === 1 ? '' : 's') : ''} · ${p.w || SM_DEF_W}×${p.h || SM_DEF_H}</span></div>
-                            <div class="sm-venue-btns"><button class="btn btn-outline btn-sm" onclick="smRenamePlan('${p.id}')">Rename</button><button class="btn btn-sm btn-magenta" onclick="smDeletePlan('${p.id}')">Delete</button></div></div>`;
+                            <div class="sm-venue-btns"><button class="btn btn-outline btn-sm" onclick="smRenamePlan('${escapeHtml(jsStr(p.id))}')">Rename</button><button class="btn btn-sm btn-magenta" onclick="smDeletePlan('${escapeHtml(jsStr(p.id))}')">Delete</button></div></div>`;
                     }).join('') || `<div class="sm-plan-empty">No saved floorplans yet. Open a show at this venue, lay out the room, then tap “Save as new”.</div>`}</div>
                 </div>`;
             }).join('') || `<p style="color:var(--text-muted); text-align:center; padding:30px 10px;">No venues yet. Add one here, or pick “New venue…” when creating a show.</p>`;

@@ -2,17 +2,17 @@
         function renderBanList() {
             const list = getDB('banlist').slice().sort((a, b) => a.name.localeCompare(b.name));
             document.getElementById('banListContainer').innerHTML = list.map(b => `
-                <div class="glass-card event-tile" style="padding:16px;" onclick="openBanEntry('${b.id}')">
+                <div class="glass-card event-tile" style="padding:16px;" onclick="openBanEntry('${escapeHtml(jsStr(b.id))}')">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h4 style="color:var(--neon-pink); font-family:'Outfit'; font-size:1.15rem;">🚫 ${b.name}</h4>
+                        <h4 style="color:var(--neon-pink); font-family:'Outfit'; font-size:1.15rem;">🚫 ${escapeHtml(b.name)}</h4>
                         <span style="font-size:0.72rem; color:var(--text-muted); white-space:nowrap;">${(b.notes || []).length} incident${(b.notes || []).length === 1 ? '' : 's'}</span>
                     </div>
-                    ${(b.notes && b.notes[0]) ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">Latest: ${b.notes[0].text}</p>` : '<p style="font-size:0.82rem; color:var(--text-muted); margin-top:8px;">No incidents logged yet.</p>'}
+                    ${(b.notes && b.notes[0]) ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">Latest: ${escapeHtml(b.notes[0].text)}</p>` : '<p style="font-size:0.82rem; color:var(--text-muted); margin-top:8px;">No incidents logged yet.</p>'}
                 </div>
             `).join('') || '<p style="color:var(--text-muted); text-align:center; margin-top:40px;">No one on the ban list yet.</p>';
         }
-        function addBanEntry() {
-            const name = prompt('Name of the person to add to the ban list:');
+        async function addBanEntry() {
+            const name = await askText({ title: '🚫 Add to Ban List', message: 'Name of the person to add to the ban list:', okText: 'Add' });
             if (!name || !name.trim()) return;
             const id = 'b' + Date.now();
             saveDoc('banlist', id, { id, name: name.trim(), notes: [] }).then(() => logAction('Added to ban list: ' + name.trim()));
@@ -31,8 +31,8 @@
         function renderBanNotes(b) {
             document.getElementById('banNotes').innerHTML = (b.notes || []).map(n => `
                 <div style="border-bottom:1px solid rgba(255,255,255,0.06); padding:8px 0;">
-                    <span style="color:var(--neon-pink); font-size:0.75rem; font-weight:600;">${n.date}${n.by ? ' · ' + n.by : ''}</span>
-                    <p style="font-size:0.85rem;">${n.text}</p>
+                    <span style="color:var(--neon-pink); font-size:0.75rem; font-weight:600;">${escapeHtml(n.date)}${n.by ? ' · ' + escapeHtml(n.by) : ''}</span>
+                    <p style="font-size:0.85rem;">${escapeHtml(n.text)}</p>
                 </div>
             `).join('') || '<p style="color:var(--text-muted); font-size:0.85rem;">No incidents logged yet.</p>';
         }
@@ -66,6 +66,55 @@
             }
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        // An in-app replacement for the browser's prompt() box, which some places the app runs (installed web apps, embedded
+        // browsers) refuse to show - there the click just did nothing. Resolves with what was typed, or null on Cancel / Escape.
+        //   askText({ title, message, value, placeholder, type: 'text' | 'password', inputmode, okText, validate })
+        // validate(value) may return an error message: it is shown under the box and the dialog stays open for another try.
+        let askTextDone = null;
+        function askText(opts) {
+            opts = opts || {};
+            if (askTextDone) askTextDone(null); // only one at a time: a second call cancels the first
+            let m = document.getElementById('askTextModal');
+            if (!m) {
+                m = document.createElement('div');
+                m.className = 'modal'; m.id = 'askTextModal'; m.style.zIndex = '3300';
+                m.innerHTML = `<div class="modal-sheet" style="max-width:400px;" role="dialog" aria-modal="true" aria-labelledby="askTextTitle">
+                    <h3 id="askTextTitle" style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal); margin-bottom:6px;"></h3>
+                    <p id="askTextMsg" style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5; margin-bottom:6px;"></p>
+                    <input id="askTextInput" class="input-field" autocomplete="off" autocorrect="off" spellcheck="false" data-1p-ignore>
+                    <p id="askTextErr" style="display:none; font-size:0.82rem; color:var(--danger-glow); margin:-6px 0 12px;"></p>
+                    <div style="display:flex; gap:8px;"><button type="button" class="btn" id="askTextOk" style="flex:1;"></button><button type="button" class="btn btn-outline" id="askTextCancel">Cancel</button></div>
+                </div>`;
+                document.body.appendChild(m);
+            }
+            const input = m.querySelector('#askTextInput'), err = m.querySelector('#askTextErr'), msg = m.querySelector('#askTextMsg');
+            m.querySelector('#askTextTitle').textContent = opts.title || '';
+            msg.textContent = opts.message || ''; msg.style.display = opts.message ? 'block' : 'none';
+            m.querySelector('#askTextOk').textContent = opts.okText || 'OK';
+            input.type = opts.type === 'password' ? 'password' : 'text';
+            input.value = opts.value == null ? '' : String(opts.value);
+            input.placeholder = opts.placeholder || '';
+            if (opts.inputmode) input.setAttribute('inputmode', opts.inputmode); else input.removeAttribute('inputmode');
+            err.style.display = 'none';
+            m.style.display = 'flex';
+            setTimeout(() => { input.focus(); input.select(); }, 30);
+            return new Promise(resolve => {
+                const finish = v => {
+                    if (askTextDone !== finish) return;
+                    askTextDone = null; m.style.display = 'none'; input.value = '';
+                    m.onclick = m.onkeydown = null;
+                    resolve(v);
+                };
+                const submit = () => {
+                    const bad = opts.validate ? opts.validate(input.value) : '';
+                    if (bad) { err.textContent = bad; err.style.display = 'block'; input.focus(); input.select(); return; }
+                    finish(input.value);
+                };
+                askTextDone = finish;
+                m.onclick = e => { if (e.target === m || e.target.id === 'askTextCancel') finish(null); else if (e.target.id === 'askTextOk') submit(); };
+                m.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(null); } };
+            });
+        }
         // About-window "How to Use" secondary page toggle.
         function showAboutPage(n) {
             document.getElementById('aboutPage1').style.display = n === 1 ? 'block' : 'none';
@@ -367,10 +416,10 @@
                 if (!shifts.length) return;
                 document.getElementById('openShiftsList').innerHTML = shifts.map(({ e, items }) => `
                     <div style="background:rgba(12,12,18,0.7); border:1px solid var(--border-glass); border-radius:14px; padding:14px 16px;">
-                        <div style="font-family:'Outfit'; font-weight:700; font-size:1.02rem; margin-bottom:2px;">${e.title}</div>
-                        <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🗓️ ${e.date}${e.startTime ? ' · ' + e.startTime : ''}</div>
-                        <ul style="margin:0 0 12px 18px; padding:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.6;">${items.map(i => `<li>${i}</li>`).join('')}</ul>
-                        <button class="btn btn-sm" onclick="goToOpenShift('${e.id}')">View &amp; Sign Up</button>
+                        <div style="font-family:'Outfit'; font-weight:700; font-size:1.02rem; margin-bottom:2px;">${escapeHtml(e.title)}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🗓️ ${escapeHtml(e.date)}${e.startTime ? ' · ' + escapeHtml(e.startTime) : ''}</div>
+                        <ul style="margin:0 0 12px 18px; padding:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.6;">${items.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>
+                        <button class="btn btn-sm" onclick="goToOpenShift('${escapeHtml(jsStr(e.id))}')">View &amp; Sign Up</button>
                     </div>`).join('');
                 document.getElementById('openShiftsFreqNote').textContent = OPEN_SHIFTS_FREQUENCIES[osSettings.frequency].note;
                 document.getElementById('openShiftsModal').style.display = 'flex';
@@ -406,7 +455,7 @@
 
         /* CHAT */
         let actChan = 'general';
-        function renderChat() { document.getElementById('chatDropdown').innerHTML = getDB('channels').map(c => `<option value="${c}" ${c === actChan ? 'selected' : ''}>#${c}</option>`).join(''); document.getElementById('chatTitle').innerText = '# ' + actChan; document.getElementById('chatBox').innerHTML = getDB('chats').filter(c => c.channel === actChan).sort((a, b) => a.id.localeCompare(b.id)).map(c => `<div class="chat-bubble ${c.user === currUser()?.name ? 'mine' : ''}"><div style="font-size:0.72rem; font-weight:600; color:${c.user === currUser()?.name ? '#ff9ee2' : 'var(--neon-teal)'}; margin-bottom:3px;">${c.user}</div><div>${c.text}</div>${c.file ? `<div style="margin-top:6px;"><a href="${c.file}" style="color:var(--text-primary); font-size:0.75rem; font-weight:600;">📎 View File</a></div>` : ''}</div>`).join(''); document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; markChannelRead(actChan); updateCommsBadge(); }
+        function renderChat() { document.getElementById('chatDropdown').innerHTML = getDB('channels').map(c => `<option value="${escapeHtml(c)}" ${c === actChan ? 'selected' : ''}>#${escapeHtml(c)}</option>`).join(''); document.getElementById('chatTitle').innerText = '# ' + actChan; document.getElementById('chatBox').innerHTML = getDB('chats').filter(c => c.channel === actChan).sort((a, b) => a.id.localeCompare(b.id)).map(c => `<div class="chat-bubble ${c.user === currUser()?.name ? 'mine' : ''}"><div style="font-size:0.72rem; font-weight:600; color:${c.user === currUser()?.name ? '#ff9ee2' : 'var(--neon-teal)'}; margin-bottom:3px;">${escapeHtml(c.user)}</div><div>${escapeHtml(c.text)}</div>${c.file ? `<div style="margin-top:6px;"><a href="${safeUrl(c.file)}" style="color:var(--text-primary); font-size:0.75rem; font-weight:600;">📎 View File</a></div>` : ''}</div>`).join(''); document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; markChannelRead(actChan); updateCommsBadge(); }
         function switchChat(c) { actChan = c; renderChat(); }
         function sendChat(fUrl = null) { let v = document.getElementById('chatInput').value; if (v || fUrl) { logEvent('chat_send', 'Sent a chat message', { channel: actChan }); let cm = { id: 'm' + Date.now(), channel: actChan, user: currUser().name, text: v || 'Sent file', file: fUrl }; saveDoc('chats', cm.id, cm); document.getElementById('chatInput').value = ''; } }
         function uploadFile(e) { if (e.target.files[0]) sendChat(URL.createObjectURL(e.target.files[0])); }

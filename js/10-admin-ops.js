@@ -1,9 +1,9 @@
         /* ADMIN CHAT */
         function renderAdminChats() {
             const ch = getDB('channels'), msgs = getDB('chats').sort((a, b) => b.id.localeCompare(a.id));
-            document.getElementById('adminChanList').innerHTML = ch.map(c => `<div class="glass-card" style="display:flex;justify-content:space-between;padding:10px;margin-bottom:8px;"><span># ${c}</span><div><button class="btn btn-sm btn-magenta" onclick="delChan('${c}')">Delete Channel</button> <button class="btn btn-sm btn-outline" onclick="clrChan('${c}')">Clear History</button></div></div>`).join('');
-            document.getElementById('adminMsgList').innerHTML = msgs.map(m => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:8px;font-size:0.85rem;"><span style="color:var(--neon-teal);">[#${m.channel}] ${m.user}: ${m.text}</span><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border:none;" onclick="delMsg('${m.id}')">Delete Message</button></div>`).join('');
-            document.getElementById('adminAttachList').innerHTML = msgs.filter(m => m.file).map(m => `<div style="margin-bottom:6px;"><a href="${m.file}" style="color:var(--neon-teal); font-size:0.85rem; font-weight:600;">📎 Attachment in #${m.channel}</a></div>`).join('');
+            document.getElementById('adminChanList').innerHTML = ch.map(c => `<div class="glass-card" style="display:flex;justify-content:space-between;padding:10px;margin-bottom:8px;"><span># ${escapeHtml(c)}</span><div><button class="btn btn-sm btn-magenta" onclick="delChan('${escapeHtml(jsStr(c))}')">Delete Channel</button> <button class="btn btn-sm btn-outline" onclick="clrChan('${escapeHtml(jsStr(c))}')">Clear History</button></div></div>`).join('');
+            document.getElementById('adminMsgList').innerHTML = msgs.map(m => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:8px;font-size:0.85rem;"><span style="color:var(--neon-teal);">[#${escapeHtml(m.channel)}] ${escapeHtml(m.user)}: ${escapeHtml(m.text)}</span><button class="btn btn-sm btn-outline" style="color:var(--danger-glow); border:none;" onclick="delMsg('${escapeHtml(jsStr(m.id))}')">Delete Message</button></div>`).join('');
+            document.getElementById('adminAttachList').innerHTML = msgs.filter(m => m.file).map(m => `<div style="margin-bottom:6px;"><a href="${safeUrl(m.file)}" style="color:var(--neon-teal); font-size:0.85rem; font-weight:600;">📎 Attachment in #${escapeHtml(m.channel)}</a></div>`).join('');
         }
         function addChannel() { let v = document.getElementById('newChanInput').value.toLowerCase().replace(/\s+/g, '-'); if (v) saveDoc('channels', v, { name: v }); }
         function delChan(c) { if (confirm('Delete channel #' + c + ' and all its history?')) { deleteDoc('channels', c); clrChan(c); } }
@@ -14,7 +14,7 @@
         function renderAdminTags() {
             const tags = getDB('tags').slice().sort((a, b) => a.name.localeCompare(b.name));
             document.getElementById('adminTagsList').innerHTML = tags.map(t => `
-                <span class="neon-tag tag-active">${t.name} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="delCatalogTag('${t.id}','${jsStr(t.name)}')">×</b></span>
+                <span class="neon-tag tag-active">${escapeHtml(t.name)} <b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" onclick="delCatalogTag('${escapeHtml(jsStr(t.id))}','${escapeHtml(jsStr(t.name))}')">×</b></span>
             `).join('') || '<span style="color:var(--text-muted); font-size:0.85rem;">No tags yet - add one above.</span>';
         }
         function addCatalogTag() {
@@ -38,7 +38,7 @@
         function renderAdminRoles() {
             const roles = getDB('roles').slice().sort((a, b) => a.name.localeCompare(b.name));
             document.getElementById('adminRolesList').innerHTML = roles.map(r => `
-                <span class="neon-tag tag-active">${r.name} <b style="color:var(--neon-teal);cursor:pointer;margin-left:6px;" title="Rename" onclick="editCatalogRole('${r.id}','${jsStr(r.name)}')">✎</b><b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" title="Delete" onclick="delCatalogRole('${r.id}','${jsStr(r.name)}')">×</b></span>
+                <span class="neon-tag tag-active">${escapeHtml(r.name)} <b style="color:var(--neon-teal);cursor:pointer;margin-left:6px;" title="Rename" onclick="editCatalogRole('${escapeHtml(jsStr(r.id))}','${escapeHtml(jsStr(r.name))}')">✎</b><b style="color:var(--danger-glow);cursor:pointer;margin-left:4px;" title="Delete" onclick="delCatalogRole('${escapeHtml(jsStr(r.id))}','${escapeHtml(jsStr(r.name))}')">×</b></span>
             `).join('') || '<span style="color:var(--text-muted); font-size:0.85rem;">No ranks yet - add one above.</span>';
         }
         function addCatalogRole() {
@@ -52,8 +52,8 @@
                 input.value = '';
             });
         }
-        function editCatalogRole(id, oldName) {
-            const newName = prompt('Rename rank:', oldName);
+        async function editCatalogRole(id, oldName) {
+            const newName = await askText({ title: 'Rename rank', value: oldName, okText: 'Rename' });
             if (newName === null) return;
             const trimmed = newName.trim();
             if (!trimmed || trimmed === oldName) return;
@@ -335,13 +335,13 @@
             const me = currUser();
             renderOpenShiftsControls();
             document.getElementById('usersBody').innerHTML = getDB('users').map(u => `<tr>
-                <td><strong>${u.name}</strong>${u.isDev ? ' <span class="neon-tag" style="background:rgba(255,176,32,0.15); color:#ffb020; border:1px solid rgba(255,176,32,0.4); padding:1px 7px; font-size:0.62rem;">DEV</span>' : ''}</td>
-                <td style="font-size:0.8rem;">${u.email}<br>${u.phone || ''}</td>
-                <td style="font-size:0.8rem; color:var(--neon-teal); font-weight:600;">${u.role || '<span style="color:var(--text-muted); font-weight:400;">—</span>'}</td>
+                <td><strong>${escapeHtml(u.name)}</strong>${u.isDev ? ' <span class="neon-tag" style="background:rgba(255,176,32,0.15); color:#ffb020; border:1px solid rgba(255,176,32,0.4); padding:1px 7px; font-size:0.62rem;">DEV</span>' : ''}</td>
+                <td style="font-size:0.8rem;">${escapeHtml(u.email)}<br>${escapeHtml(u.phone || '')}</td>
+                <td style="font-size:0.8rem; color:var(--neon-teal); font-weight:600;">${u.role ? escapeHtml(u.role) : '<span style="color:var(--text-muted); font-weight:400;">—</span>'}</td>
                 <td style="white-space:nowrap;">
-                    <button class="btn btn-sm ${u.isAdmin ? 'btn-magenta' : 'btn-outline'}" onclick="togAdmin('${u.id}')">${u.isAdmin ? 'Admin' : 'Guard'}</button>
-                    <button class="btn btn-sm btn-outline" onclick="openUserModal('${u.id}')">Edit</button>
-                    <button class="btn btn-sm btn-outline" style="color:var(--danger-glow);" onclick="delUser('${u.id}')" ${me && me.id === u.id ? 'disabled title="Cannot delete your own active session"' : ''}>Delete</button>
+                    <button class="btn btn-sm ${u.isAdmin ? 'btn-magenta' : 'btn-outline'}" onclick="togAdmin('${escapeHtml(jsStr(u.id))}')">${u.isAdmin ? 'Admin' : 'Guard'}</button>
+                    <button class="btn btn-sm btn-outline" onclick="openUserModal('${escapeHtml(jsStr(u.id))}')">Edit</button>
+                    <button class="btn btn-sm btn-outline" style="color:var(--danger-glow);" onclick="delUser('${escapeHtml(jsStr(u.id))}')" ${me && me.id === u.id ? 'disabled title="Cannot delete your own active session"' : ''}>Delete</button>
                 </td>
             </tr>`).join('');
         }
@@ -387,7 +387,7 @@
             document.getElementById('umEmail').disabled = !!id; // can't change another user's login email client-side
             document.getElementById('umEmailLockedNote').style.display = id ? 'block' : 'none';
             document.getElementById('umPhone').value = u ? (u.phone || '') : '';
-            document.getElementById('umRole').innerHTML = '<option value="">-- No rank assigned --</option>' + getRoleCatalog().map(r => `<option value="${r}">${r}</option>`).join('');
+            document.getElementById('umRole').innerHTML = '<option value="">-- No rank assigned --</option>' + getRoleCatalog().map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
             // New users default to Private - only override for an existing
             // user being edited, whose actual rank (or lack of one) we show as-is.
             document.getElementById('umRole').value = u ? (u.role || '') : 'Private';

@@ -1,5 +1,5 @@
         /* ADMIN SECURE */
-        function promptAdminPin() {
+        async function promptAdminPin() {
             const u = currUser();
             if (!u || !u.isAdmin) { alert('The admin console is only available to admins.'); return; }
             if (!u.pin) {
@@ -11,10 +11,12 @@
                 alert("You don't have an Admin PIN set yet. Set one below to secure the console for next time.");
                 return;
             }
-            const entered = prompt('Enter your Admin PIN:');
+            // An in-app dialog (askText, js/12) instead of the browser's prompt(): the PIN is masked as it is typed, a wrong PIN can be
+            // retried without starting over, and it works where prompt() is refused. The PIN is re-read from the live profile on each try.
+            const ok = v => { const me = currUser(); return !!(me && me.isAdmin && me.pin && v === me.pin); };
+            const entered = await askText({ title: '🔒 Admin PIN', message: 'Enter your Admin PIN to open the Command Center.', type: 'password', okText: 'Unlock', validate: v => ok(v) ? '' : 'Incorrect PIN.' });
             if (entered === null) return;
-            if (entered === u.pin) switchView('adminConsoleView');
-            else alert('Incorrect PIN.');
+            if (ok(entered)) switchView('adminConsoleView');
         }
         function switchAdmin(t) {
             document.querySelectorAll('.segment-btn').forEach(el => el.classList.remove('active')); event.target.classList.add('active');
@@ -107,24 +109,24 @@
             if (!body) return;
             body.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:14px;">
-                    <h3 style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal); word-break:break-word;">Manage: ${draft.title}
+                    <h3 style="font-family:'Outfit'; font-size:1.25rem; color:var(--neon-teal); word-break:break-word;">Manage: ${escapeHtml(draft.title)}
                         ${draft.hidden ? '<span style="display:block; margin-top:6px; color:var(--text-muted); font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border:1px solid var(--border-glass); border-radius:6px; padding:2px 6px;">Hidden from Feed</span>' : ''}
                     </h3>
                     <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 8px; flex-shrink:0;" onclick="closeEventEditor()">✕</button>
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
-                    <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${id}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? 'Show on Feed' : 'Hide from Feed'}</button>
-                    <button class="btn btn-sm btn-outline" id="archiveBtn_${id}" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${id}')" title="Moves this to the Archive tab - marked as cancelled unless 'Just retire' is ticked">${window._retireOnly ? '📦 Retire' : '🚫 Archive / Cancel'}</button>
-                    <button class="btn btn-sm btn-magenta" onclick="delEv('${id}')">Delete Tile</button>
-                    <label style="flex-basis:100%; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.78rem; color:var(--text-muted);"><input type="checkbox" ${window._retireOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="setRetireOnly(this.checked, '${id}')"><span>Just retire it - don't mark it as cancelled</span></label>
+                    <button class="btn btn-sm btn-outline" onclick="toggleEventVisibility('${escapeHtml(jsStr(id))}')" title="${draft.hidden ? 'Show this posting on the guard-facing Events feed and Calendar' : 'Hide this posting from the guard-facing Events feed and Calendar - use for tentative gigs until confirmed'}">${draft.hidden ? 'Show on Feed' : 'Hide from Feed'}</button>
+                    <button class="btn btn-sm btn-outline" id="archiveBtn_${escapeHtml(id)}" style="color:var(--danger-glow); border-color:var(--danger-glow);" onclick="archiveEvent('${escapeHtml(jsStr(id))}')" title="Moves this to the Archive tab - marked as cancelled unless 'Just retire' is ticked">${window._retireOnly ? '📦 Retire' : '🚫 Archive / Cancel'}</button>
+                    <button class="btn btn-sm btn-magenta" onclick="delEv('${escapeHtml(jsStr(id))}')">Delete Tile</button>
+                    <label style="flex-basis:100%; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.78rem; color:var(--text-muted);"><input type="checkbox" ${window._retireOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="setRetireOnly(this.checked, '${escapeHtml(jsStr(id))}')"><span>Just retire it - don't mark it as cancelled</span></label>
                 </div>
-                <div id="drag_${id}">
+                <div id="drag_${escapeHtml(id)}">
                     ${(draft.layout || []).map(sec => genAdminSec(sec, draft)).join('')}
                 </div>
                 <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-glass);">
-                    <button class="btn" onclick="saveEventDraft('${id}')">💾 Save Changes</button>
-                    <button class="btn btn-outline btn-sm" onclick="discardEventDraft('${id}')">Discard</button>
-                    <span id="saveStatus_${id}" style="font-size:0.8rem; font-weight:600;"></span>
+                    <button class="btn" onclick="saveEventDraft('${escapeHtml(jsStr(id))}')">💾 Save Changes</button>
+                    <button class="btn btn-outline btn-sm" onclick="discardEventDraft('${escapeHtml(jsStr(id))}')">Discard</button>
+                    <span id="saveStatus_${escapeHtml(id)}" style="font-size:0.8rem; font-weight:600;"></span>
                 </div>
             `;
             initDragDrop(`drag_${id}`, id);
@@ -141,16 +143,16 @@
 
             listEl.innerHTML = evs.map(e => {
                 const slots = eventOpenSlots(e);
-                return `<div class="glass-card event-tile" id="tile_${e.id}" style="padding:13px 15px; display:flex; gap:12px; align-items:center;" onclick="openEventEditor('${e.id}')">
+                return `<div class="glass-card event-tile" id="tile_${escapeHtml(e.id)}" style="padding:13px 15px; display:flex; gap:12px; align-items:center;" onclick="openEventEditor('${escapeHtml(jsStr(e.id))}')">
                     <div class="event-img-wrap" style="width:60px; height:60px; flex-shrink:0; border-radius:10px;">
-                        <img src="${e.image}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                        <img src="${escapeHtml(e.image)}" class="event-img" style="height:100%; object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                     </div>
                     <div style="flex:1; min-width:0;">
                         <div style="font-weight:700; color:var(--neon-teal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            ${e.title}
+                            ${escapeHtml(e.title)}
                             ${e.hidden ? '<span style="color:var(--text-muted); font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border:1px solid var(--border-glass); border-radius:6px; padding:1px 6px; margin-left:6px; vertical-align:middle;">Hidden</span>' : ''}
                         </div>
-                        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:3px;">🗓️ ${e.date}${e.startTime ? ' · ' + e.startTime : ''} · ${slots} open slot${slots === 1 ? '' : 's'}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:3px;">🗓️ ${escapeHtml(e.date)}${e.startTime ? ' · ' + escapeHtml(e.startTime) : ''} · ${slots} open slot${slots === 1 ? '' : 's'}</div>
                     </div>
                     <span style="color:var(--text-muted); font-size:1.3rem; flex-shrink:0;">›</span>
                 </div>`;
@@ -224,17 +226,17 @@
                 const posOptions = (e.positions && e.positions.length) ? e.positions.map(p => p.name) : LEGACY_POST_OPTIONS.filter(p => p !== 'Unassigned');
                 const currentPos = (e.guardPosts && e.guardPosts[g]) || 'Unassigned';
                 return `<tr style="border-top:1px solid rgba(255,255,255,0.06);">
-                    <td style="padding:6px 4px;">${g}</td>
+                    <td style="padding:6px 4px;">${escapeHtml(g)}</td>
                     <td style="padding:6px 4px;">
-                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${eventId}','${jsStr(g)}',this.value)">
+                        <select class="input-field" style="margin:0; padding:6px;" onchange="draftReassignGuard('${escapeHtml(jsStr(eventId))}','${escapeHtml(jsStr(g))}',this.value)">
                             <option value="Unassigned" ${currentPos === 'Unassigned' ? 'selected' : ''}>Unassigned</option>
-                            ${posOptions.map(p => `<option value="${p}" ${currentPos === p ? 'selected' : ''}>${p}</option>`).join('')}
+                            ${posOptions.map(p => `<option value="${escapeHtml(p)}" ${currentPos === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
                         </select>
                     </td>
                     <td style="padding:6px 4px;">
-                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${((e.guardNotes && e.guardNotes[g]) || '').replace(/"/g, '&quot;')}" onchange="draftSetGuardNote('${eventId}','${jsStr(g)}',this.value)" data-1p-ignore>
+                        <input type="text" class="input-field" style="margin:0;" placeholder="Visible to them on event details" value="${escapeHtml((e.guardNotes && e.guardNotes[g]) || '')}" onchange="draftSetGuardNote('${escapeHtml(jsStr(eventId))}','${escapeHtml(jsStr(g))}',this.value)" data-1p-ignore>
                     </td>
-                    <td style="padding:6px 4px;"><b style="color:var(--danger-glow);cursor:pointer;" onclick="draftRmGuard('${eventId}',${i})">✕</b></td>
+                    <td style="padding:6px 4px;"><b style="color:var(--danger-glow);cursor:pointer;" onclick="draftRmGuard('${escapeHtml(jsStr(eventId))}',${i})">✕</b></td>
                 </tr>`;
             }).join('') || `<tr><td colspan="4" style="padding:10px 4px; color:var(--text-muted);">No one signed up yet.</td></tr>`;
         }
@@ -267,7 +269,7 @@
             if (addSelect && document.activeElement !== addSelect) {
                 const currentVal = addSelect.value;
                 const options = getDB('users').filter(u => !(draft.guards || []).includes(u.name));
-                addSelect.innerHTML = `<option value="">-- Add existing user --</option>` + options.map(u => `<option value="${u.name.replace(/"/g, '&quot;')}">${u.name}</option>`).join('');
+                addSelect.innerHTML = `<option value="">-- Add existing user --</option>` + options.map(u => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
                 if (options.some(u => u.name === currentVal)) addSelect.value = currentVal;
             }
 
@@ -280,68 +282,68 @@
         function genAdminSec(sec, e) {
             const linkedPromoterIds = getEventPromoterIds(e);
             const promoterPicker = getDB('promoters').length
-                ? `<div class="tags-container" style="margin:6px 0 4px;">${getDB('promoters').map(p => `<span class="neon-tag ${linkedPromoterIds.includes(p.id) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftTogglePromoter('${e.id}','${p.id}')">${linkedPromoterIds.includes(p.id) ? '✓ ' : ''}${p.name}</span>`).join('')}</div>`
+                ? `<div class="tags-container" style="margin:6px 0 4px;">${getDB('promoters').map(p => `<span class="neon-tag ${linkedPromoterIds.includes(p.id) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftTogglePromoter('${escapeHtml(jsStr(e.id))}','${escapeHtml(jsStr(p.id))}')">${linkedPromoterIds.includes(p.id) ? '✓ ' : ''}${escapeHtml(p.name)}</span>`).join('')}</div>`
                 : `<p style="color:var(--text-muted); font-size:0.8rem; margin:6px 0;">No promoter contacts yet — add some under Command Center → Contacts.</p>`;
-            if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">IMG URL & TITLE</label><input class="input-field" value="${e.image}" onchange="draftSet('${e.id}','image',this.value)" data-1p-ignore><input class="input-field" value="${e.title}" onchange="draftSet('${e.id}','title',this.value)" data-1p-ignore></div>`;
-            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TIME, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${e.date}" onchange="draftSet('${e.id}','date',this.value)" data-1p-ignore><div style="display:flex; gap:8px;"><input type="time" class="input-field" style="flex:1;" value="${e.startTime || ''}" onchange="draftSet('${e.id}','startTime',this.value)" data-1p-ignore><input type="time" class="input-field" style="flex:1;" value="${e.endTime || ''}" onchange="draftSet('${e.id}','endTime',this.value)" data-1p-ignore></div><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${e.ticketLink || ''}" onchange="draftSet('${e.id}','ticketLink',this.value)" data-1p-ignore><label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:4px;">Client(s) / Promoter(s) <span style="color:var(--text-muted); font-weight:400; text-transform:none;">(optional, pick as many as apply)</span></label>${promoterPicker}<label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:8px;">Event Notes:</label><textarea class="input-field" onchange="draftSet('${e.id}','desc',this.value)" data-1p-ignore>${e.desc}</textarea><label style="display:flex; align-items:center; gap:8px; margin:12px 0 2px; cursor:pointer;"><input type="checkbox" ${e.communityOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="draftSet('${e.id}','communityOnly', this.checked)"><span style="font-size:0.82rem;">📋 Community Listing Only <span style="color:var(--text-muted); font-weight:400;">(not a contracted event)</span></span></label></div>`;
-            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">TAGS</label><div class="tags-container" style="margin-top:8px;">${getTagCatalog().map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${e.id}','${t}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${t}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>'}</div><p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Need a new tag option? Add or remove them under Command Center → Tags &amp; Roles.</p></div>`;
+            if (sec === 'img') return `<div class="draggable-section" draggable="true" data-id="img"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">IMG URL & TITLE</label><input class="input-field" value="${escapeHtml(e.image)}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','image',this.value)" data-1p-ignore><input class="input-field" value="${escapeHtml(e.title)}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','title',this.value)" data-1p-ignore></div>`;
+            if (sec === 'info') return `<div class="draggable-section" draggable="true" data-id="info"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">DATE, TIME, TICKETS, CLIENT & DESC</label><input type="date" class="input-field" value="${escapeHtml(e.date)}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','date',this.value)" data-1p-ignore><div style="display:flex; gap:8px;"><input type="time" class="input-field" style="flex:1;" value="${escapeHtml(e.startTime || '')}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','startTime',this.value)" data-1p-ignore><input type="time" class="input-field" style="flex:1;" value="${escapeHtml(e.endTime || '')}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','endTime',this.value)" data-1p-ignore></div><input type="text" class="input-field" placeholder="Ticket URL (Optional)" value="${escapeHtml(e.ticketLink || '')}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','ticketLink',this.value)" data-1p-ignore><label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:4px;">Client(s) / Promoter(s) <span style="color:var(--text-muted); font-weight:400; text-transform:none;">(optional, pick as many as apply)</span></label>${promoterPicker}<label style="font-size:0.75rem; color:var(--text-muted); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:8px;">Event Notes:</label><textarea class="input-field" onchange="draftSet('${escapeHtml(jsStr(e.id))}','desc',this.value)" data-1p-ignore>${escapeHtml(e.desc || '')}</textarea><label style="display:flex; align-items:center; gap:8px; margin:12px 0 2px; cursor:pointer;"><input type="checkbox" ${e.communityOnly ? 'checked' : ''} style="width:auto; margin:0;" onchange="draftSet('${escapeHtml(jsStr(e.id))}','communityOnly', this.checked)"><span style="font-size:0.82rem;">📋 Community Listing Only <span style="color:var(--text-muted); font-weight:400;">(not a contracted event)</span></span></label></div>`;
+            if (sec === 'tags') return `<div class="draggable-section" draggable="true" data-id="tags"><label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">TAGS</label><div class="tags-container" style="margin-top:8px;">${getTagCatalog().map(t => `<span class="neon-tag ${(e.tags || []).includes(t) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer;" onclick="draftToggleTag('${escapeHtml(jsStr(e.id))}','${escapeHtml(jsStr(t))}')">${(e.tags || []).includes(t) ? '✓ ' : ''}${escapeHtml(t)}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.8rem;">No tags in the catalog yet.</span>'}</div><p style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Need a new tag option? Add or remove them under Command Center → Tags &amp; Roles.</p></div>`;
             if (sec === 'logistics') return `<div class="draggable-section" draggable="true" data-id="logistics">
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">ADDRESS &amp; TIMELINE</label>
-                <input class="input-field" placeholder="Venue address (e.g. 123 Main St, Phoenix, AZ)" value="${e.address || ''}" onchange="draftSet('${e.id}','address',this.value)" data-1p-ignore>
-                <div id="tl_${e.id}" style="margin-top:6px;">
+                <input class="input-field" placeholder="Venue address (e.g. 123 Main St, Phoenix, AZ)" value="${escapeHtml(e.address || '')}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','address',this.value)" data-1p-ignore>
+                <div id="tl_${escapeHtml(e.id)}" style="margin-top:6px;">
                     ${(e.timeline || []).map((t, i) => `
                     <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
-                        <input type="time" class="input-field" style="margin:0; width:120px;" value="${t.time || ''}" onchange="draftUpdTimeline('${e.id}',${i},'time',this.value)" data-1p-ignore>
-                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="What happens at this time" value="${(t.label || '').replace(/"/g, '&quot;')}" onchange="draftUpdTimeline('${e.id}',${i},'label',this.value)" data-1p-ignore>
-                        <button class="btn btn-sm btn-magenta" onclick="draftRmTimeline('${e.id}',${i})">×</button>
+                        <input type="time" class="input-field" style="margin:0; width:120px;" value="${escapeHtml(t.time || '')}" onchange="draftUpdTimeline('${escapeHtml(jsStr(e.id))}',${i},'time',this.value)" data-1p-ignore>
+                        <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="What happens at this time" value="${escapeHtml(t.label || '')}" onchange="draftUpdTimeline('${escapeHtml(jsStr(e.id))}',${i},'label',this.value)" data-1p-ignore>
+                        <button class="btn btn-sm btn-magenta" onclick="draftRmTimeline('${escapeHtml(jsStr(e.id))}',${i})">×</button>
                     </div>`).join('')}
                 </div>
-                <button class="btn btn-sm btn-outline" onclick="draftAddTimeline('${e.id}')">+ Add Timeline Item</button>
+                <button class="btn btn-sm btn-outline" onclick="draftAddTimeline('${escapeHtml(jsStr(e.id))}')">+ Add Timeline Item</button>
             </div>`;
             if (sec === 'roster') return `<div class="draggable-section" draggable="true" data-id="roster">
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600;">POSITION TYPES</label>
                 <p style="font-size:0.75rem; color:var(--text-muted); margin:2px 0 8px;">Define how many of each position you need. Leave empty to use simple Open Slots below instead.</p>
-                <div id="postypes_${e.id}">
+                <div id="postypes_${escapeHtml(e.id)}">
                     ${(e.positions || []).map((p, i) => `
                     <div style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);">
                         <div style="display:flex; gap:6px; align-items:center;">
-                            <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="Position name (e.g. Door)" value="${(p.name || '').replace(/"/g, '&quot;')}" onchange="draftUpdPosition('${e.id}',${i},'name',this.value)" data-1p-ignore>
-                            <input type="number" min="0" class="input-field" style="margin:0; width:70px;" value="${p.slots || 0}" onchange="draftUpdPosition('${e.id}',${i},'slots',parseInt(this.value)||0)" data-1p-ignore>
-                            <span id="posfill_${e.id}_${i}" style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">(${positionFilled(e, p.name)} filled)</span>
-                            <button class="btn btn-sm btn-magenta" onclick="draftRmPosition('${e.id}',${i})">×</button>
+                            <input type="text" class="input-field" style="margin:0; flex:1;" placeholder="Position name (e.g. Door)" value="${escapeHtml(p.name || '')}" onchange="draftUpdPosition('${escapeHtml(jsStr(e.id))}',${i},'name',this.value)" data-1p-ignore>
+                            <input type="number" min="0" class="input-field" style="margin:0; width:70px;" value="${escapeHtml(p.slots || 0)}" onchange="draftUpdPosition('${escapeHtml(jsStr(e.id))}',${i},'slots',parseInt(this.value)||0)" data-1p-ignore>
+                            <span id="posfill_${escapeHtml(e.id)}_${i}" style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">(${positionFilled(e, p.name)} filled)</span>
+                            <button class="btn btn-sm btn-magenta" onclick="draftRmPosition('${escapeHtml(jsStr(e.id))}',${i})">×</button>
                         </div>
                         <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:6px;">
                             <span style="font-size:0.68rem; color:var(--text-muted); margin-right:2px;">Restrict to ranks:</span>
-                            ${getRoleCatalog().map(r => `<span class="neon-tag ${(p.allowedRoles || []).includes(r) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer; font-size:0.68rem; padding:3px 8px;" onclick="draftTogglePositionRole('${e.id}',${i},'${jsStr(r)}')">${(p.allowedRoles || []).includes(r) ? '✓ ' : ''}${r}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.7rem;">No ranks in the catalog - add some under Command Center → Tags &amp; Roles.</span>'}
+                            ${getRoleCatalog().map(r => `<span class="neon-tag ${(p.allowedRoles || []).includes(r) ? 'tag-active' : 'tag-inactive'}" style="cursor:pointer; font-size:0.68rem; padding:3px 8px;" onclick="draftTogglePositionRole('${escapeHtml(jsStr(e.id))}',${i},'${escapeHtml(jsStr(r))}')">${(p.allowedRoles || []).includes(r) ? '✓ ' : ''}${escapeHtml(r)}</span>`).join('') || '<span style="color:var(--text-muted); font-size:0.7rem;">No ranks in the catalog - add some under Command Center → Tags &amp; Roles.</span>'}
                             <span style="font-size:0.65rem; color:${(p.allowedRoles || []).length ? 'var(--neon-pink)' : 'var(--text-muted)'}; display:block; width:100%; margin-top:3px;">${(p.allowedRoles || []).length ? 'Only guards holding one of the checked ranks can see or claim this position. Everyone else just sees it as filled/open.' : 'Open to guards of any rank.'}</span>
                         </div>
                     </div>`).join('')}
                 </div>
-                <button class="btn btn-sm btn-outline" onclick="draftAddPosition('${e.id}')">+ Add Position Type</button>
+                <button class="btn btn-sm btn-outline" onclick="draftAddPosition('${escapeHtml(jsStr(e.id))}')">+ Add Position Type</button>
 
                 <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-glass); font-size:0.8rem;">
                     Open Slots (legacy/simple mode - ignored once a position type exists above):
-                    <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${e.openSlots || 0}" onchange="draftSet('${e.id}','openSlots',parseInt(this.value)||0);" data-1p-ignore>
+                    <input type="number" class="input-field" style="width:70px; display:inline-block; padding:4px;" value="${escapeHtml(e.openSlots || 0)}" onchange="draftSet('${escapeHtml(jsStr(e.id))}','openSlots',parseInt(this.value)||0);" data-1p-ignore>
                 </div>
 
                 <label style="font-size:0.75rem; color:var(--neon-teal); font-family:'Outfit',sans-serif; font-weight:600; display:block; margin-top:14px;">SIGNED-UP TEAM <span style="color:var(--neon-saguaro); font-weight:400; text-transform:none;">(updates live)</span></label>
                 <div style="overflow-x:auto; margin-top:6px;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
                         <thead><tr style="text-align:left; color:var(--text-muted);"><th style="padding:4px;">Name</th><th style="padding:4px;">Position</th><th style="padding:4px;">Note to them</th><th></th></tr></thead>
-                        <tbody id="rosterBody_${e.id}">${buildRosterRows(e.id, e)}</tbody>
+                        <tbody id="rosterBody_${escapeHtml(e.id)}">${buildRosterRows(e.id, e)}</tbody>
                     </table>
                 </div>
 
                 <div style="display:flex; gap:5px; margin-top:12px; flex-wrap:wrap;">
-                    <select id="au_${e.id}" class="input-field" style="margin:0; flex:1; min-width:150px;">
+                    <select id="au_${escapeHtml(e.id)}" class="input-field" style="margin:0; flex:1; min-width:150px;">
                         <option value="">-- Add existing user --</option>
-                        ${getDB('users').filter(u => !(e.guards || []).includes(u.name)).map(u => `<option value="${u.name.replace(/"/g, '&quot;')}">${u.name}</option>`).join('')}
+                        ${getDB('users').filter(u => !(e.guards || []).includes(u.name)).map(u => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('')}
                     </select>
-                    <button class="btn btn-sm" onclick="draftAddExistingGuard('${e.id}')">Add</button>
+                    <button class="btn btn-sm" onclick="draftAddExistingGuard('${escapeHtml(jsStr(e.id))}')">Add</button>
                 </div>
                 <div style="display:flex; gap:5px; margin-top:8px;">
-                    <input id="mg_${e.id}" class="input-field" placeholder="Or add a manual name (not a system user)" style="margin:0;" data-1p-ignore>
-                    <button class="btn btn-sm btn-outline" onclick="draftAddGuard('${e.id}')">Add</button>
+                    <input id="mg_${escapeHtml(e.id)}" class="input-field" placeholder="Or add a manual name (not a system user)" style="margin:0;" data-1p-ignore>
+                    <button class="btn btn-sm btn-outline" onclick="draftAddGuard('${escapeHtml(jsStr(e.id))}')">Add</button>
                 </div>
             </div>`;
             return '';

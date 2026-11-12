@@ -15,7 +15,7 @@
         function cleanData(obj) { return JSON.parse(JSON.stringify(obj)); }
 
         // Safely embeds a value inside a single-quoted JS string literal within
-        // an inline onclick/onchange handler (e.g. onclick="fn('${jsStr(name)}')").
+        // an inline onclick/onchange handler (e.g. onclick="fn('${escapeHtml(jsStr(name))}')").
         // Backslashes MUST be escaped before quotes - escaping quotes alone lets
         // a literal backslash in the value (a name ending in one, a pasted note,
         // etc.) combine with the very quote-escaping backslash this inserts,

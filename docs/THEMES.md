@@ -60,3 +60,7 @@ the main theme (or Neon Desert if its own window is closed). `getSavedTheme()` r
    `'Lobster'`) and add the same id/spec to the small `fonts` map in the `<head>` script in `index.html`
    (that script runs before the app, so it can't read `APP_THEMES`). The `data-theme` attribute itself is
    set for any theme id, so nothing else needs to change there.
+5. Phone header: `ui-2030.css` fits each theme's wordmark to the compact header with two variables per theme
+   (`--brand-k`, `--brand-max` under "App themes: keep the header consistent"). Add a line there for a new theme's
+   font; without one it falls back to a safe default size. The floorplan's floor / table colours also follow
+   `--bg-obsidian`, so a new theme tints the Show Manager map automatically.

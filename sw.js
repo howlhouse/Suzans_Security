@@ -2,7 +2,7 @@
 // only ever cleans up its own caches, so installing one can't wipe the other's.
 const IS_DEV_SCOPE = self.registration.scope.includes('/dev/');
 const CACHE_PREFIX = IS_DEV_SCOPE ? 'suzans-security-dev-' : 'suzans-security-v';
-const CACHE_NAME = CACHE_PREFIX + '19';
+const CACHE_NAME = CACHE_PREFIX + '20';
 // The ID scanner's WebAssembly barcode reader (about 1 MB, from jsDelivr) is kept in its own cache: the file at a versioned
 // URL never changes, it is shared by PROD and DEV, and it must survive app updates, so it is not part of CACHE_NAME.
 const ZXING_CACHE = 'suzans-security-zxing';
@@ -10,12 +10,12 @@ const ZXING_CACHE = 'suzans-security-zxing';
 // loads styles.css and js/*.js as separate requests, so they need to be
 // precached too for the same offline-cold-boot behavior as before.
 const CORE_ASSETS = [
-    './', './index.html', './manifest.json', './House_Black_Logo.png', './styles.css',
+    './', './index.html', './manifest.json', './House_Black_Logo.png', './styles.css', './ui-2030.css',
     './js/00-loading-mascot.js', './js/01-firebase-init.js', './js/02-notifications.js',
     './js/03-state-and-persistence.js', './js/04-bootstrap.js', './js/05-catalog-and-announcements.js',
     './js/06-auth-and-shell.js', './js/07-events-and-details.js', './js/08-calendar.js',
     './js/09-admin-events.js', './js/10-admin-ops.js', './js/11-settings-and-calendar.js',
-    './js/12-banlist-chat-misc.js', './js/14-id-scan.js', './js/15-show-manager.js', './js/13-init.js',
+    './js/12-banlist-chat-misc.js', './js/14-id-scan.js', './js/15-show-manager.js', './js/16-ui-2030.js', './js/13-init.js',
 ];
 
 self.addEventListener('install', (e) => {

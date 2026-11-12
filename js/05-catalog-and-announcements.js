@@ -227,7 +227,7 @@
             box.innerHTML = Object.keys(APP_THEMES).map(id => {
                 const t = APP_THEMES[id];
                 const b = id === live ? 'Live' : id === configured && id !== 'default' && state !== 'live' ? badge[state] : '';
-                return `<button type="button" class="theme-option ${id === sel ? 'selected' : ''}" onclick="selectThemeOption('${id}')">
+                return `<button type="button" class="theme-option ${id === sel ? 'selected' : ''}" onclick="selectThemeOption('${escapeHtml(jsStr(id))}')">
                     <span class="theme-swatches">${t.swatch.map(c => `<i style="background:${c}"></i>`).join('')}</span>
                     <span class="theme-option-text"><span><strong>${t.icon} ${t.label}</strong>${b ? `<em>${b}</em>` : ''}</span><small>${t.blurb}</small></span>
                 </button>`;
@@ -267,8 +267,8 @@
                 return `<div class="theme-queue-item ${st === 'Ended' ? 'ended' : ''}">
                     <span class="theme-swatches" style="width:30px">${t.swatch.map(col => `<i style="background:${col};height:12px;border-radius:4px"></i>`).join('')}</span>
                     <span class="theme-option-text"><span><strong>${t.icon} ${t.label}</strong><em>${st}</em></span><small>${fmtThemeTime(s.startsAt)} &rarr; ${fmtThemeTime(s.endsAt)}</small></span>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="previewQueuedTheme('${jsStr(s.theme)}')" title="Preview on your screen only">👁</button>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="removeQueuedTheme('${jsStr(s.id)}')" title="Remove from queue">✕</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="previewQueuedTheme('${escapeHtml(jsStr(s.theme))}')" title="Preview on your screen only">👁</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="removeQueuedTheme('${escapeHtml(jsStr(s.id))}')" title="Remove from queue">✕</button>
                 </div>`;
             }).join('') : '<p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:10px;">Nothing queued yet.</p>';
             // Theme choice for the next slot: tappable chips (a native dropdown can come up blank on some devices with the dark styling).
@@ -276,7 +276,7 @@
             if (chips) {
                 const ids = Object.keys(APP_THEMES).filter(id => id !== 'default');
                 if (!ids.includes(window._queuePick)) window._queuePick = ids[0];
-                chips.innerHTML = ids.map(id => `<button type="button" class="theme-chip ${id === window._queuePick ? 'selected' : ''}" onclick="pickQueueTheme('${id}')">${APP_THEMES[id].icon} ${APP_THEMES[id].label}</button>`).join('');
+                chips.innerHTML = ids.map(id => `<button type="button" class="theme-chip ${id === window._queuePick ? 'selected' : ''}" onclick="pickQueueTheme('${escapeHtml(jsStr(id))}')">${APP_THEMES[id].icon} ${APP_THEMES[id].label}</button>`).join('');
             }
         }
         function pickQueueTheme(id) { if (!APP_THEMES[id] || id === 'default') return; window._queuePick = id; renderThemeQueue(); }
@@ -407,9 +407,9 @@
             document.getElementById('annExpires').value = ann.expiresAt || '';
             document.getElementById('annEventLink').innerHTML = '<option value="">— No link —</option>' +
                 getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date))
-                    .map(e => `<option value="${e.id}" ${e.id === ann.eventId ? 'selected' : ''}>${e.title} (${e.date})</option>`).join('');
+                    .map(e => `<option value="${escapeHtml(e.id)}" ${e.id === ann.eventId ? 'selected' : ''}>${escapeHtml(e.title)} (${escapeHtml(e.date)})</option>`).join('');
             window._annSelectedColor = ann.colorPreset || 'teal';
-            const swatch = p => `<div class="color-swatch ${p.fx ? 'ann-fx ann-fx-' + p.fx : ''} ${p.id === window._annSelectedColor ? 'selected' : ''}" style="${p.fx ? '' : 'background:' + p.bg + ';'}" title="${p.label}" onclick="selectAnnColor('${p.id}')"></div>`;
+            const swatch = p => `<div class="color-swatch ${p.fx ? 'ann-fx ann-fx-' + p.fx : ''} ${p.id === window._annSelectedColor ? 'selected' : ''}" style="${p.fx ? '' : 'background:' + p.bg + ';'}" title="${p.label}" onclick="selectAnnColor('${escapeHtml(jsStr(p.id))}')"></div>`;
             document.getElementById('annColorPicker').innerHTML = ANNOUNCEMENT_PRESETS.filter(p => !p.fx).map(swatch).join('') +
                 '<div style="flex-basis:100%; font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; margin-top:4px;">Animated &mdash; hover/tap to see the name</div>' +
                 ANNOUNCEMENT_PRESETS.filter(p => p.fx).map(swatch).join('');
@@ -427,7 +427,7 @@
             const keep = sel.value; // re-rendered on live data updates - don't lose the admin's pick
             sel.innerHTML = '<option value="">— No event —</option>' +
                 getDB('events').filter(e => !e.archived).sort((a, b) => new Date(a.date) - new Date(b.date))
-                    .map(e => `<option value="${e.id}">${escapeHtml(e.title)} (${e.date})</option>`).join('');
+                    .map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.title)} (${escapeHtml(e.date)})</option>`).join('');
             sel.value = keep;
             renderPushList();
         }
@@ -446,8 +446,8 @@
                             ${p.body ? `<div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">${escapeHtml(p.body)}</div>` : ''}
                         </div>
                         <div style="display:flex; gap:6px; flex-shrink:0;">
-                            ${(!sent && !p.cancelled) ? `<button class="btn btn-outline btn-sm" onclick="cancelPush('${p.id}')">Cancel</button>` : ''}
-                            <button class="btn btn-outline btn-sm" onclick="deletePush('${p.id}')">🗑️</button>
+                            ${(!sent && !p.cancelled) ? `<button class="btn btn-outline btn-sm" onclick="cancelPush('${escapeHtml(jsStr(p.id))}')">Cancel</button>` : ''}
+                            <button class="btn btn-outline btn-sm" onclick="deletePush('${escapeHtml(jsStr(p.id))}')">🗑️</button>
                         </div>
                     </div>
                 </div>`;
@@ -455,6 +455,14 @@
             document.getElementById('pushList').innerHTML = rows || '<p style="color:var(--text-muted); font-size:0.8rem;">No push notifications yet.</p>';
         }
         function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        // For a link whose address came from saved data (a chat attachment): only web and local-file addresses are allowed through, so a
+        // crafted "javascript:" address can never run (web, email and phone links are let through; a bare "example.com" gets https:// put in front). Anything else becomes a dead link. The result is safe inside an href="...".
+        function safeUrl(u) {
+            u = String(u == null ? '' : u).trim();
+            if (/^(https?:|blob:|mailto:|tel:)/i.test(u)) return escapeHtml(u);
+            if (/^[\w-]+(\.[\w-]+)+([/?#]|$)/.test(u)) return escapeHtml('https://' + u); // "example.com/page" typed without the https://
+            return '#';
+        }
         function schedulePush() {
             const title = document.getElementById('pushTitle').value.trim();
             const body = document.getElementById('pushBody').value.trim();
@@ -628,17 +636,17 @@
             listEl.innerHTML = evs.map(e => `
                 <div class="glass-card" style="padding:15px; display:flex; gap:14px; align-items:flex-start;">
                     <div class="event-img-wrap" style="width:110px; flex-shrink:0; border-radius:12px;">
-                        <img src="${e.image}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
+                        <img src="${escapeHtml(e.image)}" class="event-img" onerror="this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=700'">
                         ${e.cancelled ? cancelledStripeHTML() : ''}
                     </div>
                     <div style="flex:1; min-width:0;">
-                        <div style="font-weight:700; color:var(--neon-teal);">${e.title}</div>
+                        <div style="font-weight:700; color:var(--neon-teal);">${escapeHtml(e.title)}</div>
                         <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-                            🗓️ ${e.date} · ${e.archiveReason === 'manual' || (e.cancelled && e.archiveReason !== 'auto') ? '🚫 Cancelled' : e.archiveReason === 'retired' ? '📦 Retired' : '📦 Auto-archived'}${e.archivedAt ? ' · ' + new Date(e.archivedAt).toLocaleDateString() : ''}
+                            🗓️ ${escapeHtml(e.date)} · ${e.archiveReason === 'manual' || (e.cancelled && e.archiveReason !== 'auto') ? '🚫 Cancelled' : e.archiveReason === 'retired' ? '📦 Retired' : '📦 Auto-archived'}${e.archivedAt ? ' · ' + new Date(e.archivedAt).toLocaleDateString() : ''}
                         </div>
                         <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-                            <button class="btn btn-sm btn-outline" onclick="restoreEvent('${e.id}')">↩️ Restore</button>
-                            <button class="btn btn-sm btn-magenta" onclick="delEv('${e.id}')">Delete Permanently</button>
+                            <button class="btn btn-sm btn-outline" onclick="restoreEvent('${escapeHtml(jsStr(e.id))}')">↩️ Restore</button>
+                            <button class="btn btn-sm btn-magenta" onclick="delEv('${escapeHtml(jsStr(e.id))}')">Delete Permanently</button>
                         </div>
                     </div>
                 </div>
