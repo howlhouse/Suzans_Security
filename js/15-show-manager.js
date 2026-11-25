@@ -693,12 +693,15 @@
         // the screen. Zoom 1 is "fit"; the +/- buttons zoom relative to it (the frame only scrolls once you zoom in).
         function smFitMap() {
             const svg = smEl('smSvg'), wrap = smEl('smMapWrap'); if (!svg || !wrap) return;
-            const cv = smCV(), availW = wrap.clientWidth || 300, maxH = Math.max(300, window.innerHeight - 190);
+            if (!wrap.clientWidth) { smFitKey = ''; return; } // on a page that isn't showing: no width to fit to - it is fitted when the page is shown
+            const cv = smCV(), availW = wrap.clientWidth, maxH = Math.max(300, window.innerHeight - 190);
             const fitW = Math.max(200, Math.min(availW, maxH * cv.w / cv.h));
             svg.style.width = Math.round(fitW * smZoom) + 'px';
             smFitKey = cv.w + 'x' + cv.h + '|' + availW + '|' + window.innerHeight;
         }
         function smRenderChrome() {
+            const pg = smEl('smPages');
+            if (pg) pg.dataset.page = smPage; // first: the map can only be measured once its page is visible
             const mt = smEl('smModeToggle'); if (mt) mt.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.m === smMode));
             smEl('smSvg').classList.toggle('layout', smMode === 'layout');
             smFitMap();
@@ -706,8 +709,6 @@
             const fp = smEl('smFPending'), fe = smEl('smFEmpty');
             if (fp) fp.classList.toggle('active', smFilter.pending);
             if (fe) fe.classList.toggle('active', smFilter.hideEmpty);
-            const pg = smEl('smPages');
-            if (pg) pg.dataset.page = smPage;
             document.querySelectorAll('#smTabs .sm-tab').forEach(b => { const on = b.dataset.p === smPage; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
         }
         function smSetPage(p) {
@@ -716,6 +717,7 @@
             try { localStorage.setItem('ss_smPage', p); } catch (err) { /* ignore */ }
             smClearSearch();
             smRenderChrome(); // also re-fits the map now that it is visible (a hidden map has no width to fit)
+            requestAnimationFrame(() => { if (smEl('smSvg')) smFitMap(); });
             window.scrollTo({ top: 0 });
         }
         function smSetMode(m) { smMode = m; smPanelSig = ''; const s = smCurShow(); smRenderChrome(); if (s) { smRenderPanel(s); smRenderMap(s); } }
@@ -986,7 +988,7 @@
             ['smFloor', 'smFloorGrid'].forEach(id => { const e = smEl(id); if (e) { e.setAttribute('width', cv.w); e.setAttribute('height', cv.h); } });
             const b = smEl('smBorder'); if (b) { b.setAttribute('width', cv.w - 3); b.setAttribute('height', cv.h - 3); }
             const wrap = smEl('smMapWrap');
-            if (wrap && smFitKey !== cv.w + 'x' + cv.h + '|' + (wrap.clientWidth || 300) + '|' + window.innerHeight) smFitMap(); // room size changed
+            if (wrap && smFitKey !== cv.w + 'x' + cv.h + '|' + wrap.clientWidth + '|' + window.innerHeight) smFitMap(); // room size changed
         }
         function smRenderMap(show) {
             const layer = smEl('smItems'); if (!layer) return;
