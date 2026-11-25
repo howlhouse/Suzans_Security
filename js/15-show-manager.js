@@ -915,6 +915,11 @@
                 ${selected ? smRotHandle(it.id, -hw - 34, 0, -hw - 6, 0, +it.rot || 0) : ''}
             </g>`;
         }
+        // How many room units are 40 screen pixels at the current fit (0 while the map isn't showing).
+        function smTapUnits() {
+            const svg = smEl('smSvg'), w = svg ? svg.getBoundingClientRect().width : 0;
+            return w ? 40 * smCV().w / w : 0;
+        }
         function smItemSvg(it, st, selected) {
             // Position and angle are forced to plain numbers before they go into the SVG, whatever was saved in the layout.
             const d = smDims(it), rot = +it.rot || 0;
@@ -974,8 +979,10 @@
                 : `<text class="sm-num" fill="#fff" font-size="22" font-weight="800" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" y="${subTxt ? -5 : 0}" dy=".35em">${escapeHtml(label)}</text>`
                   + (subTxt ? `<text class="sm-sub" fill="#ddd" font-size="12" font-weight="700" pointer-events="none" transform="rotate(${-rot})" text-anchor="middle" y="14">${subTxt}</text>` : '');
             const ext = smIsSeat(it) ? 22 : 0;
+            // The tap area is never smaller than a fingertip (about 40px on screen), however far the room is scaled down - a bar section is only ~11px tall on a phone.
+            const minU = smTapUnits(), hitW = Math.max(d.w + ext * 2, minU), hitH = Math.max(d.h + ext * 2, minU);
             return `<g class="sm-it sm-tbl${selected ? ' sel' : ''}" data-id="${escapeHtml(it.id)}" transform="${tf}">
-                <rect class="sm-hit" fill="none" pointer-events="all" x="${-d.w / 2 - ext}" y="${-d.h / 2 - ext}" width="${d.w + ext * 2}" height="${d.h + ext * 2}"/>
+                <rect class="sm-hit" fill="none" pointer-events="all" x="${-hitW / 2}" y="${-hitH / 2}" width="${hitW}" height="${hitH}"/>
                 ${chairs}${body}${texts}
                 ${selected ? `<rect class="sm-selbox" fill="none" stroke="#00f5d4" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none" x="${-d.w / 2 - ext - 4}" y="${-d.h / 2 - ext - 4}" width="${d.w + ext * 2 + 8}" height="${d.h + ext * 2 + 8}" rx="16"/>` : ''}
                 ${selected ? smRotHandle(it.id, 0, -d.h / 2 - ext - 30, 0, -d.h / 2 - ext - 4, rot) : ''}
@@ -1580,7 +1587,9 @@
             smRenderMap(show); smRenderList(show); smRenderTableModal(show);
             smEl('smTableModal').style.display = 'flex';
             const empty = !smGuests(show).some(g => g.tableId === id);
-            if (empty) { const inp = smEl('smAdd_' + id); if (inp) try { inp.focus(); } catch (err) { /* ignore */ } } // an empty table is for adding someone
+            // An empty table is for adding someone - but only auto-focus with a mouse: on a phone it would throw the keyboard up over the popup and scroll the page.
+            const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+            if (empty && !touch) { const inp = smEl('smAdd_' + id); if (inp) try { inp.focus(); } catch (err) { /* ignore */ } }
         }
         function smCloseTable() {
             smTableOpenId = null; smSelId = null;
