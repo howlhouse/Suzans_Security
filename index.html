@@ -675,7 +675,7 @@
             <div class="ev-head">
                 <div class="ev-eyebrow">Show manager</div>
                 <h2 class="ev-title">Venues &amp; Floorplans</h2>
-                <p class="ev-summary">Each venue can keep several saved floorplans (runway night, square stage…). Save them from inside a show.</p>
+                <p class="ev-summary">Set up each venue's building (walls &amp; zones) once, then keep several layouts for the inside (runway night, square stage…). Edit them right here — no show needed.</p>
             </div>
             <button class="btn btn-sm" style="margin-bottom:16px;" onclick="smAddVenue()">+ Add Venue</button>
             <div id="smVenuesBody"></div>
@@ -1049,6 +1049,26 @@
             </div>
             <div id="smTmBody"></div>
             <button class="btn" style="width:100%; margin-top:14px;" onclick="smCloseTable()">Done</button>
+        </div>
+    </div>
+
+    <!-- Show Manager: ＋ Add a purchaser and tap a table to seat them / pick a table for a waiting party (js/15-show-manager.js) -->
+    <div class="modal sm-tmodal" id="smQuickModal" style="z-index: 2700;" onclick="if (event.target === this) smCloseQuick()">
+        <div class="modal-sheet sm-tsheet">
+            <div class="sm-tm-head">
+                <div style="min-width:0;"><h3 id="smQaTitle">Add a purchaser</h3><div class="sm-tm-sub" id="smQaSub"></div></div>
+                <button class="btn btn-outline btn-sm" style="border-radius:50%; padding:4px 10px; flex-shrink:0;" onclick="smCloseQuick()" aria-label="Close">✕</button>
+            </div>
+            <div id="smQaForm">
+                <div class="sm-tm-add">
+                    <label class="sm-tm-f1"><span>Purchaser name</span><input id="smQaName" class="input-field" placeholder="Who is buying?" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" name="sm_qa_buyer" data-1p-ignore></label>
+                    <label class="sm-tm-f2"><span>People</span><input id="smQaSize" class="input-field sm-sz" type="number" inputmode="numeric" min="1" max="99" value="2" aria-label="People in the party" oninput="smRenderQuick()"></label>
+                </div>
+                <label class="sm-chk"><input type="checkbox" id="smQaHere" checked> They’re here now (mark the whole party as arrived)</label>
+            </div>
+            <div class="sm-tm-label" id="smQaLbl">Tap a table</div>
+            <div class="sm-opts" id="smQaTables"></div>
+            <button class="btn btn-outline" id="smQaWait" style="width:100%; margin-top:10px;" onclick="smQuickPick('')">⏳ Add to the waiting list — no table yet</button>
         </div>
     </div>
 
